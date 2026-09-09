@@ -5,7 +5,7 @@
 - First visits default to English. The header language selector saves the device's choice and updates the document language; existing saved preferences are preserved.
 - English page metadata and PWA manifest; room play now identifies itself as online rather than single-device mode.
 - Fixed the pre-existing room-store test double's TypeScript annotation.
-- Dubu character artwork remains pending; no new character asset was produced in this language update.
+- Dubu character artwork was added separately as a transparent game mascot asset and is now used in the board center and player cards.
 
 ## Hosted test deployment — 2026-09-09
 User requested web-hosted testing before stage 3. Registered owner-private Sites project; id in .openai/hosting.json, expected origin https://dubipoly.nukapig.chatgpt.site. Deploy stage 2 as-is; multiplayer still pending. Upgraded React/React DOM/RSC 19.2.8, Vinext beta.9, Vite 8.2.2, plugin-rsc 0.5.34, Cloudflare plugin 1.54.6, Wrangler 4.120.0 and worker types to compatible versions. Build/types and all 13 tests passed after updates. Remaining audit findings: sharp <0.35.4 through local miniflare/wrangler development tooling (4 transitive high reports). No user image uploads or local image conversion endpoints implemented. Do not claim all dependency advisories resolved. Publishing status to be confirmed via Sites tool; never infer live status from expected URL alone.

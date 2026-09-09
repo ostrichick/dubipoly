@@ -520,7 +520,7 @@ export default function Home() {
                     Dubi<span>poly</span>
                   </h2>
                   <p className="center-route">🇰🇷 ··· ✈ ··· 🇵🇪</p>
-                  <img className="dubu" src="/dubu.png" alt="Dubu" />
+                  <img className="dubu" src="/dubu-mascot.png" alt="Dubu the cat mascot" />
                   <p className="photo-caption">Dubu ♥</p>
                   <div className="legend">
                     <span>● {t.korea}</span>
@@ -582,7 +582,7 @@ export default function Home() {
                         className={`player player-${i + 1} ${g.current === i && g.phase !== 'finished' ? 'active-player' : ''}`}
                         key={i}
                       >
-                        <img src="/dubu.png" alt="Dubu" />
+                        <img className="player-mascot" src="/dubu-mascot.png" alt="Dubu" />
                         <div>
                           <span className="player-name">
                             {i + 1}. {p.name}

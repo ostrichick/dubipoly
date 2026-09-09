@@ -475,9 +475,10 @@ nav button,
   width: 49px;
   height: 49px;
   object-fit: cover;
-  object-position: 40% 65%;
+  object-position: center;
   border: 3px solid #fff;
   border-radius: 50%;
+  background: #fff;
 }
 .player div > span {
   font-size: 14px;
@@ -674,7 +675,7 @@ footer {
     padding: 10px 8px;
     gap: 7px;
   }
-  .player img {
+  .player-mascot {
     width: 34px;
     height: 34px;
   }
