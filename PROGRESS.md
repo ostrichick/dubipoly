@@ -45,6 +45,13 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Local verification passed for duplicate action replay returning the same revision and stale revision rejection with HTTP 409.
 - Published as Sites version 5 at the same owner-private URL.
 
+### Stage 5 mobile web app shell — 2026-09-09
+- Added an installable PWA manifest with Dubipoly branding and mobile standalone display settings.
+- Added a service worker that caches only the app shell and never caches room API requests.
+- Added online/offline status messaging and preserved the last visible game state while reconnecting.
+- Verified the manifest and service worker are included in the deployment archive.
+- Published as Sites version 6 at the same owner-private URL.
+
 ### Next requested stage
 Add a server-backed room store and authoritative turn validation for two phones. This requires selecting and attaching durable Sites storage before the shared-room implementation is treated as complete. Stage 4 handles reconnect resilience. Stage 5 handles PWA and real two-phone tests. Known dependency advisories below remain unresolved.
 
