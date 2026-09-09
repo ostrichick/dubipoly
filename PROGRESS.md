@@ -30,6 +30,13 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Published as Sites version 3 at the same owner-private URL.
 - The room registry is currently Worker-memory only. It is suitable for a short live test but can disappear when the Worker instance restarts or traffic is routed elsewhere; D1/Durable Object persistence is still required before calling this production multiplayer.
 
+### Stage 3 synchronized game actions — 2026-09-09
+- Server now owns room game state after both players join and the host starts the match.
+- Roll results and event selection are generated on the server; buy, upgrade, and end actions are validated against the current player and revision.
+- Clients poll the room snapshot and update board position, cash, ownership, logs, and winner state from the server response.
+- Local verification passed for create → join → start → server roll, with 13 tests, TypeScript, and production build passing.
+- Published as Sites version 4 at the same owner-private URL.
+
 ### Next requested stage
 Add a server-backed room store and authoritative turn validation for two phones. This requires selecting and attaching durable Sites storage before the shared-room implementation is treated as complete. Stage 4 handles reconnect resilience. Stage 5 handles PWA and real two-phone tests. Known dependency advisories below remain unresolved.
 
