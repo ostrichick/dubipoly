@@ -66,8 +66,20 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Deployment succeeded as Sites version 8, and the live D1 overview confirms the `DB` binding and `dubipoly_rooms` table.
 - The database is currently empty because no live room has been created after the migration; the first real room will create its row.
 
+### Stage 6 persistence consistency hardening — 2026-09-09
+- Persisted the processed request-ID map inside each D1 room snapshot, so retry deduplication survives Worker instance changes.
+- When D1 is available, every room request now reloads the latest snapshot from D1 before validation instead of trusting a possibly stale per-isolate memory copy.
+- Kept the in-memory fallback for local development and temporary D1 read failures.
+- Verified 13 engine tests, TypeScript/build output, and the deployment archive contents.
+- Published as Sites version 9 at the same owner-private URL; the live overview still confirms `DB` → `dubipoly_rooms`.
+
+### GitHub mirror — 2026-09-09
+- Added `https://github.com/ostrichick/dubipoly.git` as the project GitHub remote.
+- Pushed the `main` branch through the latest persistence-hardening commit.
+- Future implementation commits should be pushed to both the Sites source repository and GitHub.
+
 ### Next requested stage
-Add a server-backed room store and authoritative turn validation for two phones. This requires selecting and attaching durable Sites storage before the shared-room implementation is treated as complete. Stage 4 handles reconnect resilience. Stage 5 handles PWA and real two-phone tests. Known dependency advisories below remain unresolved.
+Run a real two-phone room acceptance test, then harden any issues found in the live flow. The next product slice should focus on the couple’s actual journey: host creates a room, spouse joins from a separate Android phone, host starts the match, both phones complete turns, and reconnect/presence behavior remains understandable.
 
 ## Stage 1 history (superseded by stage 2 above)
 
