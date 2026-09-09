@@ -14,8 +14,18 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - npm run dev running at port 3000 with host 0.0.0.0 for same-Wi-Fi access. Real Android device not tested by agent.
 - Screenshots stage2-desktop.png, stage2-mobile.png. Personal test state exists only in isolated automated browser, not user's browser.
 
+### Deployment verified
+- Stage 2 was published owner-private at `https://dubipoly.nukapig.chatgpt.site` as Sites version 1.
+
+### Stage 3 room lobby prototype — 2026-09-09
+- Added six-character room-code creation and join flow.
+- Room code is reflected in the URL and can be reopened as a test session.
+- Added a `BroadcastChannel` transport for same-browser tab-to-tab state checks.
+- Published the prototype owner-private at the same URL as Sites version 2 after `npm test`, `npx tsc --noEmit`, and `npm run build` passed.
+- This is intentionally not yet authoritative two-phone networking: the Site currently has no D1 or Durable Object binding, so browser storage and tab messaging are not the final multiplayer source of truth.
+
 ### Next requested stage
-Stage 3: authoritative shared rooms for two devices, create/join/ready/start, matching game state and turn validation. Reuse pure transitions and language-independent records; replace local random outcomes with server-chosen outcomes. Save version must change/migrate if rules change. Stage 4 handles full reconnect resilience. Stage 5 PWA/deployment. Known dependency advisories below remain unresolved; no public deployment performed.
+Add a server-backed room store and authoritative turn validation for two phones. This requires selecting and attaching durable Sites storage before the shared-room implementation is treated as complete. Stage 4 handles reconnect resilience. Stage 5 handles PWA and real two-phone tests. Known dependency advisories below remain unresolved.
 
 ## Stage 1 history (superseded by stage 2 above)
 
