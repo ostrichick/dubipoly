@@ -20,6 +20,16 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
 type Session = { game: Game; save: Save };
+type RoomSnapshot = {
+  roomCode: string;
+  names: [string, string];
+  players: number;
+  ready: boolean;
+  started: boolean;
+  game: Game | null;
+  save: Save | null;
+  token?: string;
+};
 function randomInt(max: number) {
   const limit = 0x100000000 - (0x100000000 % max),
     bytes = new Uint32Array(1);
@@ -42,7 +52,8 @@ export default function Home() {
   const [roomCode, setRoomCode] = useState(''),
     [roomInput, setRoomInput] = useState(''),
     [roomNotice, setRoomNotice] = useState(''),
-    [roomToken, setRoomToken] = useState('');
+    [roomToken, setRoomToken] = useState(''),
+    [roomReady, setRoomReady] = useState(false);
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
   const t = ui[lang],
@@ -54,6 +65,8 @@ export default function Home() {
     if (initialRoom) {
       setRoomCode(initialRoom);
       setRoomInput(initialRoom);
+      const savedToken = localStorage.getItem(`dubipoly.room.${initialRoom}`);
+      if (savedToken) setRoomToken(savedToken);
     }
     const channel = 'BroadcastChannel' in window && initialRoom
       ? new BroadcastChannel(`dubipoly-room-${initialRoom}`)
@@ -76,7 +89,7 @@ export default function Home() {
         document.documentElement.lang = language;
       }
       const raw = localStorage.getItem(KEY);
-      if (raw) {
+      if (raw && !initialRoom) {
         const restored = restore(raw);
         if (restored) {
           current.current = restored;
@@ -90,6 +103,31 @@ export default function Home() {
     setLoaded(true);
     return () => channel?.close();
   }, []);
+  useEffect(() => {
+    if (!roomCode || !roomToken) return;
+    let stopped = false;
+    async function syncRoom() {
+      try {
+        const response = await fetch(`/api/rooms?room=${encodeURIComponent(roomCode)}`, {
+          cache: 'no-store',
+        });
+        if (!response.ok || stopped) return;
+        const snapshot = (await response.json()) as RoomSnapshot;
+        if (stopped) return;
+        setRoomReady(snapshot.ready);
+        if (snapshot.names) setNames(snapshot.names);
+        if (snapshot.game && snapshot.save) applyRoomSnapshot(snapshot);
+      } catch {
+        if (!stopped) setRoomNotice(lang === 'ko' ? '방 연결을 확인하는 중입니다.' : 'Comprobando la conexión de la sala.');
+      }
+    }
+    void syncRoom();
+    const timer = window.setInterval(syncRoom, 1200);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [roomCode, roomToken]);
   function changeLanguage(l: Lang) {
     setLang(l);
     document.documentElement.lang = l;
@@ -103,7 +141,7 @@ export default function Home() {
     current.current = next;
     setSession(next);
     try {
-      localStorage.setItem(KEY, JSON.stringify(next.save));
+      if (!roomCode) localStorage.setItem(KEY, JSON.stringify(next.save));
       setSaveError(false);
       setBadSave(false);
     } catch {
@@ -122,10 +160,12 @@ export default function Home() {
       body: JSON.stringify({ action: 'create', name: names[0] }),
     });
     if (!response.ok) return setRoomNotice(lang === 'ko' ? '방을 만들지 못했습니다.' : 'No se pudo crear la sala.');
-    const result = (await response.json()) as { roomCode: string; token: string };
+    const result = (await response.json()) as RoomSnapshot & { token: string };
     setRoomCode(result.roomCode);
     setRoomInput(result.roomCode);
     setRoomToken(result.token);
+    setRoomReady(result.ready);
+    localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     window.history.replaceState({}, '', roomUrl(result.roomCode));
     setRoomNotice(lang === 'ko' ? '방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.' : 'Sala creada. Introduce el código en el otro dispositivo.');
   }
@@ -138,17 +178,52 @@ export default function Home() {
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'join', roomCode: code, name: names[1] }),
+      body: JSON.stringify({ action: 'join', roomCode: code, name: names[0] || names[1] }),
     });
     if (!response.ok) {
       setRoomNotice(lang === 'ko' ? '방을 찾을 수 없거나 이미 가득 찼습니다.' : 'La sala no existe o está llena.');
       return;
     }
-    const result = (await response.json()) as { roomCode: string; token: string };
+    const result = (await response.json()) as RoomSnapshot & { token: string };
     setRoomCode(result.roomCode);
     setRoomToken(result.token);
+    setRoomReady(result.ready);
+    localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
+    setNames(result.names);
     window.history.replaceState({}, '', roomUrl(code));
     setRoomNotice(lang === 'ko' ? '방에 참가했습니다. 두 플레이어가 준비되었습니다.' : 'Sala conectada. Los dos jugadores están listos.');
+  }
+  function applyRoomSnapshot(snapshot: RoomSnapshot) {
+    if (!snapshot.game || !snapshot.save) return;
+    const next = { game: snapshot.game, save: snapshot.save };
+    if (current.current?.game.revision === next.game.revision) return;
+    current.current = next;
+    setSession(next);
+    setSelected(next.game.players[next.game.current].position);
+    setReset(false);
+  }
+  async function startRoom() {
+    if (!roomCode || !roomToken) return;
+    const response = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'start', roomCode, token: roomToken }),
+    });
+    if (!response.ok) {
+      setRoomNotice(
+        response.status === 409
+          ? lang === 'ko'
+            ? '두 플레이어가 모두 들어와야 시작할 수 있어요.'
+            : 'Deben entrar los dos jugadores para empezar.'
+          : lang === 'ko'
+            ? '방장만 게임을 시작할 수 있어요.'
+            : 'Solo el anfitrión puede empezar.',
+      );
+      return;
+    }
+    const snapshot = (await response.json()) as RoomSnapshot;
+    setRoomReady(snapshot.ready);
+    applyRoomSnapshot(snapshot);
   }
   function start() {
     const actual = names.map(
@@ -161,9 +236,30 @@ export default function Home() {
     setSelected(0);
     setReset(false);
   }
-  function act(a: Action, revision: number) {
+  async function act(a: Action, revision: number) {
     const old = current.current;
     if (!old) return;
+    if (roomCode && roomToken) {
+      const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/actions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: roomToken, type: a.type }),
+      });
+      if (!response.ok) {
+        setRoomNotice(
+          response.status === 409
+            ? lang === 'ko'
+              ? '지금은 이 플레이어의 차례가 아니거나 행동할 수 없어요.'
+              : 'No es tu turno o esta acción no está disponible.'
+            : lang === 'ko'
+              ? '방 서버와 연결할 수 없습니다.'
+              : 'No se pudo conectar con la sala.',
+        );
+        return;
+      }
+      applyRoomSnapshot((await response.json()) as RoomSnapshot);
+      return;
+    }
     const game = transition(old.game, a, old.game.current, revision);
     if (game === old.game) return;
     commit({ game, save: { ...old.save, actions: [...old.save.actions, a] } });
@@ -247,7 +343,8 @@ export default function Home() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  start();
+                  if (roomCode && roomToken && !reset) void startRoom();
+                  else start();
                 }}
               >
                 <div className="name-fields">
@@ -301,7 +398,19 @@ export default function Home() {
                     {lang === 'ko' ? '참가' : 'Unirse'}
                   </Button>
                 </div>
-                {roomCode && <p className="room-code">{lang === 'ko' ? '현재 방:' : 'Sala actual:'} <strong>{roomCode}</strong>{roomToken ? ' · ✓' : ''}</p>}
+                {roomCode && (
+                  <p className="room-code">
+                    {lang === 'ko' ? '현재 방:' : 'Sala actual:'} <strong>{roomCode}</strong>{roomToken ? ' · ✓' : ''}
+                    <br />
+                    {roomReady
+                      ? lang === 'ko'
+                        ? '두 플레이어 준비 완료 · 방장이 시작할 수 있어요.'
+                        : 'Dos jugadores listos · el anfitrión puede empezar.'
+                      : lang === 'ko'
+                        ? '다른 플레이어를 기다리는 중…'
+                        : 'Esperando al otro jugador…'}
+                  </p>
+                )}
                 {roomNotice && <p className="room-notice" role="status">{roomNotice}</p>}
               </div>
             </section>

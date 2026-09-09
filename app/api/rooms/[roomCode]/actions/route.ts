@@ -1,0 +1,47 @@
+import { events } from '../../../../../lib/events';
+import { roomSnapshot, rooms } from '../../../../../lib/server-rooms';
+import { transition, type Action, type PlayerId } from '../../../../../lib/game';
+
+function json(data: unknown, status = 200) {
+  return Response.json(data, {
+    status,
+    headers: { 'Cache-Control': 'no-store' },
+  });
+}
+
+function randomInt(max: number) {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return bytes[0] % max;
+}
+
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ roomCode: string }> },
+) {
+  const { roomCode: rawCode } = await context.params;
+  const roomCode = rawCode.toUpperCase();
+  const room = rooms.get(roomCode);
+  if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
+  if (!room.game || !room.save) return json({ error: 'GAME_NOT_STARTED' }, 409);
+
+  const body = (await request.json().catch(() => ({}))) as {
+    token?: string;
+    type?: Action['type'];
+  };
+  const playerIndex = room.players.findIndex((player) => player.token === body.token);
+  if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
+  if (!body.type || !['roll', 'buy', 'upgrade', 'end'].includes(body.type)) {
+    return json({ error: 'INVALID_ACTION' }, 400);
+  }
+
+  const action: Action =
+    body.type === 'roll'
+      ? { type: 'roll', dice: [randomInt(6) + 1, randomInt(6) + 1], event: randomInt(events.length) }
+      : { type: body.type };
+  const next = transition(room.game, action, playerIndex as PlayerId, room.game.revision);
+  if (next === room.game) return json({ error: 'ACTION_REJECTED' }, 409);
+  room.game = next;
+  room.save = { ...room.save, actions: [...room.save.actions, action] };
+  return json({ ...roomSnapshot(roomCode, room), token: body.token });
+}
