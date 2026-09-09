@@ -15,6 +15,7 @@ import {
   type PlayerId,
 } from '../lib/game';
 import { ui, describe } from '../lib/game-copy';
+import { makeRoomCode, roomFromLocation, roomUrl, type RoomMessage } from '../lib/room';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
@@ -37,6 +38,10 @@ export default function Home() {
     [reset, setReset] = useState(false),
     [saveError, setSaveError] = useState(false),
     [badSave, setBadSave] = useState(false);
+    
+  const [roomCode, setRoomCode] = useState(''),
+    [roomInput, setRoomInput] = useState(''),
+    [roomNotice, setRoomNotice] = useState('');
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
   const t = ui[lang],
@@ -44,6 +49,25 @@ export default function Home() {
     s = board[selected],
     property = g?.properties[selected];
   useEffect(() => {
+    const initialRoom = roomFromLocation();
+    if (initialRoom) {
+      setRoomCode(initialRoom);
+      setRoomInput(initialRoom);
+    }
+    const channel = 'BroadcastChannel' in window && initialRoom
+      ? new BroadcastChannel(`dubipoly-room-${initialRoom}`)
+      : null;
+    const onMessage = (event: MessageEvent<RoomMessage>) => {
+      if (event.data.type !== 'state' || event.data.roomCode !== initialRoom) return;
+      const restored = restore(JSON.stringify(event.data.save));
+      if (restored) {
+        current.current = restored;
+        setSession(restored);
+        setSelected(restored.game.players[restored.game.current].position);
+        setRoomNotice(lang === 'ko' ? '다른 탭에서 게임 상태를 받았습니다.' : 'Estado recibido desde otra pestaña.');
+      }
+    };
+    channel?.addEventListener('message', onMessage);
     try {
       const language = localStorage.getItem('dubipoly.lang');
       if (language === 'ko' || language === 'es') {
@@ -63,6 +87,7 @@ export default function Home() {
       setSaveError(true);
     }
     setLoaded(true);
+    return () => channel?.close();
   }, []);
   function changeLanguage(l: Lang) {
     setLang(l);
@@ -83,6 +108,28 @@ export default function Home() {
     } catch {
       setSaveError(true);
     }
+    if (roomCode && 'BroadcastChannel' in window) {
+      const channel = new BroadcastChannel(`dubipoly-room-${roomCode}`);
+      channel.postMessage({ type: 'state', roomCode, save: next.save } satisfies RoomMessage);
+      channel.close();
+    }
+  }
+  function createRoom() {
+    const code = makeRoomCode();
+    setRoomCode(code);
+    setRoomInput(code);
+    window.history.replaceState({}, '', roomUrl(code));
+    setRoomNotice(lang === 'ko' ? '방이 만들어졌습니다. 같은 브라우저의 다른 탭에서 코드를 입력하세요.' : 'Sala creada. Introduce el código en otra pestaña del mismo navegador.');
+  }
+  function joinRoom() {
+    const code = roomInput.trim().toUpperCase();
+    if (!/^[A-Z0-9]{6}$/.test(code)) {
+      setRoomNotice(lang === 'ko' ? '6자리 방 코드를 입력하세요.' : 'Escribe un código de sala de 6 caracteres.');
+      return;
+    }
+    setRoomCode(code);
+    window.history.replaceState({}, '', roomUrl(code));
+    setRoomNotice(lang === 'ko' ? '방에 참가했습니다. 현재는 같은 브라우저 탭 간 검증 모드입니다.' : 'Sala conectada. Por ahora es un modo de prueba entre pestañas del mismo navegador.');
   }
   function start() {
     const actual = names.map(
@@ -218,6 +265,26 @@ export default function Home() {
                   )}
                 </div>
               </form>
+              <div className="room-lobby">
+                <p className="eyebrow">{lang === 'ko' ? '방 코드 · 3단계 준비' : 'SALA · PREPARACIÓN DE ETAPA 3'}</p>
+                <div className="room-actions">
+                  <Button type="button" variant="outline" onClick={createRoom}>
+                    {lang === 'ko' ? '방 만들기' : 'Crear sala'}
+                  </Button>
+                  <Input
+                    maxLength={6}
+                    aria-label={lang === 'ko' ? '방 코드' : 'Código de sala'}
+                    placeholder="ABC123"
+                    value={roomInput}
+                    onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
+                  />
+                  <Button type="button" variant="outline" onClick={joinRoom}>
+                    {lang === 'ko' ? '참가' : 'Unirse'}
+                  </Button>
+                </div>
+                {roomCode && <p className="room-code">{lang === 'ko' ? '현재 방:' : 'Sala actual:'} <strong>{roomCode}</strong></p>}
+                {roomNotice && <p className="room-notice" role="status">{roomNotice}</p>}
+              </div>
             </section>
           )}
           <div className="workspace">

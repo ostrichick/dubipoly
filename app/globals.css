@@ -9,6 +9,12 @@
   padding: 22px;
   margin-bottom: 20px;
 }
+.room-lobby { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--line); }
+.room-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.room-actions input { width: 7.5rem; text-transform: uppercase; }
+.room-code { margin: .65rem 0 0; color: var(--ink); }
+.room-code strong { letter-spacing: .16em; color: var(--accent); }
+.room-notice { margin: .4rem 0 0; color: var(--muted); font-size: .85rem; }
 .setup h2 {
   font-size: 22px;
   font-weight: 800;
