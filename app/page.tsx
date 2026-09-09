@@ -29,6 +29,7 @@ type RoomSnapshot = {
   game: Game | null;
   save: Save | null;
   token?: string;
+  playerIndex?: number;
 };
 function randomInt(max: number) {
   const limit = 0x100000000 - (0x100000000 % max),
@@ -53,7 +54,8 @@ export default function Home() {
     [roomInput, setRoomInput] = useState(''),
     [roomNotice, setRoomNotice] = useState(''),
     [roomToken, setRoomToken] = useState(''),
-    [roomReady, setRoomReady] = useState(false);
+    [roomReady, setRoomReady] = useState(false),
+    [roomBusy, setRoomBusy] = useState(false);
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
   const t = ui[lang],
@@ -108,7 +110,7 @@ export default function Home() {
     let stopped = false;
     async function syncRoom() {
       try {
-        const response = await fetch(`/api/rooms?room=${encodeURIComponent(roomCode)}`, {
+        const response = await fetch(`/api/rooms?room=${encodeURIComponent(roomCode)}&token=${encodeURIComponent(roomToken)}`, {
           cache: 'no-store',
         });
         if (!response.ok || stopped) return;
@@ -240,24 +242,34 @@ export default function Home() {
     const old = current.current;
     if (!old) return;
     if (roomCode && roomToken) {
-      const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/actions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: roomToken, type: a.type }),
-      });
-      if (!response.ok) {
-        setRoomNotice(
-          response.status === 409
-            ? lang === 'ko'
-              ? '지금은 이 플레이어의 차례가 아니거나 행동할 수 없어요.'
-              : 'No es tu turno o esta acción no está disponible.'
-            : lang === 'ko'
-              ? '방 서버와 연결할 수 없습니다.'
-              : 'No se pudo conectar con la sala.',
-        );
-        return;
+      setRoomBusy(true);
+      try {
+        const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/actions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: roomToken,
+            type: a.type,
+            revision,
+            requestId: crypto.randomUUID(),
+          }),
+        });
+        if (!response.ok) {
+          setRoomNotice(
+            response.status === 409
+              ? lang === 'ko'
+                ? '화면이 최신 상태가 아니거나 지금은 행동할 수 없어요.'
+                : 'La pantalla está desactualizada o esta acción no está disponible.'
+              : lang === 'ko'
+                ? '방 서버와 연결할 수 없습니다.'
+                : 'No se pudo conectar con la sala.',
+          );
+          return;
+        }
+        applyRoomSnapshot((await response.json()) as RoomSnapshot);
+      } finally {
+        setRoomBusy(false);
       }
-      applyRoomSnapshot((await response.json()) as RoomSnapshot);
       return;
     }
     const game = transition(old.game, a, old.game.current, revision);
@@ -562,7 +574,7 @@ export default function Home() {
                       </p>
                       <div className="actions">
                         <Button
-                          disabled={g.phase !== 'roll' || reset}
+                          disabled={g.phase !== 'roll' || reset || roomBusy}
                           onClick={() =>
                             act(
                               {
@@ -580,7 +592,7 @@ export default function Home() {
                           <>
                             {!owned ? (
                               <Button
-                                disabled={active!.cash < landed.price! || reset}
+                                disabled={active!.cash < landed.price! || reset || roomBusy}
                                 onClick={() => act({ type: 'buy' }, g.revision)}
                               >
                                 {t.buy} · {landed.price} Dubi
@@ -590,7 +602,8 @@ export default function Home() {
                                 disabled={
                                   owned.level >= 3 ||
                                   active!.cash < landed.upgrade! ||
-                                  reset
+                                  reset ||
+                                  roomBusy
                                 }
                                 onClick={() =>
                                   act({ type: 'upgrade' }, g.revision)
@@ -611,7 +624,7 @@ export default function Home() {
                         )}
                         <Button
                           variant="outline"
-                          disabled={g.phase === 'roll' || reset}
+                          disabled={g.phase === 'roll' || reset || roomBusy}
                           onClick={() => act({ type: 'end' }, g.revision)}
                         >
                           {g.phase === 'choice' ? t.skip : t.end}

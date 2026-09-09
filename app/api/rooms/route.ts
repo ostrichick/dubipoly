@@ -1,4 +1,4 @@
-import { cleanupRooms, roomSnapshot, rooms, startRoom } from '../../../lib/server-rooms';
+import { cleanupRooms, roomSnapshot, rooms, startRoom, touchPlayer } from '../../../lib/server-rooms';
 
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -17,10 +17,13 @@ function json(data: unknown, status = 200) {
 
 export async function GET(request: Request) {
   cleanupRooms();
-  const roomCode = new URL(request.url).searchParams.get('room')?.toUpperCase() ?? '';
+  const url = new URL(request.url);
+  const roomCode = url.searchParams.get('room')?.toUpperCase() ?? '';
+  const token = url.searchParams.get('token') ?? '';
   const room = rooms.get(roomCode);
   if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
-  return json(roomSnapshot(roomCode, room));
+  const playerIndex = token ? touchPlayer(room, token) : -1;
+  return json({ ...roomSnapshot(roomCode, room), playerIndex });
 }
 
 export async function POST(request: Request) {
@@ -40,9 +43,10 @@ export async function POST(request: Request) {
     rooms.set(roomCode, {
       createdAt: Date.now(),
       names: [name, 'Traveler 2'],
-      players: [{ token, name }],
+      players: [{ token, name, lastSeen: Date.now() }],
       game: null,
       save: null,
+      processed: new Map(),
     });
     return json({ ...roomSnapshot(roomCode, rooms.get(roomCode)!), token, role: 'host' }, 201);
   }
@@ -53,6 +57,7 @@ export async function POST(request: Request) {
   if (body.action === 'start') {
     const host = room.players[0];
     if (!host || host.token !== body.token) return json({ error: 'NOT_HOST' }, 403);
+    host.lastSeen = Date.now();
     if (room.players.length !== 2) return json({ error: 'WAITING_FOR_PLAYER' }, 409);
     startRoom(room);
     return json({ ...roomSnapshot(roomCode, room), token: body.token, role: 'host' });
@@ -60,6 +65,6 @@ export async function POST(request: Request) {
   if (room.players.length >= 2) return json({ error: 'ROOM_FULL' }, 409);
   const token = crypto.randomUUID();
   room.names[1] = name;
-  room.players.push({ token, name });
+  room.players.push({ token, name, lastSeen: Date.now() });
   return json({ ...roomSnapshot(roomCode, room), token, role: 'guest' });
 }

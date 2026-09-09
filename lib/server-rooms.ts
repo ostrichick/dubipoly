@@ -3,9 +3,10 @@ import { createGame, type Game, type Save } from './game';
 export type ServerRoom = {
   createdAt: number;
   names: [string, string];
-  players: Array<{ token: string; name: string }>;
+  players: Array<{ token: string; name: string; lastSeen: number }>;
   game: Game | null;
   save: Save | null;
+  processed: Map<string, { revision: number; snapshot: ReturnType<typeof roomSnapshot> }>;
 };
 
 export const rooms = new Map<string, ServerRoom>();
@@ -26,7 +27,17 @@ export function roomSnapshot(roomCode: string, room: ServerRoom) {
     started: room.game !== null,
     game: room.game,
     save: room.save,
+    presence: room.players.map((player) => ({
+      connected: Date.now() - player.lastSeen < 8000,
+    })),
   };
+}
+
+export function touchPlayer(room: ServerRoom, token: string) {
+  const player = room.players.find((entry) => entry.token === token);
+  if (!player) return -1;
+  player.lastSeen = Date.now();
+  return room.players.indexOf(player);
 }
 
 export function startRoom(room: ServerRoom) {

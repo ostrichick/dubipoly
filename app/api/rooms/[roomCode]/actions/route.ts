@@ -1,5 +1,5 @@
 import { events } from '../../../../../lib/events';
-import { roomSnapshot, rooms } from '../../../../../lib/server-rooms';
+import { roomSnapshot, rooms, touchPlayer } from '../../../../../lib/server-rooms';
 import { transition, type Action, type PlayerId } from '../../../../../lib/game';
 
 function json(data: unknown, status = 200) {
@@ -28,12 +28,18 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     token?: string;
     type?: Action['type'];
+    revision?: number;
+    requestId?: string;
   };
-  const playerIndex = room.players.findIndex((player) => player.token === body.token);
+  const playerIndex = touchPlayer(room, body.token ?? '');
   if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
   if (!body.type || !['roll', 'buy', 'upgrade', 'end'].includes(body.type)) {
     return json({ error: 'INVALID_ACTION' }, 400);
   }
+  if (!body.requestId) return json({ error: 'MISSING_REQUEST_ID' }, 400);
+  const previous = room.processed.get(body.requestId);
+  if (previous) return json(previous.snapshot);
+  if (body.revision !== room.game.revision) return json({ error: 'STALE_STATE' }, 409);
 
   const action: Action =
     body.type === 'roll'
@@ -43,5 +49,11 @@ export async function POST(
   if (next === room.game) return json({ error: 'ACTION_REJECTED' }, 409);
   room.game = next;
   room.save = { ...room.save, actions: [...room.save.actions, action] };
-  return json({ ...roomSnapshot(roomCode, room), token: body.token });
+  const snapshot = { ...roomSnapshot(roomCode, room), token: body.token };
+  room.processed.set(body.requestId, { revision: next.revision, snapshot });
+  if (room.processed.size > 200) {
+    const oldest = room.processed.keys().next().value;
+    if (oldest) room.processed.delete(oldest);
+  }
+  return json(snapshot);
 }
