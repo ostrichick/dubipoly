@@ -24,6 +24,12 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Published the prototype owner-private at the same URL as Sites version 2 after `npm test`, `npx tsc --noEmit`, and `npm run build` passed.
 - This is intentionally not yet authoritative two-phone networking: the Site currently has no D1 or Durable Object binding, so browser storage and tab messaging are not the final multiplayer source of truth.
 
+### Stage 3 server room relay — 2026-09-09
+- Added `POST /api/rooms` to create or join a two-player room and `GET /api/rooms?room=...` to read readiness.
+- Room creation and joining were verified locally: host + guest produced a ready two-player room.
+- Published as Sites version 3 at the same owner-private URL.
+- The room registry is currently Worker-memory only. It is suitable for a short live test but can disappear when the Worker instance restarts or traffic is routed elsewhere; D1/Durable Object persistence is still required before calling this production multiplayer.
+
 ### Next requested stage
 Add a server-backed room store and authoritative turn validation for two phones. This requires selecting and attaching durable Sites storage before the shared-room implementation is treated as complete. Stage 4 handles reconnect resilience. Stage 5 handles PWA and real two-phone tests. Known dependency advisories below remain unresolved.
 
