@@ -28,30 +28,35 @@ function serialize(room: ServerRoom) {
     players: room.players,
     game: room.game,
     save: room.save,
+    processed: Array.from(room.processed.entries()),
   });
 }
 
 function deserialize(payload: string) {
-  const value = JSON.parse(payload) as Omit<ServerRoom, 'processed'>;
-  return { ...value, processed: new Map() } satisfies ServerRoom;
+  const value = JSON.parse(payload) as Omit<ServerRoom, 'processed'> & {
+    processed?: Array<[string, { revision: number; snapshot: ReturnType<typeof roomSnapshot> }]>;
+  };
+  return {
+    ...value,
+    processed: new Map(value.processed ?? []),
+  } satisfies ServerRoom;
 }
 
 export async function loadRoom(roomCode: string) {
-  const existing = rooms.get(roomCode);
-  if (existing) return existing;
   const db = database();
-  if (!db) return undefined;
+  const existing = rooms.get(roomCode);
+  if (!db) return existing;
   try {
     const row = await db
       .prepare('SELECT payload FROM dubipoly_rooms WHERE room_code = ?1')
       .bind(roomCode)
       .first<{ payload: string }>();
-    if (!row?.payload) return undefined;
+    if (!row?.payload) return existing;
     const room = deserialize(row.payload);
     rooms.set(roomCode, room);
     return room;
   } catch {
-    return undefined;
+    return existing;
   }
 }
 
