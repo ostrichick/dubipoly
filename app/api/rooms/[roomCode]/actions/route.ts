@@ -47,14 +47,25 @@ export async function POST(
       : { type: body.type };
   const next = transition(room.game, action, playerIndex as PlayerId, room.game.revision);
   if (next === room.game) return json({ error: 'ACTION_REJECTED' }, 409);
+  const previousGame = room.game;
+  const previousSave = room.save;
+  const previousProcessed = room.processed;
   room.game = next;
   room.save = { ...room.save, actions: [...room.save.actions, action] };
-  await persistRoom(roomCode, room);
   const snapshot = { ...roomSnapshot(roomCode, room), token: body.token };
+  // Store the request ID in the same snapshot as the game mutation. This makes
+  // retries safe even after the request lands on a different Worker instance.
+  room.processed = new Map(room.processed);
   room.processed.set(body.requestId, { revision: next.revision, snapshot });
   if (room.processed.size > 200) {
     const oldest = room.processed.keys().next().value;
     if (oldest) room.processed.delete(oldest);
+  }
+  if (!(await persistRoom(roomCode, room))) {
+    room.game = previousGame;
+    room.save = previousSave;
+    room.processed = previousProcessed;
+    return json({ error: 'ROOM_CHANGED' }, 409);
   }
   return json(snapshot);
 }

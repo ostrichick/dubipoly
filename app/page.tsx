@@ -59,7 +59,8 @@ export default function Home() {
     [roomBusy, setRoomBusy] = useState(false),
     [roomRole, setRoomRole] = useState<'host' | 'guest' | ''>(''),
     [roomPresence, setRoomPresence] = useState<Array<{ connected: boolean }>>([]),
-    [online, setOnline] = useState(true);
+    [online, setOnline] = useState(true),
+    [roomRefresh, setRoomRefresh] = useState(0);
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
   const t = ui[lang],
@@ -68,7 +69,10 @@ export default function Home() {
     property = g?.properties[selected];
   useEffect(() => {
     setOnline(navigator.onLine);
-    const handleOnline = () => setOnline(true);
+    const handleOnline = () => {
+      setOnline(true);
+      setRoomRefresh((value) => value + 1);
+    };
     const handleOffline = () => setOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -145,7 +149,7 @@ export default function Home() {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [roomCode, roomToken]);
+  }, [roomCode, roomToken, roomRefresh]);
   function changeLanguage(l: Lang) {
     setLang(l);
     document.documentElement.lang = l;
@@ -296,12 +300,13 @@ export default function Home() {
           setRoomNotice(
             response.status === 409
               ? lang === 'ko'
-                ? '화면이 최신 상태가 아니거나 지금은 행동할 수 없어요.'
-                : 'La pantalla está desactualizada o esta acción no está disponible.'
+                ? '다른 기기에서 상태가 바뀌었습니다. 최신 상태를 다시 불러옵니다.'
+                : 'El otro dispositivo cambió el estado. Actualizando la partida.'
               : lang === 'ko'
                 ? '방 서버와 연결할 수 없습니다.'
                 : 'No se pudo conectar con la sala.',
           );
+          if (response.status === 409) setRoomRefresh((value) => value + 1);
           return;
         }
         applyRoomSnapshot((await response.json()) as RoomSnapshot);
@@ -495,6 +500,14 @@ export default function Home() {
                 )}
                 {roomCode && roomToken && (
                   <div className="room-actions room-share-actions">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setRoomRefresh((value) => value + 1)}
+                      disabled={!online || roomBusy}
+                    >
+                      {lang === 'ko' ? '상태 새로고침' : 'Actualizar estado'}
+                    </Button>
                     <Button type="button" variant="outline" onClick={shareRoom}>
                       {lang === 'ko' ? '방 링크 공유' : 'Compartir sala'}
                     </Button>

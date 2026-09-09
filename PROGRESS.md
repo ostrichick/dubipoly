@@ -78,8 +78,16 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Pushed the `main` branch through the latest persistence-hardening commit.
 - Future implementation commits should be pushed to both the Sites source repository and GitHub.
 
+### Stage 7 concurrent room safety — 2026-09-09
+- Added D1 compare-and-swap persistence using the room row's `updated_at` value, so two near-simultaneous actions cannot both overwrite the same room revision.
+- Moved processed request-ID persistence into the same atomic room snapshot as the game action.
+- Added a focused room-store test covering D1 round-trip restoration and stale-writer rejection; the full suite now has 14 passing tests.
+- Added a mobile-friendly `상태 새로고침` / `Actualizar estado` control and automatic refresh after a stale-action response or restored network connection.
+- Source build and focused lint for the changed server files passed. The repository-wide lint command still sees generated `package-stage*` bundles and reports pre-existing generated-file/UI warnings; this does not block the production build.
+- This stage is ready for a real two-phone acceptance test after publishing.
+
 ### Next requested stage
-Run a real two-phone room acceptance test, then harden any issues found in the live flow. The next product slice should focus on the couple’s actual journey: host creates a room, spouse joins from a separate Android phone, host starts the match, both phones complete turns, and reconnect/presence behavior remains understandable.
+Run the real two-phone room acceptance test: host creates a room, spouse joins from a separate Android phone, host starts the match, both phones complete turns, and one device refreshes or briefly loses connection. Fix any user-visible issues found in that test.
 
 ## Stage 1 history (superseded by stage 2 above)
 

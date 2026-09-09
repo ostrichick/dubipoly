@@ -6,7 +6,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/board.test.ts tests/game.test.ts",
+    "test": "node --experimental-strip-types --test tests/board.test.ts tests/game.test.ts tests/server-rooms.test.ts",
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "wrangler dev --config dist/server/wrangler.json",

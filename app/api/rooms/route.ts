@@ -62,13 +62,13 @@ export async function POST(request: Request) {
     host.lastSeen = Date.now();
     if (room.players.length !== 2) return json({ error: 'WAITING_FOR_PLAYER' }, 409);
     startRoom(room);
-    await persistRoom(roomCode, room);
+    if (!(await persistRoom(roomCode, room))) return json({ error: 'ROOM_CHANGED' }, 409);
     return json({ ...roomSnapshot(roomCode, room), token: body.token, role: 'host' });
   }
   if (room.players.length >= 2) return json({ error: 'ROOM_FULL' }, 409);
   const token = crypto.randomUUID();
-  room.names[1] = name;
-  room.players.push({ token, name, lastSeen: Date.now() });
-  await persistRoom(roomCode, room);
+    room.names[1] = name;
+    room.players.push({ token, name, lastSeen: Date.now() });
+  if (!(await persistRoom(roomCode, room))) return json({ error: 'ROOM_CHANGED' }, 409);
   return json({ ...roomSnapshot(roomCode, room), token, role: 'guest' });
 }
