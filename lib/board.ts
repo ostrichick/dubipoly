@@ -6,42 +6,50 @@ export type Space = {
   type: 'city' | 'event' | 'corner';
   country?: 'korea' | 'peru';
   name: Record<Lang, string>;
+  region?: Record<Lang, string>;
   icon: string;
   price?: number;
   rent?: number;
   upgrade?: number;
 };
-const korea = [
-  ['서울', 'Seúl', '🏙️'],
-  ['인천', 'Incheon', '✈️'],
-  ['수원', 'Suwon', '🏯'],
-  ['대전', 'Daejeon', '🔭'],
-  ['대구', 'Daegu', '🌳'],
-  ['울산', 'Ulsan', '⛵'],
-  ['부산', 'Busan', '🌉'],
-  ['광주', 'Gwangju', '🎨'],
-  ['전주', 'Jeonju', '🏯'],
-  ['경주', 'Gyeongju', '🪷'],
-  ['춘천', 'Chuncheon', '🏞️'],
-  ['강릉', 'Gangneung', '🌊'],
-  ['속초', 'Sokcho', '⛰️'],
-  ['제주시', 'Jeju', '🍊'],
+type CityDefinition = [
+  ko: string,
+  es: string,
+  en: string,
+  icon: string,
+  region: Record<Lang, string>,
 ];
-const peru = [
-  ['리마', 'Lima', '🏛️'],
-  ['아레키파', 'Arequipa', '🌋'],
-  ['트루히요', 'Trujillo', '🏛️'],
-  ['치클라요', 'Chiclayo', '☀️'],
-  ['쿠스코', 'Cusco', '⛰️'],
-  ['이카', 'Ica', '🏜️'],
-  ['피우라', 'Piura', '🌴'],
-  ['이키토스', 'Iquitos', '🌿'],
-  ['푸노', 'Puno', '⛵'],
-  ['타크나', 'Tacna', '⛲'],
-  ['아야쿠초', 'Ayacucho', '🎨'],
-  ['와라스', 'Huaraz', '🏔️'],
-  ['우앙카요', 'Huancayo', '🌻'],
-  ['카하마르카', 'Cajamarca', '🏞️'],
+const korea: CityDefinition[] = [
+  ['광주', 'Gwangju', 'Gwangju', '🎨', { ko: '한국 서남부', es: 'Suroeste de Corea', en: 'Southwestern Korea' }],
+  ['전주', 'Jeonju', 'Jeonju', '🏯', { ko: '한국 서남부', es: 'Suroeste de Corea', en: 'Southwestern Korea' }],
+  ['대전', 'Daejeon', 'Daejeon', '🔭', { ko: '한국 중부·내륙', es: 'Centro e interior de Corea', en: 'Central & Inland Korea' }],
+  ['수원', 'Suwon', 'Suwon', '🏯', { ko: '한국 수도권', es: 'Área metropolitana de Seúl', en: 'Seoul Capital Area' }],
+  ['경주', 'Gyeongju', 'Gyeongju', '🪷', { ko: '한국 중부·내륙', es: 'Centro e interior de Corea', en: 'Central & Inland Korea' }],
+  ['춘천', 'Chuncheon', 'Chuncheon', '🏞️', { ko: '한국 중부·내륙', es: 'Centro e interior de Corea', en: 'Central & Inland Korea' }],
+  ['강릉', 'Gangneung', 'Gangneung', '🌊', { ko: '한국 동남부·동해', es: 'Sureste y costa este de Corea', en: 'Southeastern & East Coast Korea' }],
+  ['속초', 'Sokcho', 'Sokcho', '⛰️', { ko: '한국 동남부·동해', es: 'Sureste y costa este de Corea', en: 'Southeastern & East Coast Korea' }],
+  ['대구', 'Daegu', 'Daegu', '🌳', { ko: '한국 동남부·동해', es: 'Sureste y costa este de Corea', en: 'Southeastern & East Coast Korea' }],
+  ['울산', 'Ulsan', 'Ulsan', '⛵', { ko: '한국 동남부·동해', es: 'Sureste y costa este de Corea', en: 'Southeastern & East Coast Korea' }],
+  ['부산', 'Busan', 'Busan', '🌉', { ko: '한국 동남부·동해', es: 'Sureste y costa este de Corea', en: 'Southeastern & East Coast Korea' }],
+  ['제주시', 'Jeju', 'Jeju', '🍊', { ko: '한국 섬', es: 'Isla coreana', en: 'Korean Island' }],
+  ['인천', 'Incheon', 'Incheon', '✈️', { ko: '한국 수도권', es: 'Área metropolitana de Seúl', en: 'Seoul Capital Area' }],
+  ['서울', 'Seúl', 'Seoul', '🏙️', { ko: '한국 수도권', es: 'Área metropolitana de Seúl', en: 'Seoul Capital Area' }],
+];
+const peru: CityDefinition[] = [
+  ['푸노', 'Puno', 'Puno', '⛵', { ko: '페루 남동부', es: 'Sureste del Perú', en: 'Southeastern Peru' }],
+  ['아레키파', 'Arequipa', 'Arequipa', '🌋', { ko: '페루 남동부', es: 'Sureste del Perú', en: 'Southeastern Peru' }],
+  ['타크나', 'Tacna', 'Tacna', '⛲', { ko: '페루 남동부', es: 'Sureste del Perú', en: 'Southeastern Peru' }],
+  ['쿠스코', 'Cusco', 'Cusco', '⛰️', { ko: '페루 남동부', es: 'Sureste del Perú', en: 'Southeastern Peru' }],
+  ['이카', 'Ica', 'Ica', '🏜️', { ko: '페루 남부 사막', es: 'Desierto del sur del Perú', en: 'Southern Peru Desert' }],
+  ['아야쿠초', 'Ayacucho', 'Ayacucho', '🎨', { ko: '페루 중부', es: 'Centro del Perú', en: 'Central Peru' }],
+  ['와라스', 'Huaraz', 'Huaraz', '🏔️', { ko: '페루 중부', es: 'Centro del Perú', en: 'Central Peru' }],
+  ['우앙카요', 'Huancayo', 'Huancayo', '🌻', { ko: '페루 중부', es: 'Centro del Perú', en: 'Central Peru' }],
+  ['트루히요', 'Trujillo', 'Trujillo', '🏛️', { ko: '페루 북부·아마존', es: 'Norte y Amazonía del Perú', en: 'Northern Peru & Amazon' }],
+  ['치클라요', 'Chiclayo', 'Chiclayo', '☀️', { ko: '페루 북부·아마존', es: 'Norte y Amazonía del Perú', en: 'Northern Peru & Amazon' }],
+  ['카하마르카', 'Cajamarca', 'Cajamarca', '🏞️', { ko: '페루 북부·아마존', es: 'Norte y Amazonía del Perú', en: 'Northern Peru & Amazon' }],
+  ['피우라', 'Piura', 'Piura', '🌴', { ko: '페루 북부·아마존', es: 'Norte y Amazonía del Perú', en: 'Northern Peru & Amazon' }],
+  ['이키토스', 'Iquitos', 'Iquitos', '🌿', { ko: '페루 북부·아마존', es: 'Norte y Amazonía del Perú', en: 'Northern Peru & Amazon' }],
+  ['리마', 'Lima', 'Lima', '🏛️', { ko: '페루 수도권', es: 'Área metropolitana de Lima', en: 'Lima Capital Area' }],
 ];
 export function position(i: number) {
   if (i <= 10) return { row: 1, col: i + 1 };
@@ -75,13 +83,14 @@ export const board: Space[] = Array.from({ length: 40 }, (_, index) => {
       icon: '🎒',
     };
   const rank = country === 'korea' ? ki++ : pi++;
-  const [ko, es, icon] = (country === 'korea' ? korea : peru)[rank];
+  const [ko, es, en, icon, region] = (country === 'korea' ? korea : peru)[rank];
   const price = 100 + Math.floor(rank / 2) * 40;
   return {
     ...base,
     type: 'city',
     country,
-    name: { ko, es, en: es === 'Seúl' ? 'Seoul' : es },
+    name: { ko, es, en },
+    region,
     icon,
     price,
     rent: Math.round(price * 0.12),

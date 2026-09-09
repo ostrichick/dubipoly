@@ -7,6 +7,13 @@
 - Fixed the pre-existing room-store test double's TypeScript annotation.
 - Dubu character artwork was added separately as a transparent game mascot asset and is now used in the board center and player cards.
 
+## Stage 9 regional route and room identity — 2026-09-09
+- Reordered Korean cities from southwestern and inland/east-coast destinations toward the Seoul capital area, with Seoul last; reordered Peruvian cities from the southeastern region toward the Lima capital area, with Lima last.
+- Added localized region labels to city details, including Southwestern Korea, Southeastern Peru, and the two capital-area groups, so the travel route explains the price progression.
+- Changed room codes from six mixed characters to exactly two digits (`00`–`99`) and changed the join input to numeric-only.
+- Added server-backed room name editing for the current player, distinct defaults (`Traveler 1` and `Traveler 2`), and explicit You/Opponent plus current-turn indicators.
+- Local engine tests (14), TypeScript, and production build passed. The local development D1 wrapper returned a persistence conflict during an isolated rename smoke test; the deployed D1 room path must be checked after publishing.
+
 ## Hosted test deployment — 2026-09-09
 User requested web-hosted testing before stage 3. Registered owner-private Sites project; id in .openai/hosting.json, expected origin https://dubipoly.nukapig.chatgpt.site. Deploy stage 2 as-is; multiplayer still pending. Upgraded React/React DOM/RSC 19.2.8, Vinext beta.9, Vite 8.2.2, plugin-rsc 0.5.34, Cloudflare plugin 1.54.6, Wrangler 4.120.0 and worker types to compatible versions. Build/types and all 13 tests passed after updates. Remaining audit findings: sharp <0.35.4 through local miniflare/wrangler development tooling (4 transitive high reports). No user image uploads or local image conversion endpoints implemented. Do not claim all dependency advisories resolved. Publishing status to be confirmed via Sites tool; never infer live status from expected URL alone.
 
@@ -96,10 +103,10 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 ### Stage 8 city-route rearrangement — 2026-09-09
 - Reordered the route so spaces 1–20 use Korean cities and spaces 21–40 use Peruvian cities, while keeping the four corners, eight event spaces, 28-city count, and balanced price distribution intact.
 - Added a board test that verifies the country boundary by space number.
-- The requested Dubu character replacement is not yet integrated because the built-in image-generation service returned a usage-limit response; the existing photo remains temporary until a character asset can be generated or supplied.
+- The Dubu character artwork is integrated as a transparent mascot in the board center and player cards.
 
 ### Next requested stage
-Run the real two-phone room acceptance test: host creates a room, spouse joins from a separate Android phone, host starts the match, both phones complete turns, and one device refreshes or briefly loses connection. Fix any user-visible issues found in that test.
+Run the real two-phone room acceptance test: host creates a two-digit room, spouse joins from a separate Android phone, both players verify their names and turn indicators, host starts the match, both phones complete turns, and one device refreshes or briefly loses connection. Fix any user-visible issues found in that test.
 
 ## Stage 1 history (superseded by stage 2 above)
 

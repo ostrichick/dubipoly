@@ -16,7 +16,7 @@
 }
 .room-lobby { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--line); }
 .room-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-.room-actions input { width: 7.5rem; text-transform: uppercase; }
+.room-actions input { width: 5.25rem; text-align: center; letter-spacing: .12em; }
 .room-code { margin: .65rem 0 0; color: var(--ink); }
 .room-code strong { letter-spacing: .16em; color: var(--accent); }
 .room-notice { margin: .4rem 0 0; color: var(--muted); font-size: .85rem; }
@@ -45,6 +45,13 @@
   min-height: 44px;
   background: white;
 }
+.room-name-edit {
+  align-items: end;
+}
+.room-name-edit > button {
+  min-height: 44px;
+  white-space: nowrap;
+}
 .setup-actions,
 .toolbar-actions {
   display: flex;
@@ -62,6 +69,30 @@
   display: block;
   max-width: 170px;
   overflow-wrap: anywhere;
+}
+.player-role {
+  display: block;
+  margin-top: 2px;
+  color: #167f82;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+}
+.my-player {
+  border-color: #17868a;
+}
+.turn-status {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-weight: 850 !important;
+}
+.turn-status.my-turn {
+  background: #d7f2e7;
+  color: #1c704b;
+}
+.turn-status.opponent-turn {
+  background: #fff0d2;
+  color: #8a5a20;
 }
 .action-panel,
 .result {

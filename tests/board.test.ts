@@ -30,5 +30,16 @@ test('28 unique cities, 8 events, 4 corners, balanced country placement', () => 
       .map((s) => s.price)
       .sort(),
   );
+  assert.deepEqual(
+    cities.filter((s) => s.country === 'korea').map((s) => s.name.en),
+    ['Gwangju', 'Jeonju', 'Daejeon', 'Suwon', 'Gyeongju', 'Chuncheon', 'Gangneung', 'Sokcho', 'Daegu', 'Ulsan', 'Busan', 'Jeju', 'Incheon', 'Seoul'],
+  );
+  assert.deepEqual(
+    cities.filter((s) => s.country === 'peru').map((s) => s.name.en),
+    ['Puno', 'Arequipa', 'Tacna', 'Cusco', 'Ica', 'Ayacucho', 'Huaraz', 'Huancayo', 'Trujillo', 'Chiclayo', 'Cajamarca', 'Piura', 'Iquitos', 'Lima'],
+  );
+  assert.equal(cities.find((s) => s.name.en === 'Seoul')?.region?.en, 'Seoul Capital Area');
+  assert.equal(cities.find((s) => s.name.en === 'Puno')?.region?.en, 'Southeastern Peru');
+  assert.equal(cities.find((s) => s.name.en === 'Lima')?.price, 340);
   board.forEach((s) => assert.ok(s.name.ko && s.name.es));
 });

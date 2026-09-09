@@ -58,6 +58,8 @@ export default function Home() {
     [roomReady, setRoomReady] = useState(false),
     [roomBusy, setRoomBusy] = useState(false),
     [roomRole, setRoomRole] = useState<'host' | 'guest' | ''>(''),
+    [roomNameDraft, setRoomNameDraft] = useState(''),
+    [roomNameDirty, setRoomNameDirty] = useState(false),
     [roomPresence, setRoomPresence] = useState<Array<{ connected: boolean }>>([]),
     [online, setOnline] = useState(true),
     [roomRefresh, setRoomRefresh] = useState(0);
@@ -138,7 +140,11 @@ export default function Home() {
         setRoomReady(snapshot.ready);
         setRoomRole(snapshot.playerIndex === 0 ? 'host' : snapshot.playerIndex === 1 ? 'guest' : '');
         setRoomPresence(snapshot.presence ?? []);
-        if (snapshot.names) setNames(snapshot.names);
+        if (snapshot.names) {
+          setNames(snapshot.names);
+          const playerIndex = snapshot.playerIndex ?? -1;
+          if (!roomNameDirty && playerIndex >= 0) setRoomNameDraft(snapshot.names[playerIndex]);
+        }
         if (snapshot.game && snapshot.save) applyRoomSnapshot(snapshot);
       } catch {
         if (!stopped) setRoomNotice(copy("Checking the room connection.", "방 연결을 확인하는 중입니다.", "Comprobando la conexión de la sala."));
@@ -150,7 +156,7 @@ export default function Home() {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [roomCode, roomToken, roomRefresh, lang]);
+  }, [roomCode, roomToken, roomRefresh, lang, roomNameDirty]);
   function changeLanguage(l: Lang) {
     setLang(l);
     setRoomNotice('');
@@ -178,10 +184,11 @@ export default function Home() {
     }
   }
   async function createRoom() {
+    const requestedName = names[0].trim() || copy('Traveler 1', '여행자 1', 'Viajero 1');
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'create', name: names[0] }),
+      body: JSON.stringify({ action: 'create', name: requestedName }),
     });
     if (!response.ok) return setRoomNotice(copy("Unable to create the room.", "방을 만들지 못했습니다.", "No se pudo crear la sala."));
     const result = (await response.json()) as RoomSnapshot & { token: string };
@@ -191,20 +198,24 @@ export default function Home() {
     setRoomReady(result.ready);
     setRoomRole('host');
     setRoomPresence(result.presence ?? []);
+    setNames(result.names);
+    setRoomNameDraft(result.names[0] ?? requestedName);
+    setRoomNameDirty(false);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     window.history.replaceState({}, '', roomUrl(result.roomCode));
     setRoomNotice(copy("Room created. Enter this code on the other device.", "방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.", "Sala creada. Introduce el código en el otro dispositivo."));
   }
   async function joinRoom() {
-    const code = roomInput.trim().toUpperCase();
-    if (!/^[A-Z0-9]{6}$/.test(code)) {
-      setRoomNotice(copy("Enter a 6-character room code.", "6자리 방 코드를 입력하세요.", "Escribe un código de sala de 6 caracteres."));
+    const code = roomInput.trim();
+    if (!/^\d{2}$/.test(code)) {
+      setRoomNotice(copy("Enter a 2-digit room code.", "두 자리 숫자 방 코드를 입력하세요.", "Escribe un código de sala de 2 dígitos."));
       return;
     }
+    const requestedName = names[0].trim() || names[1].trim() || copy('Traveler 2', '여행자 2', 'Viajero 2');
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'join', roomCode: code, name: names[0] || names[1] }),
+      body: JSON.stringify({ action: 'join', roomCode: code, name: requestedName }),
     });
     if (!response.ok) {
       setRoomNotice(copy("Room not found or already full.", "방을 찾을 수 없거나 이미 가득 찼습니다.", "La sala no existe o está llena."));
@@ -218,8 +229,37 @@ export default function Home() {
     setRoomPresence(result.presence ?? []);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     setNames(result.names);
+    setRoomNameDraft(result.names[1] ?? requestedName);
+    setRoomNameDirty(false);
     window.history.replaceState({}, '', roomUrl(code));
     setRoomNotice(copy("Joined the room. Both players are ready.", "방에 참가했습니다. 두 플레이어가 준비되었습니다.", "Sala conectada. Los dos jugadores están listos."));
+  }
+  async function renameRoom() {
+    const name = roomNameDraft.trim();
+    if (!roomCode || !roomToken || !name) {
+      setRoomNotice(copy('Enter your name first.', '이름을 먼저 입력하세요.', 'Escribe tu nombre primero.'));
+      return;
+    }
+    setRoomBusy(true);
+    try {
+      const response = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rename', roomCode, token: roomToken, name }),
+      });
+      if (!response.ok) {
+        setRoomNotice(copy('Your name could not be saved.', '이름을 저장하지 못했습니다.', 'No se pudo guardar tu nombre.'));
+        return;
+      }
+      const snapshot = (await response.json()) as RoomSnapshot;
+      setNames(snapshot.names);
+      setRoomNameDraft(name);
+      setRoomNameDirty(false);
+      setRoomNotice(copy('Name saved.', '이름을 저장했습니다.', 'Nombre guardado.'));
+      if (snapshot.game && snapshot.save) applyRoomSnapshot(snapshot);
+    } finally {
+      setRoomBusy(false);
+    }
   }
   function applyRoomSnapshot(snapshot: RoomSnapshot) {
     if (!snapshot.game || !snapshot.save) return;
@@ -328,6 +368,8 @@ export default function Home() {
     });
   }
   const active = g?.players[g.current],
+    myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1,
+    isMyTurn = myPlayerIndex >= 0 && g?.current === myPlayerIndex,
     landed = active ? board[active.position] : null,
     owned = g && active ? g.properties[active.position] : undefined;
   return (
@@ -399,27 +441,48 @@ export default function Home() {
                   else start();
                 }}
               >
-                <div className="name-fields">
-                  {[0, 1].map((i) => (
-                    <label key={i}>
-                      {t.name} {i + 1}
+                {roomCode && roomToken ? (
+                  <div className="name-fields room-name-edit">
+                    <label>
+                      {copy('Your name', '내 이름', 'Tu nombre')}
                       <Input
                         maxLength={24}
-                        aria-label={`${t.name} ${i + 1}`}
-                        placeholder={`${copy("Traveler", "여행자", "Viajero")} ${i + 1}`}
-                        value={names[i]}
-                        onChange={(e) =>
-                          setNames(
-                            (previous) =>
-                              previous.map((n, j) =>
-                                i === j ? e.target.value : n,
-                              ) as [string, string],
-                          )
-                        }
+                        aria-label={copy('Your name', '내 이름', 'Tu nombre')}
+                        placeholder={copy('Traveler 1 or Traveler 2', '여행자 1 또는 여행자 2', 'Viajero 1 o Viajero 2')}
+                        value={roomNameDraft}
+                        onChange={(e) => {
+                          setRoomNameDraft(e.target.value);
+                          setRoomNameDirty(true);
+                        }}
                       />
                     </label>
-                  ))}
-                </div>
+                    <Button type="button" variant="outline" onClick={renameRoom} disabled={roomBusy || !roomNameDirty}>
+                      {copy('Save name', '이름 저장', 'Guardar nombre')}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="name-fields">
+                    {[0, 1].map((i) => (
+                      <label key={i}>
+                        {t.name} {i + 1}
+                        <Input
+                          maxLength={24}
+                          aria-label={`${t.name} ${i + 1}`}
+                          placeholder={`${copy("Traveler", "여행자", "Viajero")} ${i + 1}`}
+                          value={names[i]}
+                          onChange={(e) =>
+                            setNames(
+                              (previous) =>
+                                previous.map((n, j) =>
+                                  i === j ? e.target.value : n,
+                                ) as [string, string],
+                            )
+                          }
+                        />
+                      </label>
+                    ))}
+                  </div>
+                )}
                 <div className="setup-actions">
                   <Button
                     type="submit"
@@ -453,11 +516,12 @@ export default function Home() {
                     {copy("Create room", "방 만들기", "Crear sala")}
                   </Button>
                   <Input
-                    maxLength={6}
+                    maxLength={2}
+                    inputMode="numeric"
                     aria-label={copy("Room code", "방 코드", "Código de sala")}
-                    placeholder="ABC123"
+                    placeholder="27"
                     value={roomInput}
-                    onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
+                    onChange={(e) => setRoomInput(e.target.value.replace(/\D/g, '').slice(0, 2))}
                   />
                   <Button type="button" variant="outline" onClick={joinRoom}>
                     {copy("Join", "참가", "Unirse")}
@@ -473,6 +537,8 @@ export default function Home() {
                         ? copy("Guest", "참가자", "Invitado")
                         : ''}{' '}
                     · {roomPresence.filter((player) => player.connected).length}/2 {copy("connected", "접속", "conectados")}
+                    <br />
+                    {copy('Your name:', '내 이름:', 'Tu nombre:')} <strong>{names[roomRole === 'host' ? 0 : 1] || roomNameDraft}</strong>
                     <br />
                     {roomReady
                       ? copy("Both players are ready. The host can start.", "두 플레이어 준비 완료 · 방장이 시작할 수 있어요.", "Dos jugadores listos · el anfitrión puede empezar.")
@@ -579,7 +645,7 @@ export default function Home() {
                   <div className="players">
                     {g.players.map((p, i) => (
                       <section
-                        className={`player player-${i + 1} ${g.current === i && g.phase !== 'finished' ? 'active-player' : ''}`}
+                        className={`player player-${i + 1} ${g.current === i && g.phase !== 'finished' ? 'active-player' : ''} ${roomToken && i === myPlayerIndex ? 'my-player' : ''}`}
                         key={i}
                       >
                         <img className="player-mascot" src="/dubu-mascot.png" alt="Dubu" />
@@ -587,6 +653,12 @@ export default function Home() {
                           <span className="player-name">
                             {i + 1}. {p.name}
                           </span>
+                          {roomToken && (
+                            <span className="player-role">
+                              {i === myPlayerIndex ? copy('You', '나', 'Tú') : copy('Opponent', '상대', 'Oponente')}
+                              {g.current === i && g.phase !== 'finished' ? ` · ${copy('Current turn', '현재 턴', 'Turno actual')}` : ''}
+                            </span>
+                          )}
                           <strong>
                             <span className="coin">🐾</span>{' '}
                             {p.cash.toLocaleString()} <small>Dubi</small>
@@ -620,6 +692,13 @@ export default function Home() {
                     </section>
                   ) : (
                     <section className="action-panel" aria-live="polite">
+                      <p className={`turn-status ${isMyTurn ? 'my-turn' : 'opponent-turn'}`}>
+                        {roomToken
+                          ? isMyTurn
+                            ? copy('Your turn', '내 턴', 'Tu turno')
+                            : copy('Opponent’s turn', '상대방 턴', 'Turno del oponente')
+                          : copy('Current turn', '현재 턴', 'Turno actual')}
+                      </p>
                       <h2>
                         {active!.name}
                         {t.turn}
@@ -738,7 +817,7 @@ export default function Home() {
                   {s.type === 'city' ? (
                     <>
                       <p className="subtitle">
-                        {t.owner}:{' '}
+                        {s.region?.[lang]} · {t.owner}:{' '}
                         {property ? g!.players[property.owner].name : t.none} ·{' '}
                         {t.level} {property?.level ?? 0}/3
                       </p>

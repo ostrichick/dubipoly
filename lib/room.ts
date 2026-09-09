@@ -3,10 +3,9 @@ export type RoomMessage =
   | { type: 'hello'; roomCode: string };
 
 export function makeRoomCode() {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const bytes = new Uint8Array(6);
+  const bytes = new Uint32Array(1);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('');
+  return String(bytes[0] % 100).padStart(2, '0');
 }
 
 export function roomFromLocation() {
