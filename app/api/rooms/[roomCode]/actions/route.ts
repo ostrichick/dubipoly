@@ -1,5 +1,5 @@
 import { events } from '../../../../../lib/events';
-import { roomSnapshot, rooms, touchPlayer } from '../../../../../lib/server-rooms';
+import { loadRoom, persistRoom, roomSnapshot, touchPlayer } from '../../../../../lib/server-rooms';
 import { transition, type Action, type PlayerId } from '../../../../../lib/game';
 
 function json(data: unknown, status = 200) {
@@ -21,7 +21,7 @@ export async function POST(
 ) {
   const { roomCode: rawCode } = await context.params;
   const roomCode = rawCode.toUpperCase();
-  const room = rooms.get(roomCode);
+  const room = await loadRoom(roomCode);
   if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
   if (!room.game || !room.save) return json({ error: 'GAME_NOT_STARTED' }, 409);
 
@@ -49,6 +49,7 @@ export async function POST(
   if (next === room.game) return json({ error: 'ACTION_REJECTED' }, 409);
   room.game = next;
   room.save = { ...room.save, actions: [...room.save.actions, action] };
+  await persistRoom(roomCode, room);
   const snapshot = { ...roomSnapshot(roomCode, room), token: body.token };
   room.processed.set(body.requestId, { revision: next.revision, snapshot });
   if (room.processed.size > 200) {
