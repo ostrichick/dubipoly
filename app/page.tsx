@@ -15,7 +15,7 @@ import {
   type PlayerId,
 } from '../lib/game';
 import { ui, describe } from '../lib/game-copy';
-import { makeRoomCode, roomFromLocation, roomUrl, type RoomMessage } from '../lib/room';
+import { roomFromLocation, roomUrl, type RoomMessage } from '../lib/room';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
@@ -41,7 +41,8 @@ export default function Home() {
     
   const [roomCode, setRoomCode] = useState(''),
     [roomInput, setRoomInput] = useState(''),
-    [roomNotice, setRoomNotice] = useState('');
+    [roomNotice, setRoomNotice] = useState(''),
+    [roomToken, setRoomToken] = useState('');
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
   const t = ui[lang],
@@ -114,22 +115,40 @@ export default function Home() {
       channel.close();
     }
   }
-  function createRoom() {
-    const code = makeRoomCode();
-    setRoomCode(code);
-    setRoomInput(code);
-    window.history.replaceState({}, '', roomUrl(code));
-    setRoomNotice(lang === 'ko' ? '방이 만들어졌습니다. 같은 브라우저의 다른 탭에서 코드를 입력하세요.' : 'Sala creada. Introduce el código en otra pestaña del mismo navegador.');
+  async function createRoom() {
+    const response = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', name: names[0] }),
+    });
+    if (!response.ok) return setRoomNotice(lang === 'ko' ? '방을 만들지 못했습니다.' : 'No se pudo crear la sala.');
+    const result = (await response.json()) as { roomCode: string; token: string };
+    setRoomCode(result.roomCode);
+    setRoomInput(result.roomCode);
+    setRoomToken(result.token);
+    window.history.replaceState({}, '', roomUrl(result.roomCode));
+    setRoomNotice(lang === 'ko' ? '방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.' : 'Sala creada. Introduce el código en el otro dispositivo.');
   }
-  function joinRoom() {
+  async function joinRoom() {
     const code = roomInput.trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(code)) {
       setRoomNotice(lang === 'ko' ? '6자리 방 코드를 입력하세요.' : 'Escribe un código de sala de 6 caracteres.');
       return;
     }
-    setRoomCode(code);
+    const response = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'join', roomCode: code, name: names[1] }),
+    });
+    if (!response.ok) {
+      setRoomNotice(lang === 'ko' ? '방을 찾을 수 없거나 이미 가득 찼습니다.' : 'La sala no existe o está llena.');
+      return;
+    }
+    const result = (await response.json()) as { roomCode: string; token: string };
+    setRoomCode(result.roomCode);
+    setRoomToken(result.token);
     window.history.replaceState({}, '', roomUrl(code));
-    setRoomNotice(lang === 'ko' ? '방에 참가했습니다. 현재는 같은 브라우저 탭 간 검증 모드입니다.' : 'Sala conectada. Por ahora es un modo de prueba entre pestañas del mismo navegador.');
+    setRoomNotice(lang === 'ko' ? '방에 참가했습니다. 두 플레이어가 준비되었습니다.' : 'Sala conectada. Los dos jugadores están listos.');
   }
   function start() {
     const actual = names.map(
@@ -282,7 +301,7 @@ export default function Home() {
                     {lang === 'ko' ? '참가' : 'Unirse'}
                   </Button>
                 </div>
-                {roomCode && <p className="room-code">{lang === 'ko' ? '현재 방:' : 'Sala actual:'} <strong>{roomCode}</strong></p>}
+                {roomCode && <p className="room-code">{lang === 'ko' ? '현재 방:' : 'Sala actual:'} <strong>{roomCode}</strong>{roomToken ? ' · ✓' : ''}</p>}
                 {roomNotice && <p className="room-notice" role="status">{roomNotice}</p>}
               </div>
             </section>
