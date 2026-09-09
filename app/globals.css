@@ -15,6 +15,9 @@
 .room-code { margin: .65rem 0 0; color: var(--ink); }
 .room-code strong { letter-spacing: .16em; color: var(--accent); }
 .room-notice { margin: .4rem 0 0; color: var(--muted); font-size: .85rem; }
+.network-banner { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; font-weight: 700; }
+.network-banner.online { background: #e3f5e9; color: #226744; }
+.network-banner.offline { background: #fff0ce; color: #80451c; }
 .setup h2 {
   font-size: 22px;
   font-weight: 800;

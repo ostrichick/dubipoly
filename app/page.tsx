@@ -55,7 +55,8 @@ export default function Home() {
     [roomNotice, setRoomNotice] = useState(''),
     [roomToken, setRoomToken] = useState(''),
     [roomReady, setRoomReady] = useState(false),
-    [roomBusy, setRoomBusy] = useState(false);
+    [roomBusy, setRoomBusy] = useState(false),
+    [online, setOnline] = useState(true);
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
   const t = ui[lang],
@@ -63,6 +64,12 @@ export default function Home() {
     s = board[selected],
     property = g?.properties[selected];
   useEffect(() => {
+    setOnline(navigator.onLine);
+    const handleOnline = () => setOnline(true);
+    const handleOffline = () => setOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
     const initialRoom = roomFromLocation();
     if (initialRoom) {
       setRoomCode(initialRoom);
@@ -103,7 +110,11 @@ export default function Home() {
       setSaveError(true);
     }
     setLoaded(true);
-    return () => channel?.close();
+    return () => {
+      channel?.close();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
   useEffect(() => {
     if (!roomCode || !roomToken) return;
@@ -317,6 +328,18 @@ export default function Home() {
           </Button>
         </nav>
       </header>
+      {!online && (
+        <p className="network-banner offline" role="status">
+          {lang === 'ko'
+            ? '오프라인 상태입니다. 연결이 돌아오면 방 상태를 다시 확인합니다.'
+            : 'Estás sin conexión. La sala se actualizará al volver la conexión.'}
+        </p>
+      )}
+      {online && roomCode && roomToken && (
+        <p className="network-banner online" role="status">
+          {lang === 'ko' ? '방 서버에 연결됨' : 'Conectado a la sala'} · {roomCode}
+        </p>
+      )}
       <div className="toolbar">
         <div>
           <h1>{t.title}</h1>
