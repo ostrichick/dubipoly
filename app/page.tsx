@@ -30,6 +30,7 @@ type RoomSnapshot = {
   save: Save | null;
   token?: string;
   playerIndex?: number;
+  presence?: Array<{ connected: boolean }>;
 };
 function randomInt(max: number) {
   const limit = 0x100000000 - (0x100000000 % max),
@@ -56,6 +57,8 @@ export default function Home() {
     [roomToken, setRoomToken] = useState(''),
     [roomReady, setRoomReady] = useState(false),
     [roomBusy, setRoomBusy] = useState(false),
+    [roomRole, setRoomRole] = useState<'host' | 'guest' | ''>(''),
+    [roomPresence, setRoomPresence] = useState<Array<{ connected: boolean }>>([]),
     [online, setOnline] = useState(true);
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
@@ -128,6 +131,8 @@ export default function Home() {
         const snapshot = (await response.json()) as RoomSnapshot;
         if (stopped) return;
         setRoomReady(snapshot.ready);
+        setRoomRole(snapshot.playerIndex === 0 ? 'host' : snapshot.playerIndex === 1 ? 'guest' : '');
+        setRoomPresence(snapshot.presence ?? []);
         if (snapshot.names) setNames(snapshot.names);
         if (snapshot.game && snapshot.save) applyRoomSnapshot(snapshot);
       } catch {
@@ -178,6 +183,8 @@ export default function Home() {
     setRoomInput(result.roomCode);
     setRoomToken(result.token);
     setRoomReady(result.ready);
+    setRoomRole('host');
+    setRoomPresence(result.presence ?? []);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     window.history.replaceState({}, '', roomUrl(result.roomCode));
     setRoomNotice(lang === 'ko' ? '방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.' : 'Sala creada. Introduce el código en el otro dispositivo.');
@@ -201,6 +208,8 @@ export default function Home() {
     setRoomCode(result.roomCode);
     setRoomToken(result.token);
     setRoomReady(result.ready);
+    setRoomRole('guest');
+    setRoomPresence(result.presence ?? []);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     setNames(result.names);
     window.history.replaceState({}, '', roomUrl(code));
@@ -236,7 +245,25 @@ export default function Home() {
     }
     const snapshot = (await response.json()) as RoomSnapshot;
     setRoomReady(snapshot.ready);
+    setRoomPresence(snapshot.presence ?? []);
     applyRoomSnapshot(snapshot);
+  }
+  async function shareRoom() {
+    if (!roomCode) return;
+    const url = roomUrl(roomCode);
+    const browserNavigator = navigator as Navigator & {
+      share?: (data: ShareData) => Promise<void>;
+    };
+    try {
+      if (browserNavigator.share) {
+        await browserNavigator.share({ title: 'Dubipoly', text: roomCode, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+      setRoomNotice(lang === 'ko' ? '방 링크를 공유했습니다.' : 'Enlace de sala compartido.');
+    } catch {
+      setRoomNotice(lang === 'ko' ? `이 링크를 보내세요: ${url}` : `Envía este enlace: ${url}`);
+    }
   }
   function start() {
     const actual = names.map(
@@ -404,7 +431,20 @@ export default function Home() {
                   ))}
                 </div>
                 <div className="setup-actions">
-                  <Button type="submit">{reset ? t.yes : t.start} ✈</Button>
+                  <Button
+                    type="submit"
+                    disabled={Boolean(roomCode && roomToken && (roomRole === 'guest' || !roomReady))}
+                  >
+                    {reset
+                      ? t.yes
+                      : roomCode && roomToken
+                        ? roomRole === 'guest'
+                          ? lang === 'ko' ? '방장 시작 대기' : 'Esperar al anfitrión'
+                          : roomReady
+                            ? lang === 'ko' ? '게임 시작' : 'Empezar partida'
+                            : lang === 'ko' ? '플레이어 대기' : 'Esperar jugador'
+                        : t.start} ✈
+                  </Button>
                   {reset && (
                     <Button
                       variant="outline"
@@ -437,6 +477,13 @@ export default function Home() {
                   <p className="room-code">
                     {lang === 'ko' ? '현재 방:' : 'Sala actual:'} <strong>{roomCode}</strong>{roomToken ? ' · ✓' : ''}
                     <br />
+                    {roomRole === 'host'
+                      ? lang === 'ko' ? '방장' : 'Anfitrión'
+                      : roomRole === 'guest'
+                        ? lang === 'ko' ? '참가자' : 'Invitado'
+                        : ''}{' '}
+                    · {roomPresence.filter((player) => player.connected).length}/2 {lang === 'ko' ? '접속' : 'conectados'}
+                    <br />
                     {roomReady
                       ? lang === 'ko'
                         ? '두 플레이어 준비 완료 · 방장이 시작할 수 있어요.'
@@ -445,6 +492,20 @@ export default function Home() {
                         ? '다른 플레이어를 기다리는 중…'
                         : 'Esperando al otro jugador…'}
                   </p>
+                )}
+                {roomCode && roomToken && (
+                  <div className="room-actions room-share-actions">
+                    <Button type="button" variant="outline" onClick={shareRoom}>
+                      {lang === 'ko' ? '방 링크 공유' : 'Compartir sala'}
+                    </Button>
+                    <span className="presence-dots" aria-label={`${roomPresence.filter((player) => player.connected).length}/2 connected`}>
+                      {roomPresence.map((player, index) => (
+                        <span key={index} className={player.connected ? 'presence-dot connected' : 'presence-dot'}>
+                          {player.connected ? '●' : '○'} {index + 1}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
                 )}
                 {roomNotice && <p className="room-notice" role="status">{roomNotice}</p>}
               </div>
