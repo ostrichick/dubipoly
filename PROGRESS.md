@@ -86,6 +86,11 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Source build and focused lint for the changed server files passed. The repository-wide lint command still sees generated `package-stage*` bundles and reports pre-existing generated-file/UI warnings; this does not block the production build.
 - This stage is ready for a real two-phone acceptance test after publishing.
 
+### Stage 8 city-route rearrangement — 2026-09-09
+- Reordered the route so spaces 1–20 use Korean cities and spaces 21–40 use Peruvian cities, while keeping the four corners, eight event spaces, 28-city count, and balanced price distribution intact.
+- Added a board test that verifies the country boundary by space number.
+- The requested Dubu character replacement is not yet integrated because the built-in image-generation service returned a usage-limit response; the existing photo remains temporary until a character asset can be generated or supplied.
+
 ### Next requested stage
 Run the real two-phone room acceptance test: host creates a room, spouse joins from a separate Android phone, host starts the match, both phones complete turns, and one device refreshes or briefly loses connection. Fix any user-visible issues found in that test.
 

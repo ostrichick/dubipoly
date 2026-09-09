@@ -18,13 +18,7 @@ test('28 unique cities, 8 events, 4 corners, balanced country placement', () => 
   for (const c of ['korea', 'peru']) {
     const list = cities.filter((s) => s.country === c);
     assert.equal(list.length, 14);
-    list.forEach((s) =>
-      assert.ok(
-        c === 'korea'
-          ? s.row === 1 || s.col === 1
-          : s.row === 11 || s.col === 11,
-      ),
-    );
+    list.forEach((s) => assert.ok(c === 'korea' ? s.index < 20 : s.index > 20));
   }
   assert.deepEqual(
     cities

@@ -63,7 +63,9 @@ export const board: Space[] = Array.from({ length: 40 }, (_, index) => {
     const [ko, es, icon] = corners[index];
     return { ...base, type: 'corner', name: { ko, es }, icon };
   }
-  const country = index < 10 || index > 30 ? 'korea' : 'peru';
+  // The first half of the route (spaces 1–20, top and right edges) is Korea;
+  // the second half (spaces 21–40, bottom and left edges) is Peru.
+  const country = index < 20 ? 'korea' : 'peru';
   if (index % 10 === 3 || index % 10 === 8)
     return {
       ...base,
