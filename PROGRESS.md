@@ -37,6 +37,14 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Local verification passed for create → join → start → server roll, with 13 tests, TypeScript, and production build passing.
 - Published as Sites version 4 at the same owner-private URL.
 
+### Stage 4 resilience basics — 2026-09-09
+- Added server-side request IDs so a retried roll, buy, upgrade, or end action is applied at most once.
+- Added revision checks so an old screen cannot overwrite a newer server state.
+- Added player heartbeat timestamps and presence information to room snapshots.
+- Client polling now sends its room token, refreshes state after reconnect, and disables room actions while a request is pending.
+- Local verification passed for duplicate action replay returning the same revision and stale revision rejection with HTTP 409.
+- Published as Sites version 5 at the same owner-private URL.
+
 ### Next requested stage
 Add a server-backed room store and authoritative turn validation for two phones. This requires selecting and attaching durable Sites storage before the shared-room implementation is treated as complete. Stage 4 handles reconnect resilience. Stage 5 handles PWA and real two-phone tests. Known dependency advisories below remain unresolved.
 
