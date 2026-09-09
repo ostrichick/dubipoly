@@ -59,6 +59,13 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Prevented guests and rooms without two players from showing an actionable start control.
 - Published as Sites version 7 at the same owner-private URL.
 
+### Stage 6 persistent room storage — 2026-09-09
+- Added a D1 logical binding named `DB` and a `dubipoly_rooms` table for serialized room/game snapshots.
+- Added a Worker wrapper that exposes the D1 binding to route handlers.
+- Room creation, joining, heartbeats, game start, and actions now persist snapshots when D1 is available, while retaining memory fallback for local development.
+- Deployment succeeded as Sites version 8, and the live D1 overview confirms the `DB` binding and `dubipoly_rooms` table.
+- The database is currently empty because no live room has been created after the migration; the first real room will create its row.
+
 ### Next requested stage
 Add a server-backed room store and authoritative turn validation for two phones. This requires selecting and attaching durable Sites storage before the shared-room implementation is treated as complete. Stage 4 handles reconnect resilience. Stage 5 handles PWA and real two-phone tests. Known dependency advisories below remain unresolved.
 
