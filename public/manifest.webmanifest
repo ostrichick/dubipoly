@@ -1,12 +1,12 @@
 {
-  "name": "Dubipoly · Dubu와 함께하는 여행",
+  "name": "Dubipoly · Travel with Dubu",
   "short_name": "Dubipoly",
-  "description": "한국과 페루를 여행하며 즐기는 둘만의 보드게임",
+  "description": "A board game for two, traveling through Korea and Peru.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fff9ec",
   "theme_color": "#167f82",
-  "lang": "ko",
+  "lang": "en",
   "icons": [
     {
       "src": "/favicon.svg",

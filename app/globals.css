@@ -2,6 +2,11 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
+.language-options { display: flex; align-items: center; gap: .5rem; font-size: .875rem; }
+.language-options select { min-height: 44px; padding: .5rem; border: 1px solid #cbd9d6; border-radius: 12px; background: white; color: #173d50; font-size: 1rem; }
+.language-options select:focus-visible { outline: 3px solid #0858b5; outline-offset: 2px; }
+@media (max-width: 480px) { .language-options { flex-direction: column; align-items: flex-end; gap: 0; } }
+
 .setup {
   background: #fffef8;
   border: 1px solid #d4ded2;

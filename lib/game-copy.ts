@@ -2,6 +2,58 @@ import { board, type Lang } from './board.ts';
 import { events } from './events.ts';
 import type { Entry, Game } from './game.ts';
 export const ui = {
+  en: {
+  "start": "Start a new trip",
+  "continue": "Continue",
+  "title": "A trip for two",
+  "name": "Traveler name",
+  "roll": "Roll dice",
+  "end": "End turn",
+  "skip": "Skip and end turn",
+  "buy": "Buy city",
+  "upgrade": "Upgrade one level",
+  "round": "Round",
+  "turn": "’s turn",
+  "cash": "Dubi balance",
+  "assets": "Total assets",
+  "level": "Upgrade level",
+  "owner": "Owner",
+  "none": "Unowned",
+  "rent": "Visit fee",
+  "price": "Purchase price",
+  "cost": "Upgrade cost",
+  "waiting": "Next turn",
+  "choice": "You can buy or upgrade the city you landed on.",
+  "rollHint": "Roll the dice to continue your trip.",
+  "endHint": "Your action is complete. End your turn for the next traveler.",
+  "max": "Maximum upgrade level reached.",
+  "low": "Not enough Dubi. You can skip.",
+  "finished": "The trip is over!",
+  "win": "Winner",
+  "tie": "Joint winners",
+  "bankrupt": "The trip ended because a required payment could not be covered.",
+  "score": "20 rounds complete: cash, purchase costs and upgrades make up your total assets.",
+  "new": "New game",
+  "confirm": "End this trip and start a new one?",
+  "yes": "Start again",
+  "cancel": "Cancel",
+  "saved": "Automatically saved in this browser",
+  "saveFail": "Unable to save. Closing this page may lose your progress.",
+  "badSave": "Unable to read the saved game. Please start a new one.",
+  "log": "Travel journal",
+  "mode": "One device · 2 players",
+  "zoom": "Zoom in",
+  "fit": "Fit board",
+  "korea": "Korea",
+  "peru": "Peru",
+  "special": "Travel stop",
+  "follow": "Show current position",
+  "rules": "How to play",
+  "rulesText": "Each traveler starts with 1,500 Dubi. Passing Start earns 200 Dubi. Buy or upgrade only the city you land on. Upgrades have 3 levels; the visit fee is the base fee × (level + 1). Movement cards apply destination city rules but never trigger another event. Two turns make a round. After 20 rounds, the most total assets wins. A required payment exceeding your cash causes bankruptcy. Passing Start backwards earns no bonus.",
+  "rest": "A free place to rest. You can end your turn.",
+  "event": "Landing here triggers a travel event.",
+  "loading": "Preparing your trip…"
+},
   ko: {
     start: '새 여행 시작',
     continue: '이어하기',
@@ -115,23 +167,24 @@ export function describe(e: Entry, g: Game, l: Lang) {
     c = e.space === undefined ? '' : board[e.space].name[l],
     a = `${e.amount ?? 0} Dubi`;
   const es = l === 'es';
+  const en = l === 'en';
   switch (e.kind) {
     case 'roll':
       return `${n}: 🎲 ${e.dice?.join(' + ')}`;
     case 'bonus':
-      return `${n}: +${a} (${es ? 'Salida' : '출발'})`;
+      return `${n}: +${a} (${en ? 'Start' : es ? 'Salida' : '출발'})`;
     case 'event':
       return `${n}: ${events[e.event!].text[l]}`;
     case 'rent':
-      return `${n}: ${c} · −${a} (${es ? 'visita' : '방문료'})`;
+      return `${n}: ${c} · −${a} (${en ? 'visit fee' : es ? 'visita' : '방문료'})`;
     case 'buy':
-      return `${n}: ${c} · −${a} (${es ? 'compra' : '구매'})`;
+      return `${n}: ${c} · −${a} (${en ? 'purchase' : es ? 'compra' : '구매'})`;
     case 'upgrade':
-      return `${n}: ${c} · −${a} (${es ? 'mejora' : '발전'})`;
+      return `${n}: ${c} · −${a} (${en ? 'upgrade' : es ? 'mejora' : '발전'})`;
     case 'rest':
-      return `${n}: ${c} · ${es ? 'descanso' : '휴식'}`;
+      return `${n}: ${c} · ${en ? 'rest' : es ? 'descanso' : '휴식'}`;
     case 'bankrupt':
-      return `${n}: ${es ? 'bancarrota' : '파산'}`;
+      return `${n}: ${en ? 'bankruptcy' : es ? 'bancarrota' : '파산'}`;
     case 'finish':
       return ui[l].finished;
   }

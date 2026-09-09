@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Dubipoly · Dubu와 함께하는 여행',
-  description: '한국과 페루를 여행하며 즐기는 둘만의 보드게임',
+  title: 'Dubipoly · Travel with Dubu',
+  description: 'A board game for two, traveling through Korea and Peru.',
   manifest: '/manifest.webmanifest',
   themeColor: '#167f82',
 };
@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko">
+    <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

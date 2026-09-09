@@ -32,7 +32,8 @@ test('D1 room snapshots restore retry state and reject stale writers', async () 
     },
   };
 
-  globalThis.__DUBIPOLY_ENV__ = { DB: database };
+  // This test double implements only the prepared statements exercised here.
+  globalThis.__DUBIPOLY_ENV__ = { DB: database as unknown as import('@cloudflare/workers-types').D1Database };
   rooms.clear();
   try {
     rooms.set('TEST01', {

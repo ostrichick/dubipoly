@@ -41,7 +41,7 @@ function randomInt(max: number) {
   return bytes[0] % max;
 }
 export default function Home() {
-  const [lang, setLang] = useState<Lang>('ko'),
+  const [lang, setLang] = useState<Lang>('en'),
     [session, setSession] = useState<Session | null>(null),
     [loaded, setLoaded] = useState(false),
     [selected, setSelected] = useState(0),
@@ -63,6 +63,7 @@ export default function Home() {
     [roomRefresh, setRoomRefresh] = useState(0);
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
+  const copy = (en: string, ko: string, es: string) => ({ en, ko, es })[lang];
   const t = ui[lang],
     g = session?.game,
     s = board[selected],
@@ -94,13 +95,13 @@ export default function Home() {
         current.current = restored;
         setSession(restored);
         setSelected(restored.game.players[restored.game.current].position);
-        setRoomNotice(lang === 'ko' ? '다른 탭에서 게임 상태를 받았습니다.' : 'Estado recibido desde otra pestaña.');
+        setRoomNotice(copy("Game state received from another tab.", "다른 탭에서 게임 상태를 받았습니다.", "Estado recibido desde otra pestaña."));
       }
     };
     channel?.addEventListener('message', onMessage);
     try {
       const language = localStorage.getItem('dubipoly.lang');
-      if (language === 'ko' || language === 'es') {
+      if (language === 'en' || language === 'ko' || language === 'es') {
         setLang(language);
         document.documentElement.lang = language;
       }
@@ -140,7 +141,7 @@ export default function Home() {
         if (snapshot.names) setNames(snapshot.names);
         if (snapshot.game && snapshot.save) applyRoomSnapshot(snapshot);
       } catch {
-        if (!stopped) setRoomNotice(lang === 'ko' ? '방 연결을 확인하는 중입니다.' : 'Comprobando la conexión de la sala.');
+        if (!stopped) setRoomNotice(copy("Checking the room connection.", "방 연결을 확인하는 중입니다.", "Comprobando la conexión de la sala."));
       }
     }
     void syncRoom();
@@ -149,9 +150,10 @@ export default function Home() {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [roomCode, roomToken, roomRefresh]);
+  }, [roomCode, roomToken, roomRefresh, lang]);
   function changeLanguage(l: Lang) {
     setLang(l);
+    setRoomNotice('');
     document.documentElement.lang = l;
     try {
       localStorage.setItem('dubipoly.lang', l);
@@ -181,7 +183,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'create', name: names[0] }),
     });
-    if (!response.ok) return setRoomNotice(lang === 'ko' ? '방을 만들지 못했습니다.' : 'No se pudo crear la sala.');
+    if (!response.ok) return setRoomNotice(copy("Unable to create the room.", "방을 만들지 못했습니다.", "No se pudo crear la sala."));
     const result = (await response.json()) as RoomSnapshot & { token: string };
     setRoomCode(result.roomCode);
     setRoomInput(result.roomCode);
@@ -191,12 +193,12 @@ export default function Home() {
     setRoomPresence(result.presence ?? []);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     window.history.replaceState({}, '', roomUrl(result.roomCode));
-    setRoomNotice(lang === 'ko' ? '방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.' : 'Sala creada. Introduce el código en el otro dispositivo.');
+    setRoomNotice(copy("Room created. Enter this code on the other device.", "방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.", "Sala creada. Introduce el código en el otro dispositivo."));
   }
   async function joinRoom() {
     const code = roomInput.trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(code)) {
-      setRoomNotice(lang === 'ko' ? '6자리 방 코드를 입력하세요.' : 'Escribe un código de sala de 6 caracteres.');
+      setRoomNotice(copy("Enter a 6-character room code.", "6자리 방 코드를 입력하세요.", "Escribe un código de sala de 6 caracteres."));
       return;
     }
     const response = await fetch('/api/rooms', {
@@ -205,7 +207,7 @@ export default function Home() {
       body: JSON.stringify({ action: 'join', roomCode: code, name: names[0] || names[1] }),
     });
     if (!response.ok) {
-      setRoomNotice(lang === 'ko' ? '방을 찾을 수 없거나 이미 가득 찼습니다.' : 'La sala no existe o está llena.');
+      setRoomNotice(copy("Room not found or already full.", "방을 찾을 수 없거나 이미 가득 찼습니다.", "La sala no existe o está llena."));
       return;
     }
     const result = (await response.json()) as RoomSnapshot & { token: string };
@@ -217,7 +219,7 @@ export default function Home() {
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     setNames(result.names);
     window.history.replaceState({}, '', roomUrl(code));
-    setRoomNotice(lang === 'ko' ? '방에 참가했습니다. 두 플레이어가 준비되었습니다.' : 'Sala conectada. Los dos jugadores están listos.');
+    setRoomNotice(copy("Joined the room. Both players are ready.", "방에 참가했습니다. 두 플레이어가 준비되었습니다.", "Sala conectada. Los dos jugadores están listos."));
   }
   function applyRoomSnapshot(snapshot: RoomSnapshot) {
     if (!snapshot.game || !snapshot.save) return;
@@ -238,12 +240,8 @@ export default function Home() {
     if (!response.ok) {
       setRoomNotice(
         response.status === 409
-          ? lang === 'ko'
-            ? '두 플레이어가 모두 들어와야 시작할 수 있어요.'
-            : 'Deben entrar los dos jugadores para empezar.'
-          : lang === 'ko'
-            ? '방장만 게임을 시작할 수 있어요.'
-            : 'Solo el anfitrión puede empezar.',
+          ? copy("Both players must join before starting.", "두 플레이어가 모두 들어와야 시작할 수 있어요.", "Deben entrar los dos jugadores para empezar.")
+          : copy("Only the host can start.", "방장만 게임을 시작할 수 있어요.", "Solo el anfitrión puede empezar."),
       );
       return;
     }
@@ -264,14 +262,14 @@ export default function Home() {
       } else {
         await navigator.clipboard.writeText(url);
       }
-      setRoomNotice(lang === 'ko' ? '방 링크를 공유했습니다.' : 'Enlace de sala compartido.');
+      setRoomNotice(copy("Room link shared.", "방 링크를 공유했습니다.", "Enlace de sala compartido."));
     } catch {
-      setRoomNotice(lang === 'ko' ? `이 링크를 보내세요: ${url}` : `Envía este enlace: ${url}`);
+      setRoomNotice(`${copy('Send this link:', '이 링크를 보내세요:', 'Envía este enlace:')} ${url}`);
     }
   }
   function start() {
     const actual = names.map(
-      (n, i) => n.trim() || `${lang === 'ko' ? '여행자' : 'Viajero'} ${i + 1}`,
+      (n, i) => n.trim() || `${copy("Traveler", "여행자", "Viajero")} ${i + 1}`,
     ) as [string, string];
     commit({
       game: createGame(actual),
@@ -299,12 +297,8 @@ export default function Home() {
         if (!response.ok) {
           setRoomNotice(
             response.status === 409
-              ? lang === 'ko'
-                ? '다른 기기에서 상태가 바뀌었습니다. 최신 상태를 다시 불러옵니다.'
-                : 'El otro dispositivo cambió el estado. Actualizando la partida.'
-              : lang === 'ko'
-                ? '방 서버와 연결할 수 없습니다.'
-                : 'No se pudo conectar con la sala.',
+              ? copy("The room state changed. Fetching the latest state.", "다른 기기에서 상태가 바뀌었습니다. 최신 상태를 다시 불러옵니다.", "El otro dispositivo cambió el estado. Actualizando la partida.")
+              : copy("Unable to connect to the room.", "방 서버와 연결할 수 없습니다.", "No se pudo conectar con la sala."),
           );
           if (response.status === 409) setRoomRefresh((value) => value + 1);
           return;
@@ -343,40 +337,31 @@ export default function Home() {
           Dubi<span>poly</span> ✈
         </a>
         <span className="route-label">KOREA ··· ✈ ··· PERÚ</span>
-        <nav aria-label="Language">
-          <Button
-            variant={lang === 'ko' ? 'default' : 'outline'}
-            aria-pressed={lang === 'ko'}
-            onClick={() => changeLanguage('ko')}
-          >
-            한국어
-          </Button>
-          <Button
-            variant={lang === 'es' ? 'default' : 'outline'}
-            aria-pressed={lang === 'es'}
-            onClick={() => changeLanguage('es')}
-          >
-            Español
-          </Button>
-        </nav>
+        <label className="language-options">
+          <span>{copy('Language', '언어', 'Idioma')}</span>
+          <select aria-label={copy('Language', '언어', 'Idioma')}
+            value={lang} onChange={(event) => changeLanguage(event.target.value as Lang)}>
+            <option value="en">English</option>
+            <option value="ko">한국어</option>
+            <option value="es">Español</option>
+          </select>
+        </label>
       </header>
       {!online && (
         <p className="network-banner offline" role="status">
-          {lang === 'ko'
-            ? '오프라인 상태입니다. 연결이 돌아오면 방 상태를 다시 확인합니다.'
-            : 'Estás sin conexión. La sala se actualizará al volver la conexión.'}
+          {copy("You are offline. The room will refresh when your connection returns.", "오프라인 상태입니다. 연결이 돌아오면 방 상태를 다시 확인합니다.", "Estás sin conexión. La sala se actualizará al volver la conexión.")}
         </p>
       )}
       {online && roomCode && roomToken && (
         <p className="network-banner online" role="status">
-          {lang === 'ko' ? '방 서버에 연결됨' : 'Conectado a la sala'} · {roomCode}
+          {copy("Connected to the room", "방 서버에 연결됨", "Conectado a la sala")} · {roomCode}
         </p>
       )}
       <div className="toolbar">
         <div>
           <h1>{t.title}</h1>
           <p>
-            {t.mode}
+            {roomToken ? copy('Online · 2 players', '온라인 · 2인 플레이', 'En línea · 2 jugadores') : t.mode}
             {g ? ` · ${t.round} ${g.round}/${rules.rounds}` : ''}
           </p>
         </div>
@@ -421,7 +406,7 @@ export default function Home() {
                       <Input
                         maxLength={24}
                         aria-label={`${t.name} ${i + 1}`}
-                        placeholder={`${lang === 'ko' ? '여행자' : 'Viajero'} ${i + 1}`}
+                        placeholder={`${copy("Traveler", "여행자", "Viajero")} ${i + 1}`}
                         value={names[i]}
                         onChange={(e) =>
                           setNames(
@@ -444,10 +429,10 @@ export default function Home() {
                       ? t.yes
                       : roomCode && roomToken
                         ? roomRole === 'guest'
-                          ? lang === 'ko' ? '방장 시작 대기' : 'Esperar al anfitrión'
+                          ? copy("Waiting for the host", "방장 시작 대기", "Esperar al anfitrión")
                           : roomReady
-                            ? lang === 'ko' ? '게임 시작' : 'Empezar partida'
-                            : lang === 'ko' ? '플레이어 대기' : 'Esperar jugador'
+                            ? copy("Start game", "게임 시작", "Empezar partida")
+                            : copy("Waiting for a player", "플레이어 대기", "Esperar jugador")
                         : t.start} ✈
                   </Button>
                   {reset && (
@@ -462,40 +447,36 @@ export default function Home() {
                 </div>
               </form>
               <div className="room-lobby">
-                <p className="eyebrow">{lang === 'ko' ? '방 코드 · 3단계 준비' : 'SALA · PREPARACIÓN DE ETAPA 3'}</p>
+                <p className="eyebrow">{copy("Play on two devices", "두 기기로 함께 플레이", "Jugar en dos dispositivos")}</p>
                 <div className="room-actions">
                   <Button type="button" variant="outline" onClick={createRoom}>
-                    {lang === 'ko' ? '방 만들기' : 'Crear sala'}
+                    {copy("Create room", "방 만들기", "Crear sala")}
                   </Button>
                   <Input
                     maxLength={6}
-                    aria-label={lang === 'ko' ? '방 코드' : 'Código de sala'}
+                    aria-label={copy("Room code", "방 코드", "Código de sala")}
                     placeholder="ABC123"
                     value={roomInput}
                     onChange={(e) => setRoomInput(e.target.value.toUpperCase())}
                   />
                   <Button type="button" variant="outline" onClick={joinRoom}>
-                    {lang === 'ko' ? '참가' : 'Unirse'}
+                    {copy("Join", "참가", "Unirse")}
                   </Button>
                 </div>
                 {roomCode && (
                   <p className="room-code">
-                    {lang === 'ko' ? '현재 방:' : 'Sala actual:'} <strong>{roomCode}</strong>{roomToken ? ' · ✓' : ''}
+                    {copy("Current room:", "현재 방:", "Sala actual:")} <strong>{roomCode}</strong>{roomToken ? ' · ✓' : ''}
                     <br />
                     {roomRole === 'host'
-                      ? lang === 'ko' ? '방장' : 'Anfitrión'
+                      ? copy("Host", "방장", "Anfitrión")
                       : roomRole === 'guest'
-                        ? lang === 'ko' ? '참가자' : 'Invitado'
+                        ? copy("Guest", "참가자", "Invitado")
                         : ''}{' '}
-                    · {roomPresence.filter((player) => player.connected).length}/2 {lang === 'ko' ? '접속' : 'conectados'}
+                    · {roomPresence.filter((player) => player.connected).length}/2 {copy("connected", "접속", "conectados")}
                     <br />
                     {roomReady
-                      ? lang === 'ko'
-                        ? '두 플레이어 준비 완료 · 방장이 시작할 수 있어요.'
-                        : 'Dos jugadores listos · el anfitrión puede empezar.'
-                      : lang === 'ko'
-                        ? '다른 플레이어를 기다리는 중…'
-                        : 'Esperando al otro jugador…'}
+                      ? copy("Both players are ready. The host can start.", "두 플레이어 준비 완료 · 방장이 시작할 수 있어요.", "Dos jugadores listos · el anfitrión puede empezar.")
+                      : copy("Waiting for the other player…", "다른 플레이어를 기다리는 중…", "Esperando al otro jugador…")}
                   </p>
                 )}
                 {roomCode && roomToken && (
@@ -506,10 +487,10 @@ export default function Home() {
                       onClick={() => setRoomRefresh((value) => value + 1)}
                       disabled={!online || roomBusy}
                     >
-                      {lang === 'ko' ? '상태 새로고침' : 'Actualizar estado'}
+                      {copy("Refresh room", "상태 새로고침", "Actualizar estado")}
                     </Button>
                     <Button type="button" variant="outline" onClick={shareRoom}>
-                      {lang === 'ko' ? '방 링크 공유' : 'Compartir sala'}
+                      {copy("Share room", "방 링크 공유", "Compartir sala")}
                     </Button>
                     <span className="presence-dots" aria-label={`${roomPresence.filter((player) => player.connected).length}/2 connected`}>
                       {roomPresence.map((player, index) => (

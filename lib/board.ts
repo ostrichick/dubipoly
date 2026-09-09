@@ -1,4 +1,4 @@
-export type Lang = 'ko' | 'es';
+export type Lang = 'en' | 'ko' | 'es';
 export type Space = {
   index: number;
   row: number;
@@ -61,7 +61,7 @@ export const board: Space[] = Array.from({ length: 40 }, (_, index) => {
   const base = { index, ...position(index) };
   if (corners[index]) {
     const [ko, es, icon] = corners[index];
-    return { ...base, type: 'corner', name: { ko, es }, icon };
+    return { ...base, type: 'corner', name: { ko, es, en: ({ 0: 'Start', 10: 'Airport', 20: "Dubu’s rest", 30: 'Harbor' } as Record<number, string>)[index] }, icon };
   }
   // The first half of the route (spaces 1–20, top and right edges) is Korea;
   // the second half (spaces 21–40, bottom and left edges) is Peru.
@@ -71,7 +71,7 @@ export const board: Space[] = Array.from({ length: 40 }, (_, index) => {
       ...base,
       country,
       type: 'event',
-      name: { ko: '여행 이벤트', es: 'Evento' },
+      name: { en: 'Travel event', ko: '여행 이벤트', es: 'Evento' },
       icon: '🎒',
     };
   const rank = country === 'korea' ? ki++ : pi++;
@@ -81,7 +81,7 @@ export const board: Space[] = Array.from({ length: 40 }, (_, index) => {
     ...base,
     type: 'city',
     country,
-    name: { ko, es },
+    name: { ko, es, en: es === 'Seúl' ? 'Seoul' : es },
     icon,
     price,
     rent: Math.round(price * 0.12),
