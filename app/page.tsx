@@ -1314,6 +1314,7 @@ export default function Home() {
                 {board.map((x) => {
                   const p = g?.properties[x.index];
                   const isSelectedDest = isTravelSelection && targetTravelSpace === x.index;
+                  const isLandmark = Boolean(p && p.level >= 3);
                   return (
                     <button
                       key={x.index}
@@ -1322,7 +1323,7 @@ export default function Home() {
                       data-my-position={String(myPosition === x.index)}
                       data-owner={p?.owner ?? ''}
                       data-level={p?.level ?? ''}
-                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''} ${isTravelSelection ? 'is-travel-target' : ''} ${isSelectedDest ? 'is-selected-destination' : ''}`}
+                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner} building-tier-${p.level} ${isLandmark ? 'has-landmark' : ''}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''} ${isTravelSelection ? 'is-travel-target' : ''} ${isSelectedDest ? 'is-selected-destination' : ''}`}
                       style={{ gridRow: x.row, gridColumn: x.col }}
                       aria-label={`${x.index + 1}. ${x.name[lang]}${p ? ` · ${g!.players[p.owner].name} · ${t.level} ${p.level}` : ''}`}
                       aria-pressed={selected === x.index}
@@ -1335,6 +1336,15 @@ export default function Home() {
                         }
                       }}
                     >
+                      {p && (
+                        <div
+                          className={`tile-owner-bar owner-bar-${p.owner}`}
+                          title={`${g!.players[p.owner].name} · ${p.level ? `Lv.${p.level}` : copy('Land', '토지', 'Terreno')}`}
+                        >
+                          <span className="owner-bar-dot">{p.owner === 0 ? '● P1' : '◆ P2'}</span>
+                          {isLandmark && <span className="owner-bar-crown">👑</span>}
+                        </div>
+                      )}
                       {isSelectedDest && (
                         <span
                           className="destination-target-pin"
@@ -1385,10 +1395,41 @@ export default function Home() {
                         </span>
                       )}
                       {p ? (
-                        <span className={`ownership owner-${p.owner}`}>
-                          {p.owner === 0 ? '●' : '◆'}{' '}
-                          {p.level ? '★'.repeat(p.level) : '0'}
-                        </span>
+                        <div className={`tile-building-showcase owner-${p.owner} tier-${p.level}`}>
+                          <div className="building-graphic-row">
+                            {x.kind === 'tourist' ? (
+                              <span className="building-graphic tourist-graphic" title={special.tourist}>
+                                🏖️
+                              </span>
+                            ) : p.level === 0 ? (
+                              <span className="building-graphic land-flag" title={copy('Owned Land', '보유 토지', 'Terreno')}>
+                                🚩
+                              </span>
+                            ) : p.level === 1 ? (
+                              <span className="building-graphic house-graphic" title={copy('House Lv.1', '별장 1단계', 'Casa Nv.1')}>
+                                🏡
+                              </span>
+                            ) : p.level === 2 ? (
+                              <span className="building-graphic hotel-graphic" title={copy('Hotel Lv.2', '빌딩 2단계', 'Hotel Nv.2')}>
+                                🏢
+                              </span>
+                            ) : (
+                              <span className="building-graphic landmark-graphic" title={copy('Landmark Lv.3', '랜드마크 3단계', 'Monumento Nv.3')}>
+                                🏰
+                              </span>
+                            )}
+                            {p.level > 0 && x.kind !== 'tourist' && (
+                              <span className="building-stars">
+                                {'★'.repeat(p.level)}
+                              </span>
+                            )}
+                          </div>
+                          {g && (
+                            <span className="tile-rent-badge" title={copy('Rent', '방문료', 'Alquiler')}>
+                              <small>💸</small>{rentAt(g, x.index)}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         x.price && <span className="tile-price">{x.price}</span>
                       )}

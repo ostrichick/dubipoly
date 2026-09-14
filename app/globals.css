@@ -526,16 +526,155 @@ nav button,
 .tile:hover {
   filter: brightness(0.95);
 }
+/* Owner Header Bar */
+.tile-owner-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  z-index: 5;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.owner-bar-0 {
+  background: linear-gradient(90deg, #1e40af, #3b82f6);
+}
+.owner-bar-1 {
+  background: linear-gradient(90deg, #991b1b, #ef4444);
+}
+.owner-bar-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.owner-bar-crown {
+  font-size: 9px;
+  line-height: 1;
+  animation: crown-shimmer 1.4s ease-in-out infinite alternate;
+}
+@keyframes crown-shimmer {
+  0% { transform: scale(1) rotate(-6deg); }
+  100% { transform: scale(1.25) rotate(6deg); }
+}
+
+/* Owned tile adjustments */
+.tile.owned-tile {
+  padding-top: 15px;
+}
+.tile.owned-tile .tile-number {
+  top: 15px;
+  font-size: 8.5px;
+  opacity: 0.75;
+}
+
+/* Base owned tile colors */
 .tile.owned-by-0 {
-  background: #c9e4ff;
-  border: 2px solid #176bb0;
-  border-bottom-width: 5px;
+  background: linear-gradient(180deg, #f0f7ff 0%, #dbeafe 100%) !important;
+  border: 2px solid #2563eb !important;
+  border-bottom: 5px solid #1d4ed8 !important;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25) !important;
 }
 .tile.owned-by-1 {
-  background: #ffd8d0;
-  border: 2px solid #b53c2e;
-  border-bottom-width: 5px;
+  background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%) !important;
+  border: 2px solid #dc2626 !important;
+  border-bottom: 5px solid #b91c1c !important;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.25) !important;
 }
+
+/* Building Tiers: Level 0 (Land), Level 1 (Villa), Level 2 (Hotel), Level 3 (Landmark) */
+.tile.building-tier-1 {
+  border-width: 2px !important;
+  border-bottom-width: 5px !important;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15) !important;
+}
+.tile.building-tier-2 {
+  border-width: 2.5px !important;
+  border-bottom-width: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+}
+.tile.building-tier-3,
+.tile.has-landmark {
+  border-color: #f59e0b !important;
+  border-bottom-color: #b45309 !important;
+  box-shadow:
+    0 0 0 1px #fbbf24,
+    0 0 14px rgba(245, 158, 11, 0.7),
+    0 4px 10px rgba(0, 0, 0, 0.25) !important;
+  animation: landmark-glow 2s ease-in-out infinite alternate;
+}
+@keyframes landmark-glow {
+  0% {
+    box-shadow: 0 0 0 1px #fbbf24, 0 0 8px rgba(245, 158, 11, 0.5), 0 3px 6px rgba(0, 0, 0, 0.15);
+  }
+  100% {
+    box-shadow: 0 0 0 2px #f59e0b, 0 0 18px rgba(245, 158, 11, 0.9), 0 5px 12px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Tile Building Showcase */
+.tile-building-showcase {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  margin-top: 1px;
+  line-height: 1;
+}
+.building-graphic-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  line-height: 1;
+}
+.building-graphic {
+  font-size: clamp(13px, 1.35vw, 17px);
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+  transition: transform 0.2s ease;
+}
+.tile:hover .building-graphic {
+  transform: translateY(-2px) scale(1.18);
+}
+.building-stars {
+  font-size: 8px;
+  font-weight: 900;
+  color: #d97706;
+  letter-spacing: -1px;
+  line-height: 1;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+}
+.tile-rent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 8.5px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+}
+.tile.owned-by-0 .tile-rent-badge {
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+.tile.owned-by-1 .tile-rent-badge {
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
 .tile.my-position {
   outline: 4px solid #e7a100;
   outline-offset: -4px;
@@ -559,14 +698,16 @@ nav button,
   color: #046c4e !important;
 }
 .tile.tourist-tile.owned-by-0 {
-  background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 100%) !important;
-  border: 2px solid #2563eb !important;
-  border-bottom: 5px solid #1d4ed8 !important;
+  background: linear-gradient(180deg, #e0f2fe 0%, #bfdbfe 100%) !important;
+  border: 2px solid #0284c7 !important;
+  border-bottom: 5px solid #0369a1 !important;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.3) !important;
 }
 .tile.tourist-tile.owned-by-1 {
-  background: linear-gradient(145deg, #fee2e2 0%, #fecaca 100%) !important;
-  border: 2px solid #dc2626 !important;
-  border-bottom: 5px solid #b91c1c !important;
+  background: linear-gradient(180deg, #ffe4e6 0%, #fecdd3 100%) !important;
+  border: 2px solid #e11d48 !important;
+  border-bottom: 5px solid #be123c !important;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.3) !important;
 }
 .tourist-badge {
   position: absolute;
