@@ -42,12 +42,22 @@ export type Entry = {
     | 'rest-wait'
     | 'rest-release'
     | 'rest-fee'
-    | 'harbor-wait';
+    | 'harbor-wait'
+    | 'freepass'
+    | 'free-upgrade';
   player: PlayerId;
   amount?: number;
   space?: number;
   event?: number;
   dice?: [number, number];
+};
+export type Player = {
+  name: string;
+  cash: number;
+  position: number;
+  startBonusBonus?: number;
+  nextRollModifier?: 'single' | 'doubles' | null;
+  freePasses?: number;
 };
 export type Game = {
   rulesVersion?: 1 | 2;
@@ -55,10 +65,7 @@ export type Game = {
   extraRoll?: boolean;
   restTurns?: [number | null, number | null];
   harborTurns?: [number | null, number | null];
-  players: [
-    { name: string; cash: number; position: number },
-    { name: string; cash: number; position: number },
-  ];
+  players: [Player, Player];
   properties: Record<number, { owner: PlayerId; level: number }>;
   current: PlayerId;
   round: number;
@@ -70,6 +77,9 @@ export type Game = {
   reason: 'rounds' | 'bankruptcy' | null;
   revision: number;
 };
+export function playerStartBonus(g: Game, player: PlayerId): number {
+  return rules.startBonus + (g.players[player].startBonusBonus ?? 0);
+}
 export function createGame(
   names: [string, string],
   rulesVersion: 1 | 2 = 2,
@@ -84,7 +94,10 @@ export function createGame(
       name: name.trim().slice(0, 24),
       cash: rules.startingCash,
       position: 0,
-    })) as Game['players'],
+      startBonusBonus: 0,
+      nextRollModifier: null,
+      freePasses: 0,
+    })) as [Player, Player],
     properties: {},
     current: 0,
     round: 1,
@@ -237,8 +250,9 @@ function move(g: Game, steps: number) {
   const p = g.players[g.current],
     next = p.position + steps;
   if (steps > 0 && next >= 40) {
-    p.cash += rules.startBonus;
-    log(g, { kind: 'bonus', player: g.current, amount: rules.startBonus });
+    const bonus = playerStartBonus(g, g.current);
+    p.cash += bonus;
+    log(g, { kind: 'bonus', player: g.current, amount: bonus });
   }
   p.position = ((next % 40) + 40) % 40;
 }
@@ -275,6 +289,11 @@ function land(g: Game, allowEvent: boolean, event: number) {
       return;
     }
     const amount = rentAt(g, index);
+    if (g.players[g.current].freePasses && g.players[g.current].freePasses! > 0) {
+      g.players[g.current].freePasses!--;
+      log(g, { kind: 'rent', player: g.current, amount: 0, space: index, detail: 'freepass' });
+      return;
+    }
     log(g, { kind: 'rent', player: g.current, amount, space: index });
     pay(g, amount, property.owner);
     return;
@@ -286,8 +305,40 @@ function land(g: Game, allowEvent: boolean, event: number) {
     if (effect.kind === 'cash') {
       if (effect.amount < 0) pay(g, -effect.amount);
       else g.players[g.current].cash += effect.amount;
-    } else {
+    } else if (effect.kind === 'move') {
       move(g, effect.steps);
+      land(g, false, event);
+    } else if (effect.kind === 'startBonus') {
+      g.players[g.current].startBonusBonus = (g.players[g.current].startBonusBonus ?? 0) + effect.amount;
+    } else if (effect.kind === 'singleDie') {
+      g.players[g.current].nextRollModifier = 'single';
+    } else if (effect.kind === 'guaranteedDoubles') {
+      g.players[g.current].nextRollModifier = 'doubles';
+    } else if (effect.kind === 'freePass') {
+      g.players[g.current].freePasses = (g.players[g.current].freePasses ?? 0) + 1;
+    } else if (effect.kind === 'freeUpgrade') {
+      const ownedCityIndexes = Object.keys(g.properties)
+        .map(Number)
+        .filter((sp) => {
+          const prop = g.properties[sp];
+          const tile = board[sp];
+          return prop?.owner === g.current && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
+        })
+        .sort((a, b) => g.properties[a].level - g.properties[b].level);
+
+      if (ownedCityIndexes.length > 0) {
+        const target = ownedCityIndexes[0];
+        g.properties[target].level++;
+        log(g, { kind: 'upgrade', player: g.current, space: target, detail: 'free-upgrade' });
+      } else {
+        g.players[g.current].cash += 100;
+      }
+    } else if (effect.kind === 'warpTourist') {
+      const currentPos = g.players[g.current].position;
+      const touristIndexes = [6, 16, 25, 36];
+      const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
+      const stepsToTourist = (nextTourist - currentPos + 40) % 40;
+      move(g, stepsToTourist);
       land(g, false, event);
     }
     return;
@@ -315,7 +366,13 @@ export function transition(
     (state.phase !== 'roll' ||
       !Array.isArray(action.dice) ||
       action.dice.length !== 2 ||
-      !action.dice.every((d) => Number.isInteger(d) && d >= 1 && d <= 6) ||
+      !Number.isInteger(action.dice[0]) ||
+      action.dice[0] < 1 ||
+      action.dice[0] > 6 ||
+      !Number.isInteger(action.dice[1]) ||
+      (state.players[actor].nextRollModifier === 'single'
+        ? action.dice[1] !== 0
+        : action.dice[1] < 1 || action.dice[1] > 6) ||
       !Number.isInteger(action.event) ||
       !events[action.event])
   )
@@ -412,11 +469,12 @@ export function transition(
     if (g.harborTurns?.[actor] === 1) {
       g.harborTurns[actor] = null;
     }
+    g.players[actor].nextRollModifier = null;
     g.dice = action.dice;
     g.lastEvent = null;
     log(g, { kind: 'roll', player: actor, dice: action.dice });
     if (g.rulesVersion === 2) {
-      const doubles = action.dice[0] === action.dice[1];
+      const doubles = action.dice[1] > 0 && action.dice[0] === action.dice[1];
       g.extraRoll = false;
       if (g.restTurns![actor] !== null) {
         if (!doubles) {
@@ -501,8 +559,9 @@ export function transition(
     if (g.phase === 'finished') return g;
     const dest = action.space;
     if (dest <= rules.airportSpace) {
-      g.players[actor].cash += rules.startBonus;
-      log(g, { kind: 'bonus', player: actor, amount: rules.startBonus });
+      const bonus = playerStartBonus(g, actor);
+      g.players[actor].cash += bonus;
+      log(g, { kind: 'bonus', player: actor, amount: bonus });
     }
     g.players[actor].position = dest;
     log(g, {
@@ -524,8 +583,9 @@ export function transition(
     if (g.phase === 'finished') return g;
     const dest = action.space;
     if (dest < rules.harborSpace) {
-      g.players[actor].cash += rules.startBonus;
-      log(g, { kind: 'bonus', player: actor, amount: rules.startBonus });
+      const bonus = playerStartBonus(g, actor);
+      g.players[actor].cash += bonus;
+      log(g, { kind: 'bonus', player: actor, amount: bonus });
     }
     g.players[actor].position = dest;
     log(g, {

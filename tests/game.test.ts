@@ -86,8 +86,8 @@ test('forward landing on start grants bonus exactly once', () => {
   assert.equal(n.players[0].cash, 1700);
   assert.equal(n.logs.filter((e) => e.kind === 'bonus').length, 1);
 });
-test('all 12 bilingual events resolve, event movement does not chain', () => {
-  assert.equal(events.length, 12);
+test('all 18 trilingual events resolve, event movement does not chain', () => {
+  assert.equal(events.length, 18);
   events.forEach((e, event) => {
     assert.ok(e.text.ko && e.text.es);
     const n = transition(at(1), { ...roll, event });
@@ -99,6 +99,62 @@ test('all 12 bilingual events resolve, event movement does not chain', () => {
   assert.equal(n.players[0].position, 8);
   assert.equal(n.phase, 'end');
   assert.equal(n.logs.filter((e) => e.kind === 'event').length, 1);
+});
+test('new strategic events: startBonus, singleDie, doubles, freePass, freeUpgrade, warpTourist', () => {
+  // 1. startBonus (event 12)
+  let g = transition(at(1), { ...roll, event: 12 });
+  assert.equal(g.players[0].startBonusBonus, 100);
+  let passedStart = transition(
+    { ...g, phase: 'roll', current: 0, players: [{ ...g.players[0], position: 38 }, g.players[1]] },
+    { type: 'roll', dice: [1, 2], event: 0 },
+  );
+  assert.equal(passedStart.players[0].cash, g.players[0].cash + 300);
+
+  // 2. singleDie (event 13)
+  let singleG = transition(at(1), { ...roll, event: 13 });
+  assert.equal(singleG.players[0].nextRollModifier, 'single');
+  let rolledSingle = transition(
+    { ...singleG, phase: 'roll', current: 0 },
+    { type: 'roll', dice: [5, 0], event: 0 },
+  );
+  assert.equal(rolledSingle.players[0].position, (singleG.players[0].position + 5) % 40);
+  assert.equal(rolledSingle.players[0].nextRollModifier, null);
+
+  // 3. guaranteedDoubles (event 14)
+  let doublesG = transition(at(1), { ...roll, event: 14 });
+  assert.equal(doublesG.players[0].nextRollModifier, 'doubles');
+  let rolledDoubles = transition(
+    { ...doublesG, phase: 'roll', current: 0 },
+    { type: 'roll', dice: [4, 4], event: 0 },
+  );
+  assert.equal(rolledDoubles.players[0].position, (doublesG.players[0].position + 8) % 40);
+  assert.equal(rolledDoubles.players[0].nextRollModifier, null);
+
+  // 4. freePass (event 15)
+  let freePassG = transition(at(1), { ...roll, event: 15 });
+  assert.equal(freePassG.players[0].freePasses, 1);
+  freePassG.properties[5] = { owner: 1, level: 2 };
+  let rentTurn = transition(
+    { ...freePassG, phase: 'roll', current: 0, players: [{ ...freePassG.players[0], position: 3 }, freePassG.players[1]] },
+    { type: 'roll', dice: [1, 1], event: 0 },
+  );
+  assert.equal(rentTurn.players[0].position, 5);
+  assert.equal(rentTurn.players[0].freePasses, 0);
+  assert.equal(rentTurn.players[0].cash, freePassG.players[0].cash);
+  assert.ok(rentTurn.logs.some((l) => l.kind === 'rent' && l.detail === 'freepass'));
+
+  // 5. freeUpgrade (event 16)
+  let upgradeG = at(1);
+  upgradeG.properties[1] = { owner: 0, level: 0 };
+  let upgraded = transition(upgradeG, { ...roll, event: 16 });
+  assert.equal(upgraded.properties[1].level, 1);
+  assert.ok(upgraded.logs.some((l) => l.kind === 'upgrade' && l.detail === 'free-upgrade'));
+  let noPropG = transition(at(1), { ...roll, event: 16 });
+  assert.equal(noPropG.players[0].cash, 1600);
+
+  // 6. warpTourist (event 17)
+  let warpG = transition(at(1), { ...roll, event: 17 });
+  assert.equal(warpG.players[0].position, 6);
 });
 test('event travel resolves destination rent, backward move, and forward crossing', () => {
   let g = at(1);
@@ -195,12 +251,17 @@ test('100 deterministic complete games preserve invariants and every checkpoint 
     };
     while (g.phase !== 'finished') {
       let a: Action;
-      if (g.phase === 'roll')
+      if (g.phase === 'roll') {
+        const mod = g.players[g.current].nextRollModifier;
+        const d0 = random(6) + 1;
+        const d1 =
+          mod === 'single' ? 0 : mod === 'doubles' ? d0 : random(6) + 1;
         a = {
           type: 'roll',
-          dice: [random(6) + 1, random(6) + 1],
-          event: random(12),
+          dice: [d0, d1],
+          event: random(events.length),
         };
+      }
       else if (g.phase === 'choice') {
         const p = g.properties[g.players[g.current].position];
         const candidate: Action = { type: p ? 'upgrade' : 'buy' };

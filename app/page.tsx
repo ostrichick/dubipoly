@@ -9,6 +9,7 @@ import {
   canSell,
   canFly,
   canSail,
+  playerStartBonus,
   sellValue,
   ownsRegion,
   createGame,
@@ -722,8 +723,13 @@ export default function Home() {
       sound.playDice();
       triggerHaptic('medium');
       setIsRolling(true);
+      const isSingle = old.game.players[old.game.current].nextRollModifier === 'single';
       const interval = setInterval(() => {
-        setRollingDice([randomInt(6) + 1, randomInt(6) + 1]);
+        setRollingDice(
+          isSingle
+            ? [randomInt(6) + 1, 0]
+            : [randomInt(6) + 1, randomInt(6) + 1],
+        );
       }, 50);
       setTimeout(() => {
         clearInterval(interval);
@@ -862,6 +868,10 @@ export default function Home() {
     (g.phase === 'choice' || g.phase === 'end') &&
     !extraRoll &&
     !hasPropertyAction;
+  const travelActor = (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : g?.current ?? 0) as PlayerId;
+  const isAirportActive = Boolean(g && canFly(g, travelActor));
+  const isHarborActive = Boolean(g && canSail(g, travelActor));
+  const isTravelSelection = isAirportActive || isHarborActive;
   return (
     <main
       data-match-id={session?.matchId ?? ''}
@@ -1303,6 +1313,7 @@ export default function Home() {
                 </div>
                 {board.map((x) => {
                   const p = g?.properties[x.index];
+                  const isSelectedDest = isTravelSelection && targetTravelSpace === x.index;
                   return (
                     <button
                       key={x.index}
@@ -1311,15 +1322,27 @@ export default function Home() {
                       data-my-position={String(myPosition === x.index)}
                       data-owner={p?.owner ?? ''}
                       data-level={p?.level ?? ''}
-                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''}`}
+                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''} ${isTravelSelection ? 'is-travel-target' : ''} ${isSelectedDest ? 'is-selected-destination' : ''}`}
                       style={{ gridRow: x.row, gridColumn: x.col }}
                       aria-label={`${x.index + 1}. ${x.name[lang]}${p ? ` · ${g!.players[p.owner].name} · ${t.level} ${p.level}` : ''}`}
                       aria-pressed={selected === x.index}
                       onClick={() => {
                         setSelected(x.index);
                         setTargetTravelSpace(x.index);
+                        if (isTravelSelection) {
+                          sound.playPop();
+                          triggerHaptic('light');
+                        }
                       }}
                     >
+                      {isSelectedDest && (
+                        <span
+                          className="destination-target-pin"
+                          title={copy('Destination', '목적지', 'Destino')}
+                        >
+                          {isAirportActive ? '🛬' : '⚓'}
+                        </span>
+                      )}
                       {constructingSpace?.space === x.index && (
                         <span className="construction-popup">
                           {constructingSpace.kind === 'buy'
@@ -1437,6 +1460,60 @@ export default function Home() {
                             {t.assets}:{' '}
                             {assets(g, i as PlayerId).toLocaleString()}
                           </p>
+                          {((p.startBonusBonus && p.startBonusBonus > 0) ||
+                            p.nextRollModifier ||
+                            (p.freePasses && p.freePasses > 0)) && (
+                            <div className="player-buffs flex flex-wrap gap-1 mt-1">
+                              {p.startBonusBonus && p.startBonusBonus > 0 ? (
+                                <span
+                                  className="player-buff-chip buff-salary"
+                                  title={copy(
+                                    `Start salary bonus: +${p.startBonusBonus} Dubi`,
+                                    `출발선 월급 추가 보너스: +${p.startBonusBonus} Dubi`,
+                                    `Bono de salida: +${p.startBonusBonus} Dubi`,
+                                  )}
+                                >
+                                  💼 +{p.startBonusBonus}
+                                </span>
+                              ) : null}
+                              {p.nextRollModifier === 'single' && (
+                                <span
+                                  className="player-buff-chip buff-single"
+                                  title={copy(
+                                    'Next roll uses 1 die (1~6)',
+                                    '다음 주사위는 1개만 굴림 (1~6)',
+                                    'Siguiente tirada: 1 dado (1~6)',
+                                  )}
+                                >
+                                  🚶 {copy('1 Die', '주사위 1개', '1 Dado')}
+                                </span>
+                              )}
+                              {p.nextRollModifier === 'doubles' && (
+                                <span
+                                  className="player-buff-chip buff-doubles"
+                                  title={copy(
+                                    'Next roll is guaranteed doubles!',
+                                    '다음 주사위 무조건 더블!',
+                                    '¡Siguiente tirada: dobles garantizados!',
+                                  )}
+                                >
+                                  ✨ {copy('Doubles', '더블 확정', 'Dobles')}
+                                </span>
+                              )}
+                              {p.freePasses && p.freePasses > 0 ? (
+                                <span
+                                  className="player-buff-chip buff-pass"
+                                  title={copy(
+                                    'Free rent pass remaining',
+                                    '통행료 면제권 보유',
+                                    'Pase de peaje gratuito',
+                                  )}
+                                >
+                                  🎫 {copy('Pass', '면제권', 'Pase')} ×{p.freePasses}
+                                </span>
+                              ) : null}
+                            </div>
+                          )}
                         </div>
                       </section>
                     ))}
@@ -1498,15 +1575,17 @@ export default function Home() {
                         aria-label={
                           isRolling || pendingAction === 'roll'
                             ? special.rolling
-                            : (rollingDice ?? g.dice)?.join(' + ')
+                            : (rollingDice ?? g.dice)?.filter((d) => d > 0).join(' + ')
                         }
                       >
                         {(rollingDice ?? g.dice) ? (
-                          (rollingDice ?? g.dice)!.map((d, i) => (
-                            <span key={i}>
-                              {['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][d - 1]}
-                            </span>
-                          ))
+                          (rollingDice ?? g.dice)!
+                            .filter((d) => d > 0)
+                            .map((d, i) => (
+                              <span key={i}>
+                                {['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][d - 1]}
+                              </span>
+                            ))
                         ) : (
                           <span>🎲</span>
                         )}
@@ -1555,18 +1634,29 @@ export default function Home() {
                           <Button
                             data-action="roll"
                             disabled={actionsBlocked}
-                            onClick={() =>
+                            onClick={() => {
+                              const actor = (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : g.current) as PlayerId;
+                              const modifier = g.players[actor]?.nextRollModifier;
+                              let dice: [number, number];
+                              if (modifier === 'single') {
+                                dice = [randomInt(6) + 1, 0];
+                              } else if (modifier === 'doubles') {
+                                const d = randomInt(6) + 1;
+                                dice = [d, d];
+                              } else {
+                                dice = [randomInt(6) + 1, randomInt(6) + 1];
+                              }
                               void roomWork(() =>
                                 act(
                                   {
                                     type: 'roll',
-                                    dice: [randomInt(6) + 1, randomInt(6) + 1],
+                                    dice,
                                     event: randomInt(events.length),
                                   },
                                   g.revision,
                                 ),
-                              )
-                            }
+                              );
+                            }}
                           >
                             {pendingAction === 'roll'
                               ? special.rolling
@@ -1641,18 +1731,39 @@ export default function Home() {
                             <p className="mt-1 text-xs text-sky-700">
                               {special.airportHint}
                             </p>
-                            <div className="mt-2.5 flex items-center justify-center gap-2">
-                              <select
-                                value={targetTravelSpace}
-                                onChange={(e) => setTargetTravelSpace(Number(e.target.value))}
-                                className="rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs"
-                              >
-                                {board.map((sp) => (
-                                  <option key={sp.index} value={sp.index}>
-                                    {String(sp.index + 1).padStart(2, '0')}. {sp.name[lang]} {sp.kind === 'tourist' ? '✦' : ''} {sp.index <= rules.airportSpace ? '(+200 Dubi)' : ''}
-                                  </option>
-                                ))}
-                              </select>
+                            {/* Direct Interactive Board Selection Card */}
+                            <div className="travel-destination-card mt-2.5 p-2.5 rounded-xl border border-sky-300/80 bg-white/95 shadow-sm text-left">
+                              <div className="text-[11px] font-medium text-sky-700 flex items-center justify-between">
+                                <span>{copy('👆 Tap any tile on board to choose', '👆 보드판에서 원하는 칸을 터치하세요', '👆 Toca una casilla en el tablero')}</span>
+                                <span className="font-extrabold text-sky-800 bg-sky-100 px-1.5 py-0.5 rounded-md">
+                                  #{String(targetTravelSpace + 1).padStart(2, '0')}
+                                </span>
+                              </div>
+                              <div className="mt-1.5 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">{board[targetTravelSpace].icon}</span>
+                                  <div>
+                                    <div className="font-extrabold text-slate-900 text-sm flex items-center gap-1">
+                                      {board[targetTravelSpace].name[lang]}
+                                      {board[targetTravelSpace].kind === 'tourist' && (
+                                        <span className="text-emerald-600 font-bold text-xs">✦ {special.tourist}</span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500">
+                                      {board[targetTravelSpace].type === 'city'
+                                        ? g.properties[targetTravelSpace]
+                                          ? `${g.players[g.properties[targetTravelSpace].owner].name} · Lv.${g.properties[targetTravelSpace].level}`
+                                          : `${board[targetTravelSpace].price} Dubi`
+                                        : board[targetTravelSpace].type}
+                                    </div>
+                                  </div>
+                                </div>
+                                {targetTravelSpace <= rules.airportSpace && (
+                                  <span className="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-black text-emerald-700 whitespace-nowrap shadow-xs">
+                                    +{playerStartBonus(g, (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : g.current) as PlayerId)} Dubi 💰
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             {targetTravelSpace <= rules.airportSpace && (
                               <p className="mt-1.5 text-[11px] font-bold text-emerald-700">
@@ -1690,7 +1801,7 @@ export default function Home() {
                             </div>
                           </div>
                         )}
-                        {canSail(g, (roomToken ? myPlayerIndex : g.current) as PlayerId) && (
+                        {canSail(g, (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : g.current) as PlayerId) && (
                           <div className="w-full my-2 rounded-2xl border-2 border-emerald-300 bg-emerald-50/90 p-3.5 text-center shadow-sm">
                             <div className="flex items-center justify-center gap-1.5 text-sm font-black text-emerald-900">
                               <span>🚢</span>
@@ -1702,18 +1813,39 @@ export default function Home() {
                             <p className="mt-1 text-xs text-emerald-700">
                               {special.harborHint}
                             </p>
-                            <div className="mt-2.5 flex items-center justify-center gap-2">
-                              <select
-                                value={targetTravelSpace}
-                                onChange={(e) => setTargetTravelSpace(Number(e.target.value))}
-                                className="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs"
-                              >
-                                {board.map((sp) => (
-                                  <option key={sp.index} value={sp.index}>
-                                    {String(sp.index + 1).padStart(2, '0')}. {sp.name[lang]} {sp.kind === 'tourist' ? '✦' : ''} {sp.index < rules.harborSpace ? '(+200 Dubi)' : ''}
-                                  </option>
-                                ))}
-                              </select>
+                            {/* Direct Interactive Board Selection Card */}
+                            <div className="travel-destination-card mt-2.5 p-2.5 rounded-xl border border-emerald-300/80 bg-white/95 shadow-sm text-left">
+                              <div className="text-[11px] font-medium text-emerald-700 flex items-center justify-between">
+                                <span>{copy('👆 Tap any tile on board to choose', '👆 보드판에서 원하는 칸을 터치하세요', '👆 Toca una casilla en el tablero')}</span>
+                                <span className="font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                                  #{String(targetTravelSpace + 1).padStart(2, '0')}
+                                </span>
+                              </div>
+                              <div className="mt-1.5 flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-2xl">{board[targetTravelSpace].icon}</span>
+                                  <div>
+                                    <div className="font-extrabold text-slate-900 text-sm flex items-center gap-1">
+                                      {board[targetTravelSpace].name[lang]}
+                                      {board[targetTravelSpace].kind === 'tourist' && (
+                                        <span className="text-emerald-600 font-bold text-xs">✦ {special.tourist}</span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500">
+                                      {board[targetTravelSpace].type === 'city'
+                                        ? g.properties[targetTravelSpace]
+                                          ? `${g.players[g.properties[targetTravelSpace].owner].name} · Lv.${g.properties[targetTravelSpace].level}`
+                                          : `${board[targetTravelSpace].price} Dubi`
+                                        : board[targetTravelSpace].type}
+                                    </div>
+                                  </div>
+                                </div>
+                                {targetTravelSpace < rules.harborSpace && (
+                                  <span className="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-black text-emerald-700 whitespace-nowrap shadow-xs">
+                                    +{playerStartBonus(g, (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : g.current) as PlayerId)} Dubi 💰
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             {targetTravelSpace < rules.harborSpace && (
                               <p className="mt-1.5 text-[11px] font-bold text-emerald-700">

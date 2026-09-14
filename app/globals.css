@@ -1124,3 +1124,122 @@ footer {
   }
 }
 
+/* Interactive Direct Board Travel Target Selection */
+.tile.is-travel-target {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.tile.is-travel-target:hover {
+  transform: translateY(-2px) scale(1.03);
+  z-index: 8;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+}
+.tile.is-travel-target:active {
+  transform: scale(0.96);
+}
+
+.tile.is-selected-destination {
+  outline: 3px solid #0284c7 !important;
+  outline-offset: -3px;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.5), 0 4px 14px rgba(14, 165, 233, 0.45) !important;
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd) !important;
+  z-index: 12 !important;
+  animation: dest-pulse 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes dest-pulse {
+  0% {
+    box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.4), 0 2px 8px rgba(14, 165, 233, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 5px rgba(14, 165, 233, 0.8), 0 6px 18px rgba(14, 165, 233, 0.6);
+  }
+}
+
+.destination-target-pin {
+  position: absolute;
+  top: -12px;
+  right: -6px;
+  font-size: 16px;
+  line-height: 1;
+  background: #0284c7;
+  color: white;
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  animation: pin-bounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite alternate;
+  z-index: 20;
+  pointer-events: none;
+}
+
+@keyframes pin-bounce {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    transform: translateY(-4px) scale(1.12);
+  }
+}
+
+.travel-destination-card {
+  transition: all 0.2s ease;
+}
+.travel-destination-card:hover {
+  border-color: #0284c7;
+}
+
+/* Real-time Player Status Buff Chips */
+.player-buffs {
+  margin-top: 4px;
+}
+
+.player-buff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: -0.01em;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.player-buff-chip:hover {
+  transform: scale(1.05);
+}
+
+.player-buff-chip.buff-salary {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #6ee7b7;
+}
+
+.player-buff-chip.buff-single {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.player-buff-chip.buff-doubles {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #c4b5fd;
+  animation: doubles-glow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes doubles-glow {
+  0% {
+    box-shadow: 0 0 2px rgba(109, 40, 217, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 8px rgba(109, 40, 217, 0.6);
+  }
+}
+
+.player-buff-chip.buff-pass {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}

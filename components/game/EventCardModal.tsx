@@ -22,7 +22,12 @@ export function EventCardModal({ eventIndex, lang, onClose }: EventCardModalProp
   if (eventIndex === null || !events[eventIndex]) return null;
 
   const item = events[eventIndex];
-  const isPositive = item.effect.kind === 'cash' ? item.effect.amount > 0 : item.effect.steps > 0;
+  const isPositive =
+    item.effect.kind === 'cash'
+      ? item.effect.amount > 0
+      : item.effect.kind === 'move'
+        ? item.effect.steps > 0
+        : true;
 
   return (
     <div
@@ -82,7 +87,7 @@ export function EventCardModal({ eventIndex, lang, onClose }: EventCardModalProp
 
           {/* Effect Badge */}
           <div className="mt-5 flex justify-center">
-            {item.effect.kind === 'cash' ? (
+            {item.effect.kind === 'cash' && (
               <span
                 className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-base font-black shadow-md transition-all ${
                   isPositive
@@ -92,10 +97,41 @@ export function EventCardModal({ eventIndex, lang, onClose }: EventCardModalProp
               >
                 {item.effect.amount > 0 ? `+${item.effect.amount} Dubi 💰` : `${item.effect.amount} Dubi 💸`}
               </span>
-            ) : (
+            )}
+            {item.effect.kind === 'move' && (
               <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-1.5 text-base font-black text-white shadow-md shadow-blue-200">
                 {item.effect.steps > 0 ? `+${item.effect.steps} ` : `${item.effect.steps} `}
                 {lang === 'ko' ? '칸 이동 🏃' : lang === 'es' ? 'pasos 🏃' : 'steps 🏃'}
+              </span>
+            )}
+            {item.effect.kind === 'startBonus' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-yellow-600 px-4 py-1.5 text-base font-black text-white shadow-md shadow-amber-200 animate-pulse">
+                💼 +{item.effect.amount} Dubi {lang === 'ko' ? '월급 영구 인상!' : lang === 'es' ? '¡Sueldo aumentado!' : 'Salary Boost!'}
+              </span>
+            )}
+            {item.effect.kind === 'singleDie' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-1.5 text-base font-black text-white shadow-md shadow-indigo-200">
+                🚶 {lang === 'ko' ? '다음 턴 주사위 1개 (1~6)' : lang === 'es' ? 'Próximo turno 1 dado' : '1 Die Next Turn'}
+              </span>
+            )}
+            {item.effect.kind === 'guaranteedDoubles' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-purple-500 to-pink-600 px-4 py-1.5 text-base font-black text-white shadow-md shadow-purple-200 animate-pulse">
+                🎲✨ {lang === 'ko' ? '다음 주사위 100% 더블!' : lang === 'es' ? '¡Dobles 100% garantizados!' : 'Guaranteed Doubles!'}
+              </span>
+            )}
+            {item.effect.kind === 'freePass' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-600 to-teal-700 px-4 py-1.5 text-base font-black text-white shadow-md shadow-emerald-200">
+                🎫 {lang === 'ko' ? 'VIP 통행료 1회 면제권' : lang === 'es' ? 'Pase VIP sin alquiler' : 'VIP Free Rent Pass'}
+              </span>
+            )}
+            {item.effect.kind === 'freeUpgrade' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-1.5 text-base font-black text-white shadow-md shadow-orange-200 animate-pulse">
+                🏗️ {lang === 'ko' ? '도시 건물 무료 1단계 증축' : lang === 'es' ? 'Mejora de edificio gratis' : 'Free Building Upgrade'}
+              </span>
+            )}
+            {item.effect.kind === 'warpTourist' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 px-4 py-1.5 text-base font-black text-white shadow-md shadow-teal-200">
+                📸 {lang === 'ko' ? '가장 가까운 관광지로 직행!' : lang === 'es' ? '¡Vuelo directo a destino turístico!' : 'Direct Tourist Flight!'}
               </span>
             )}
           </div>

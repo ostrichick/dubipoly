@@ -266,6 +266,8 @@ export const specialCopy = {
       flight: 'Flew directly to destination.',
       sail: 'Set sail and arrived at destination.',
       'harbor-wait': 'Resting at harbor for 1 turn.',
+      freepass: 'VIP pass used! Rent completely waived.',
+      'free-upgrade': 'Urban renewal! Free building upgrade.',
     },
   },
   ko: {
@@ -319,6 +321,8 @@ export const specialCopy = {
       flight: '비행기를 타고 목적지로 이동했어요.',
       sail: '여객선을 타고 목적지로 출항했어요.',
       'harbor-wait': '항구에서 출항 준비로 한 턴 쉽니다.',
+      freepass: 'VIP 여행자 패스 사용! 통행료를 전액 면제받았습니다.',
+      'free-upgrade': '도시 재생 지원! 건물을 무료로 1단계 증축했습니다.',
     },
   },
   es: {
@@ -373,6 +377,8 @@ export const specialCopy = {
       flight: 'Voló en avión a su destino.',
       sail: 'Zarpó en barco a su destino.',
       'harbor-wait': 'Descansando en el puerto por 1 turno.',
+      freepass: '¡Pase VIP usado! Alquiler totalmente exento.',
+      'free-upgrade': '¡Renovación urbana! Mejora gratuita de edificio.',
     },
   },
 };

@@ -63,20 +63,6 @@ export async function POST(
       body.requestId.length > 100
     )
       return json({ error: 'MISSING_REQUEST_ID' }, 400);
-    const action: Action =
-      body.type === 'roll'
-        ? {
-            type: 'roll',
-            dice: [randomInt(6) + 1, randomInt(6) + 1],
-            event: randomInt(events.length),
-          }
-        : body.type === 'sell'
-          ? { type: 'sell', space: Number(body.space) }
-          : body.type === 'fly'
-            ? { type: 'fly', space: Number(body.space) }
-            : body.type === 'sail'
-              ? { type: 'sail', space: Number(body.space) }
-              : { type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' | 'skipFly' | 'skipSail' };
     for (let attempt = 0; attempt < 4; attempt++) {
       const room = await loadRoom(roomCode);
       if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
@@ -93,6 +79,35 @@ export async function POST(
       if (room.processed.has(key)) return json(roomSnapshot(roomCode, room));
       if (body.revision !== room.game.revision)
         return json({ error: 'STALE_STATE' }, 409);
+
+      let action: Action;
+      if (body.type === 'roll') {
+        const mod = room.game.players[playerIndex].nextRollModifier;
+        let dice: [number, number];
+        if (mod === 'single') {
+          dice = [randomInt(6) + 1, 0];
+        } else if (mod === 'doubles') {
+          const d = randomInt(6) + 1;
+          dice = [d, d];
+        } else {
+          dice = [randomInt(6) + 1, randomInt(6) + 1];
+        }
+        action = {
+          type: 'roll',
+          dice,
+          event: randomInt(events.length),
+        };
+      } else if (body.type === 'sell') {
+        action = { type: 'sell', space: Number(body.space) };
+      } else if (body.type === 'fly') {
+        action = { type: 'fly', space: Number(body.space) };
+      } else if (body.type === 'sail') {
+        action = { type: 'sail', space: Number(body.space) };
+      } else {
+        action = {
+          type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' | 'skipFly' | 'skipSail',
+        };
+      }
       const next = transition(
         room.game,
         action,
