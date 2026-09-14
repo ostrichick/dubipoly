@@ -498,26 +498,86 @@ nav button,
   letter-spacing: 1.5px;
 }
 
-/* 3-Hub Main Arena - Moderately sized, compact and balanced */
+/* Board Corner Dubu Mascot Watermarks - Semi-transparent mat stamps */
+.board-corner-mascot {
+  position: absolute;
+  width: clamp(38px, 5.5vw, 54px);
+  height: clamp(38px, 5.5vw, 54px);
+  opacity: 0.22;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.75) 0%, rgba(254, 243, 199, 0.35) 70%, transparent 100%);
+  border: 1.5px dashed rgba(217, 119, 6, 0.35);
+  box-shadow: 0 1px 4px rgba(22, 127, 130, 0.12);
+  transition: opacity 0.3s ease;
+}
+
+.board-corner-mascot.corner-top-left {
+  top: 8px;
+  left: 8px;
+  transform: rotate(-10deg);
+}
+
+.board-corner-mascot.corner-top-right {
+  top: 8px;
+  right: 8px;
+  transform: rotate(10deg);
+}
+
+.board-corner-mascot.corner-bottom-left {
+  bottom: 8px;
+  left: 8px;
+  transform: rotate(10deg);
+}
+
+.board-corner-mascot.corner-bottom-right {
+  bottom: 8px;
+  right: 8px;
+  transform: rotate(-10deg);
+}
+
+.corner-mascot-img {
+  width: 76%;
+  height: 76%;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.15));
+}
+
+.corner-mascot-label {
+  font-size: clamp(6px, 0.75vw, 8px);
+  font-weight: 950;
+  letter-spacing: 0.8px;
+  color: #92400e;
+  line-height: 1;
+  margin-top: -1px;
+}
+
+/* 3-Hub Main Arena - Comfortably enlarged, perfectly centered with generous gaps */
 .hub-main-arena {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1.25fr);
-  gap: 5px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.95fr) minmax(0, 1.25fr);
+  gap: clamp(10px, 1.8vw, 16px);
   align-items: stretch;
-  max-width: 380px;
-  width: 92%;
-  margin: 2px auto 0;
+  max-width: 470px;
+  width: 95%;
+  margin: auto auto;
   position: relative;
 }
 
-/* Hub Player Cards (P0 & P1) - Clean & Compact */
+/* Hub Player Cards (P0 & P1) - Prominent, readable and cleanly separated */
 .hub-player-card {
-  border-radius: 11px;
-  padding: 4px 6px;
+  border-radius: 13px;
+  padding: clamp(5px, 0.9vw, 8px) clamp(6px, 1vw, 10px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 2px;
+  gap: clamp(2.5px, 0.45vw, 5px);
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   position: relative;
   overflow: hidden;
@@ -525,12 +585,12 @@ nav button,
 .hub-card-0 {
   background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
   border: 1.5px solid #93c5fd;
-  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 2px 7px rgba(37, 99, 235, 0.12);
 }
 .hub-card-1 {
   background: linear-gradient(180deg, #ffffff 0%, #fef2f2 100%);
   border: 1.5px solid #fca5a5;
-  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 2px 7px rgba(239, 68, 68, 0.12);
 }
 .hub-card-0.hub-active-turn {
   border-color: #2563eb !important;
@@ -567,18 +627,18 @@ nav button,
 .hub-card-header {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 .hub-avatar-box {
-  width: clamp(22px, 2.7vw, 30px);
-  height: clamp(22px, 2.7vw, 30px);
+  width: clamp(26px, 3.4vw, 36px);
+  height: clamp(26px, 3.4vw, 36px);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   flex-shrink: 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 .avatar-box-0 {
   background: #dbeafe;
@@ -589,14 +649,14 @@ nav button,
   border: 1.5px solid #ef4444;
 }
 .hub-avatar-icon {
-  font-size: clamp(12px, 1.5vw, 16px);
+  font-size: clamp(14px, 1.8vw, 19px);
   line-height: 1;
 }
 .hub-avatar-accessory {
   position: absolute;
   top: -3px;
   right: -3px;
-  font-size: clamp(8px, 1vw, 10.5px);
+  font-size: clamp(8.5px, 1.1vw, 11.5px);
   line-height: 1;
 }
 .hub-player-meta {
@@ -606,13 +666,13 @@ nav button,
 .hub-name-row {
   display: flex;
   align-items: center;
-  gap: 2.5px;
+  gap: 3px;
 }
 .hub-pbadge {
-  font-size: 7.5px;
+  font-size: clamp(8px, 0.95vw, 9.5px);
   font-weight: 900;
-  border-radius: 2.5px;
-  padding: 0.5px 2.5px;
+  border-radius: 3px;
+  padding: 0.5px 3.5px;
   line-height: 1.1;
   color: white;
 }
@@ -623,16 +683,16 @@ nav button,
   background: #dc2626;
 }
 .hub-you-chip {
-  font-size: 7px;
+  font-size: clamp(7px, 0.85vw, 8.5px);
   font-weight: 900;
   background: #10b981;
   color: white;
-  padding: 0.5px 2.5px;
-  border-radius: 2.5px;
+  padding: 0.5px 3px;
+  border-radius: 3px;
 }
 .hub-player-name {
   display: block;
-  font-size: clamp(9px, 1.05vw, 11.5px);
+  font-size: clamp(10px, 1.2vw, 13px);
   font-weight: 850;
   color: #1e293b;
   white-space: nowrap;
@@ -644,8 +704,8 @@ nav button,
 /* Hub Cash Panel */
 .hub-cash-panel {
   background: #ffffff;
-  border-radius: 7px;
-  padding: 2px 4px;
+  border-radius: 8px;
+  padding: clamp(2.5px, 0.4vw, 4.5px) clamp(4px, 0.6vw, 7px);
   border: 1px solid #e2e8f0;
   position: relative;
   display: flex;
@@ -654,20 +714,20 @@ nav button,
 .hub-cash-line {
   display: flex;
   align-items: baseline;
-  gap: 2.5px;
+  gap: 3px;
   line-height: 1;
 }
 .hub-cash-icon {
-  font-size: clamp(9px, 1.1vw, 11.5px);
+  font-size: clamp(10px, 1.25vw, 13px);
 }
 .hub-cash-num {
-  font-size: clamp(10px, 1.25vw, 13.5px);
-  font-weight: 900;
+  font-size: clamp(11.5px, 1.45vw, 15.5px);
+  font-weight: 950;
   color: #0f172a;
 }
 .hub-cash-unit {
-  font-size: 7.5px;
-  font-weight: 700;
+  font-size: clamp(7.5px, 0.9vw, 9.5px);
+  font-weight: 800;
   color: #64748b;
 }
 .hub-deltas-container {
@@ -676,10 +736,10 @@ nav button,
   gap: 1px;
 }
 .hub-delta-tag {
-  font-size: 7.5px;
+  font-size: clamp(7.5px, 0.9vw, 9.5px);
   font-weight: 900;
   border-radius: 3px;
-  padding: 0.5px 2.5px;
+  padding: 0.5px 3px;
   line-height: 1.1;
   animation: hub-delta-bounce 0.25s ease-out;
 }
@@ -698,7 +758,7 @@ nav button,
 
 /* Hub Assets Line */
 .hub-assets-line {
-  font-size: clamp(7.5px, 0.9vw, 9.5px);
+  font-size: clamp(8px, 0.95vw, 10px);
   color: #475569;
   display: flex;
   justify-content: space-between;
@@ -711,29 +771,30 @@ nav button,
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  min-height: 12px;
+  min-height: 13px;
 }
 .hub-buff-badge {
-  font-size: 7px;
+  font-size: clamp(7px, 0.85vw, 9px);
   font-weight: 850;
-  padding: 0.5px 2.5px;
+  padding: 0.5px 3px;
   border-radius: 2.5px;
   line-height: 1.1;
   white-space: nowrap;
 }
 
-/* Central Dubi Bank - Compact & Elegant */
+/* Central Dubi Bank - Comfortably sized, elegant & distinct */
 .hub-bank-card {
   background: radial-gradient(circle at 50% 25%, #fef3c7 0%, #ecfdf5 100%);
   border: 1.5px solid #f59e0b;
-  border-radius: 11px;
-  padding: 3px 2px;
+  border-radius: 13px;
+  padding: clamp(4px, 0.6vw, 6px) clamp(2px, 0.4vw, 5px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
+  gap: clamp(2px, 0.3vw, 3px);
   text-align: center;
-  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);
+  box-shadow: 0 2px 7px rgba(245, 158, 11, 0.16);
   transition: transform 0.2s ease, filter 0.2s ease;
   position: relative;
   overflow: hidden;
@@ -749,13 +810,13 @@ nav button,
   100% { transform: scale(1); filter: brightness(1); }
 }
 .bank-pediment {
-  font-size: clamp(12px, 1.5vw, 16px);
+  font-size: clamp(14px, 1.8vw, 19px);
   line-height: 1;
 }
 .bank-vault-visual {
   position: relative;
-  width: clamp(26px, 3.2vw, 36px);
-  height: clamp(26px, 3.2vw, 36px);
+  width: clamp(30px, 3.8vw, 42px);
+  height: clamp(30px, 3.8vw, 42px);
 }
 .vault-glow-ring {
   position: absolute;
@@ -782,7 +843,7 @@ nav button,
   position: absolute;
   bottom: -2px;
   right: -2px;
-  font-size: clamp(7px, 0.9vw, 9.5px);
+  font-size: clamp(8px, 1vw, 10.5px);
   line-height: 1;
   z-index: 3;
 }
@@ -792,13 +853,13 @@ nav button,
   flex-direction: column;
 }
 .bank-name-plate strong {
-  font-size: clamp(7.5px, 0.95vw, 10.5px);
+  font-size: clamp(8.5px, 1.05vw, 11.5px);
   font-weight: 950;
   color: #78350f;
   letter-spacing: 0.3px;
 }
 .bank-name-plate small {
-  font-size: clamp(6.5px, 0.8vw, 8.5px);
+  font-size: clamp(7px, 0.85vw, 9px);
   font-weight: 750;
   color: #059669;
 }
@@ -809,24 +870,24 @@ nav button,
   background: rgba(255, 255, 255, 0.88);
   border: 1px solid #fde68a;
   border-radius: 9999px;
-  padding: 0.5px 4px;
-  font-size: clamp(6.5px, 0.75vw, 8px);
+  padding: 1px 5px;
+  font-size: clamp(7px, 0.85vw, 8.5px);
   font-weight: 800;
   color: #92400e;
 }
 .bank-sparkle {
-  font-size: 6.5px;
+  font-size: 7px;
 }
 
 /* Board Center Travel Event Display - Prominently Displayed on Board */
 .hub-event-card {
-  max-width: 380px;
-  width: 92%;
+  max-width: 450px;
+  width: 95%;
   margin: 3px auto 0;
   background: linear-gradient(135deg, #fffdf2 0%, #fef3c7 100%);
   border: 1.5px solid #fcd34d;
-  border-radius: 10px;
-  padding: 4px 8px;
+  border-radius: 11px;
+  padding: 4px 9px;
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.18);
   display: flex;
   flex-direction: column;

@@ -1323,6 +1323,24 @@ export default function Home() {
             >
               <div ref={boardRef} className={`board ${zoom ? 'zoom' : ''}`}>
                 <div className="board-center">
+                  {/* 4 Corner Dubu Mascot Watermarks */}
+                  <div className="board-corner-mascot corner-top-left" aria-hidden="true">
+                    <img src="/dubu-mascot.png" alt="" className="corner-mascot-img" />
+                    <span className="corner-mascot-label">DUBU</span>
+                  </div>
+                  <div className="board-corner-mascot corner-top-right" aria-hidden="true">
+                    <img src="/dubu-mascot.png" alt="" className="corner-mascot-img" />
+                    <span className="corner-mascot-label">DUBU</span>
+                  </div>
+                  <div className="board-corner-mascot corner-bottom-left" aria-hidden="true">
+                    <img src="/dubu-mascot.png" alt="" className="corner-mascot-img" />
+                    <span className="corner-mascot-label">DUBU</span>
+                  </div>
+                  <div className="board-corner-mascot corner-bottom-right" aria-hidden="true">
+                    <img src="/dubu-mascot.png" alt="" className="corner-mascot-img" />
+                    <span className="corner-mascot-label">DUBU</span>
+                  </div>
+
                   {g ? (
                     <BoardCenterHub
                       game={g}
