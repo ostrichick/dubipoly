@@ -1,6 +1,14 @@
-import { events } from '../../../../../lib/events';
-import { loadRoom, persistRoom, roomSnapshot, touchPlayer } from '../../../../../lib/server-rooms';
-import { transition, type Action, type PlayerId } from '../../../../../lib/game';
+import { events } from '../../../../../lib/events.ts';
+import {
+  loadRoom,
+  persistRoom,
+  roomSnapshot,
+} from '../../../../../lib/server-rooms.ts';
+import {
+  transition,
+  type Action,
+  type PlayerId,
+} from '../../../../../lib/game.ts';
 
 function json(data: unknown, status = 200) {
   return Response.json(data, {
@@ -8,64 +16,76 @@ function json(data: unknown, status = 200) {
     headers: { 'Cache-Control': 'no-store' },
   });
 }
-
 function randomInt(max: number) {
   const bytes = new Uint32Array(1);
   crypto.getRandomValues(bytes);
   return bytes[0] % max;
 }
-
 export async function POST(
   request: Request,
   context: { params: Promise<{ roomCode: string }> },
 ) {
-  const { roomCode: rawCode } = await context.params;
-  const roomCode = rawCode.toUpperCase();
-  const room = await loadRoom(roomCode);
-  if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
-  if (!room.game || !room.save) return json({ error: 'GAME_NOT_STARTED' }, 409);
-
-  const body = (await request.json().catch(() => ({}))) as {
-    token?: string;
-    type?: Action['type'];
-    revision?: number;
-    requestId?: string;
-  };
-  const playerIndex = touchPlayer(room, body.token ?? '');
-  if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
-  if (!body.type || !['roll', 'buy', 'upgrade', 'end'].includes(body.type)) {
-    return json({ error: 'INVALID_ACTION' }, 400);
-  }
-  if (!body.requestId) return json({ error: 'MISSING_REQUEST_ID' }, 400);
-  const previous = room.processed.get(body.requestId);
-  if (previous) return json(previous.snapshot);
-  if (body.revision !== room.game.revision) return json({ error: 'STALE_STATE' }, 409);
-
-  const action: Action =
-    body.type === 'roll'
-      ? { type: 'roll', dice: [randomInt(6) + 1, randomInt(6) + 1], event: randomInt(events.length) }
-      : { type: body.type };
-  const next = transition(room.game, action, playerIndex as PlayerId, room.game.revision);
-  if (next === room.game) return json({ error: 'ACTION_REJECTED' }, 409);
-  const previousGame = room.game;
-  const previousSave = room.save;
-  const previousProcessed = room.processed;
-  room.game = next;
-  room.save = { ...room.save, actions: [...room.save.actions, action] };
-  const snapshot = { ...roomSnapshot(roomCode, room), token: body.token };
-  // Store the request ID in the same snapshot as the game mutation. This makes
-  // retries safe even after the request lands on a different Worker instance.
-  room.processed = new Map(room.processed);
-  room.processed.set(body.requestId, { revision: next.revision, snapshot });
-  if (room.processed.size > 200) {
-    const oldest = room.processed.keys().next().value;
-    if (oldest) room.processed.delete(oldest);
-  }
-  if (!(await persistRoom(roomCode, room))) {
-    room.game = previousGame;
-    room.save = previousSave;
-    room.processed = previousProcessed;
+  try {
+    const { roomCode: rawCode } = await context.params;
+    const roomCode = rawCode.toUpperCase();
+    const body = (await request.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
+    if (
+      !body ||
+      typeof body.type !== 'string' ||
+      !['roll', 'buy', 'upgrade', 'end', 'bail'].includes(body.type)
+    )
+      return json({ error: 'INVALID_ACTION' }, 400);
+    if (
+      typeof body.requestId !== 'string' ||
+      !body.requestId ||
+      body.requestId.length > 100
+    )
+      return json({ error: 'MISSING_REQUEST_ID' }, 400);
+    const action: Action =
+      body.type === 'roll'
+        ? {
+            type: 'roll',
+            dice: [randomInt(6) + 1, randomInt(6) + 1],
+            event: randomInt(events.length),
+          }
+        : { type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' };
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const room = await loadRoom(roomCode);
+      if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
+      if (!room.game || !room.save)
+        return json({ error: 'GAME_NOT_STARTED' }, 409);
+      const playerIndex = room.players.findIndex(
+        (player) => player.token === body.token,
+      );
+      if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
+      if (body.matchId !== (room.matchId ?? 'legacy'))
+        return json({ error: 'STALE_MATCH' }, 409);
+      const key = playerIndex + ':' + body.requestId;
+      // Return the latest state for a duplicate; never roll a client backwards.
+      if (room.processed.has(key)) return json(roomSnapshot(roomCode, room));
+      if (body.revision !== room.game.revision)
+        return json({ error: 'STALE_STATE' }, 409);
+      const next = transition(
+        room.game,
+        action,
+        playerIndex as PlayerId,
+        room.game.revision,
+      );
+      if (next === room.game) return json({ error: 'ACTION_REJECTED' }, 409);
+      room.game = next;
+      room.save = { ...room.save, actions: [...room.save.actions, action] };
+      // Only the accepted revision is needed for deduplication, not nested snapshots.
+      room.processed.set(key, { revision: next.revision });
+      if (room.processed.size > 200)
+        room.processed.delete(room.processed.keys().next().value!);
+      if (await persistRoom(roomCode, room))
+        return json(roomSnapshot(roomCode, room));
+    }
     return json({ error: 'ROOM_CHANGED' }, 409);
+  } catch {
+    return json({ error: 'STORAGE_UNAVAILABLE' }, 503);
   }
-  return json(snapshot);
 }

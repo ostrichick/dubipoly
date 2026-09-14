@@ -11,7 +11,7 @@ import {
   type Action,
 } from '../lib/game.ts';
 import { events } from '../lib/events.ts';
-const fresh = () => createGame(['Dubu', 'Dubi']);
+const fresh = () => createGame(['Dubu', 'Dubi'], 1);
 const roll: Action = { type: 'roll', dice: [1, 1], event: 0 };
 function at(position: number, cash = 1500) {
   const g = fresh();
@@ -149,12 +149,12 @@ test('save/replay exactly restores actions and rejects malformed, stale or incom
       roll,
       { type: 'end' },
     ];
-  let game = createGame(names);
+  let game = createGame(names, 1);
   actions.forEach((a) => (game = transition(game, a)));
   const raw = JSON.stringify({ version: 1, names, actions });
   assert.deepEqual(restore(raw)?.game, game);
   assert.equal(restore('{'), null);
-  assert.equal(restore(JSON.stringify({ version: 2, names, actions })), null);
+  assert.equal(restore(JSON.stringify({ version: 99, names, actions })), null);
   assert.equal(
     restore(JSON.stringify({ version: 1, names, actions: [{ type: 'buy' }] })),
     null,

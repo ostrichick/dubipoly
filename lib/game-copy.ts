@@ -3,57 +3,59 @@ import { events } from './events.ts';
 import type { Entry, Game } from './game.ts';
 export const ui = {
   en: {
-  "start": "Start a new trip",
-  "continue": "Continue",
-  "title": "A trip for two",
-  "name": "Traveler name",
-  "roll": "Roll dice",
-  "end": "End turn",
-  "skip": "Skip and end turn",
-  "buy": "Buy city",
-  "upgrade": "Upgrade one level",
-  "round": "Round",
-  "turn": "’s turn",
-  "cash": "Dubi balance",
-  "assets": "Total assets",
-  "level": "Upgrade level",
-  "owner": "Owner",
-  "none": "Unowned",
-  "rent": "Visit fee",
-  "price": "Purchase price",
-  "cost": "Upgrade cost",
-  "waiting": "Next turn",
-  "choice": "You can buy or upgrade the city you landed on.",
-  "rollHint": "Roll the dice to continue your trip.",
-  "endHint": "Your action is complete. End your turn for the next traveler.",
-  "max": "Maximum upgrade level reached.",
-  "low": "Not enough Dubi. You can skip.",
-  "finished": "The trip is over!",
-  "win": "Winner",
-  "tie": "Joint winners",
-  "bankrupt": "The trip ended because a required payment could not be covered.",
-  "score": "20 rounds complete: cash, purchase costs and upgrades make up your total assets.",
-  "new": "New game",
-  "confirm": "End this trip and start a new one?",
-  "yes": "Start again",
-  "cancel": "Cancel",
-  "saved": "Automatically saved in this browser",
-  "saveFail": "Unable to save. Closing this page may lose your progress.",
-  "badSave": "Unable to read the saved game. Please start a new one.",
-  "log": "Travel journal",
-  "mode": "One device · 2 players",
-  "zoom": "Zoom in",
-  "fit": "Fit board",
-  "korea": "Korea",
-  "peru": "Peru",
-  "special": "Travel stop",
-  "follow": "Show current position",
-  "rules": "How to play",
-  "rulesText": "Each traveler starts with 1,500 Dubi. Passing Start earns 200 Dubi. Buy or upgrade only the city you land on. Upgrades have 3 levels; the visit fee is the base fee × (level + 1). Movement cards apply destination city rules but never trigger another event. Two turns make a round. After 20 rounds, the most total assets wins. A required payment exceeding your cash causes bankruptcy. Passing Start backwards earns no bonus.",
-  "rest": "A free place to rest. You can end your turn.",
-  "event": "Landing here triggers a travel event.",
-  "loading": "Preparing your trip…"
-},
+    start: 'Start a new trip',
+    continue: 'Continue',
+    title: 'A trip for two',
+    name: 'Traveler name',
+    roll: 'Roll dice',
+    end: 'End turn',
+    skip: 'Skip and end turn',
+    buy: 'Buy city',
+    upgrade: 'Upgrade one level',
+    round: 'Round',
+    turn: '’s turn',
+    cash: 'Dubi balance',
+    assets: 'Total assets',
+    level: 'Upgrade level',
+    owner: 'Owner',
+    none: 'Unowned',
+    rent: 'Visit fee',
+    price: 'Purchase price',
+    cost: 'Upgrade cost',
+    waiting: 'Next turn',
+    choice: 'You can buy or upgrade the city you landed on.',
+    rollHint: 'Roll the dice to continue your trip.',
+    endHint: 'Your action is complete. End your turn for the next traveler.',
+    max: 'Maximum upgrade level reached.',
+    low: 'Not enough Dubi. You can skip.',
+    finished: 'The trip is over!',
+    win: 'Winner',
+    tie: 'Joint winners',
+    bankrupt: 'The trip ended because a required payment could not be covered.',
+    score:
+      '20 rounds complete: cash, purchase costs and upgrades make up your total assets.',
+    new: 'New game',
+    confirm: 'End this trip and start a new one?',
+    yes: 'Start again',
+    cancel: 'Cancel',
+    saved: 'Automatically saved in this browser',
+    saveFail: 'Unable to save. Closing this page may lose your progress.',
+    badSave: 'Unable to read the saved game. Please start a new one.',
+    log: 'Travel journal',
+    mode: 'One device · 2 players',
+    zoom: 'Zoom in',
+    fit: 'Fit board',
+    korea: 'Korea',
+    peru: 'Peru',
+    special: 'Travel stop',
+    follow: 'Show current position',
+    rules: 'How to play',
+    rulesText:
+      'Each traveler starts with 1,500 Dubi. Passing Start earns 200 Dubi. Buy or upgrade only the city you land on. Upgrades have 3 levels; the visit fee is the base fee × (level + 1). Movement cards apply destination city rules but never trigger another event. Two turns make a round. After 20 rounds, the most total assets wins. A required payment exceeding your cash causes bankruptcy. Passing Start backwards earns no bonus.',
+    rest: 'A free place to rest. You can end your turn.',
+    event: 'Landing here triggers a travel event.',
+    loading: 'Preparing your trip…',
+  },
   ko: {
     start: '새 여행 시작',
     continue: '이어하기',
@@ -118,7 +120,7 @@ export const ui = {
     buy: 'Comprar ciudad',
     upgrade: 'Mejorar un nivel',
     round: 'Ronda',
-    turn: ': tu turno',
+    turn: ': turno actual',
     cash: 'Dubi disponibles',
     assets: 'Patrimonio',
     level: 'Nivel',
@@ -168,6 +170,8 @@ export function describe(e: Entry, g: Game, l: Lang) {
     a = `${e.amount ?? 0} Dubi`;
   const es = l === 'es';
   const en = l === 'en';
+  if (e.detail)
+    return `${n}: ${specialCopy[l].log[e.detail]}${e.amount ? ` · −${a}` : ''}`;
   switch (e.kind) {
     case 'roll':
       return `${n}: 🎲 ${e.dice?.join(' + ')}`;
@@ -189,3 +193,121 @@ export function describe(e: Entry, g: Game, l: Lang) {
       return ui[l].finished;
   }
 }
+
+export const specialCopy = {
+  en: {
+    tourist: 'Tourist destination',
+    touristHint:
+      'Own 1 / 2 / 3 / 4 destinations: visit fee 25 / 50 / 100 / 200 Dubi.',
+    noBuildings: 'No buildings',
+    regionSet: 'Region complete · base rent ×2',
+    youHere: 'Your token is here',
+    myPosition: 'Find my token',
+    delay: 'Travel delay',
+    delayHint: 'Go directly to Dubu’s rest. No Start bonus; your turn ends.',
+    restSpaceHint:
+      'Just visiting is free. Travelers sent here must roll doubles or pay 50 Dubi to leave.',
+    rolling: 'Rolling…',
+    saving: 'Confirming your action…',
+    rollAgain: 'Roll again · Doubles!',
+    doubleHint:
+      'Doubles! Roll again. Three doubles in one turn send you to Dubu’s rest.',
+    doubleChoice:
+      'Doubles! Buy or upgrade first, then roll again. You may also skip the purchase.',
+    skipRoll: 'Skip purchase · Roll again',
+    tryDoubles: 'Roll to leave rest',
+    payRest: 'Leave rest',
+    restHint:
+      'Roll doubles to leave, or pay 50 Dubi before rolling. After 3 failed attempts, pay 50 and move.',
+    restAttempt: 'Rest attempt',
+    legacy:
+      'This trip keeps its original rules. Start a new game to use doubles, tourist destinations and special rules.',
+    rules:
+      'New trips: doubles grant another roll after resolving your landing. Three consecutive doubles send you directly to Dubu’s rest, with no Start bonus. Travel delay also sends you there. Roll doubles to leave (no extra roll), or pay 50 before rolling. The third failed attempt requires 50, then you move using that roll. Rent is still collected during rest. Owning every regular city in a region doubles only its unupgraded rent. Tourist destinations cannot be upgraded; owning 1–4 gives fees of 25/50/100/200. Extra rolls do not advance the round. These casual rules do not include auctions, mortgages or trading.',
+    log: {
+      doubles: 'Doubles: another roll after this landing.',
+      'three-doubles': 'Three doubles: go directly to Dubu’s rest.',
+      delay: 'Travel delay: go directly to Dubu’s rest.',
+      'rest-wait': 'No doubles: remain at rest.',
+      'rest-release': 'Leave rest and move; no bonus roll.',
+      'rest-fee': 'Paid to leave rest',
+    },
+  },
+  ko: {
+    tourist: '관광지',
+    touristHint:
+      '관광지 1 / 2 / 3 / 4곳 보유 시 방문료 25 / 50 / 100 / 200 Dubi',
+    noBuildings: '건물 발전 없음',
+    regionSet: '지역 독점 · 기본 방문료 2배',
+    youHere: '내 말이 있는 칸',
+    myPosition: '내 말 찾기',
+    delay: '여행 지연',
+    delayHint: '출발 보너스 없이 Dubu 쉼터로 바로 이동하고 턴을 마칩니다.',
+    restSpaceHint:
+      '일반 방문은 무료입니다. 강제 휴식 중이면 더블 또는 50 Dubi로 나올 수 있어요.',
+    rolling: '주사위 굴리는 중…',
+    saving: '행동을 확인하는 중…',
+    rollAgain: '더블! 한 번 더 굴리기',
+    doubleHint:
+      '더블이에요! 한 번 더 굴리세요. 한 턴에 3연속 더블이면 Dubu 쉼터로 이동합니다.',
+    doubleChoice:
+      '더블! 구매·발전을 마치면 다시 굴려요. 구매를 건너뛸 수도 있습니다.',
+    skipRoll: '구매 건너뛰고 다시 굴리기',
+    tryDoubles: '쉼터 탈출 주사위',
+    payRest: '쉼터에서 나가기',
+    restHint:
+      '더블로 탈출하거나, 굴리기 전에 50 Dubi를 내세요. 3번째 실패 시 50 Dubi를 내고 이동합니다.',
+    restAttempt: '쉼터 탈출 시도',
+    legacy:
+      '진행 중인 여행은 기존 규칙을 유지합니다. 새 게임부터 더블·관광지·특수 규칙이 적용됩니다.',
+    rules:
+      '새 경기: 더블이면 도착 칸 처리를 마친 뒤 한 번 더 굴립니다. 한 턴에 3연속 더블이면 출발 보너스 없이 Dubu 쉼터로 갑니다. 여행 지연 칸도 쉼터로 보냅니다. 더블로 탈출하면 추가 굴림은 없으며, 굴리기 전 50 Dubi를 내고 나올 수도 있습니다. 3번째 실패 시 50 Dubi를 내고 그 주사위만큼 이동합니다. 휴식 중에도 방문료를 받습니다. 같은 지역 일반 도시를 모두 소유하면 발전하지 않은 도시의 기본 방문료가 2배입니다. 관광지는 발전할 수 없고 보유 1~4곳에 따라 방문료가 25/50/100/200입니다. 추가 굴림은 라운드를 증가시키지 않습니다. 경매·저당·거래는 이 캐주얼 규칙에 포함되지 않습니다.',
+    log: {
+      doubles: '더블! 도착 칸 처리 후 다시 굴립니다.',
+      'three-doubles': '3연속 더블! Dubu 쉼터로 바로 이동합니다.',
+      delay: '여행 지연! Dubu 쉼터로 이동합니다.',
+      'rest-wait': '더블 실패: 쉼터에 머뭅니다.',
+      'rest-release': '쉼터에서 나와 이동합니다. 추가 굴림은 없어요.',
+      'rest-fee': '쉼터 복귀 비용 지불',
+    },
+  },
+  es: {
+    tourist: 'Destino turístico',
+    touristHint:
+      'Con 1 / 2 / 3 / 4 destinos: tarifa de 25 / 50 / 100 / 200 Dubi.',
+    noBuildings: 'Sin edificios',
+    regionSet: 'Región completa · tarifa base ×2',
+    youHere: 'Tu ficha está aquí',
+    myPosition: 'Encontrar mi ficha',
+    delay: 'Retraso de viaje',
+    delayHint:
+      'Ve directamente al descanso de Dubu, sin bono de Salida, y termina el turno.',
+    restSpaceHint:
+      'La visita normal es gratis. Si te enviaron aquí, sal con dobles o pagando 50 Dubi.',
+    rolling: 'Lanzando…',
+    saving: 'Confirmando tu acción…',
+    rollAgain: '¡Dobles! Lanzar otra vez',
+    doubleHint:
+      '¡Dobles! Lanza otra vez. Tres dobles consecutivos te envían al descanso de Dubu.',
+    doubleChoice:
+      '¡Dobles! Compra o mejora y vuelve a lanzar. También puedes pasar la compra.',
+    skipRoll: 'Pasar compra · Lanzar otra vez',
+    tryDoubles: 'Lanzar para salir',
+    payRest: 'Salir del descanso',
+    restHint:
+      'Sal con dobles o paga 50 Dubi antes de lanzar. Al tercer fallo, paga 50 y avanza.',
+    restAttempt: 'Intento de salida',
+    legacy:
+      'Este viaje mantiene las reglas anteriores. Empieza una nueva partida para activar dobles, turismo y reglas especiales.',
+    rules:
+      'Partidas nuevas: con dobles, resuelve la casilla y lanza de nuevo. Tres dobles seguidos te envían al descanso de Dubu sin bono de Salida. Retraso de viaje también te envía allí. Sal con dobles (sin lanzamiento extra) o paga 50 antes de lanzar. Al tercer fallo, paga 50 y avanza lo indicado. Sigues cobrando tarifas durante el descanso. Una región completa duplica la tarifa de sus ciudades sin mejoras. Los destinos turísticos no admiten mejoras: con 1–4 destinos, la tarifa es 25/50/100/200. Los lanzamientos extra no avanzan la ronda. Estas reglas casuales no incluyen subastas, hipotecas ni intercambios.',
+    log: {
+      doubles: 'Dobles: vuelve a lanzar tras resolver la casilla.',
+      'three-doubles': 'Tres dobles: ve al descanso de Dubu.',
+      delay: 'Retraso: ve al descanso de Dubu.',
+      'rest-wait': 'Sin dobles: sigues en el descanso.',
+      'rest-release': 'Sales y avanzas, sin lanzamiento extra.',
+      'rest-fee': 'Pago para salir del descanso',
+    },
+  },
+};

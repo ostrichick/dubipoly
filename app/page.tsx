@@ -4,6 +4,9 @@ import { board, type Lang } from '../lib/board';
 import { events } from '../lib/events';
 import {
   assets,
+  canBuy,
+  canUpgrade,
+  ownsRegion,
   createGame,
   rentAt,
   restore,
@@ -14,13 +17,15 @@ import {
   type Save,
   type PlayerId,
 } from '../lib/game';
-import { ui, describe } from '../lib/game-copy';
-import { roomFromLocation, roomUrl, type RoomMessage } from '../lib/room';
+import { ui, describe, specialCopy } from '../lib/game-copy';
+import { roomFromLocation, roomUrl } from '../lib/room';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
-type Session = { game: Game; save: Save };
+type Session = { game: Game; save: Save; matchId?: string };
 type RoomSnapshot = {
+  matchId: string;
+  role?: 'host' | 'guest';
   roomCode: string;
   names: [string, string];
   players: number;
@@ -50,7 +55,7 @@ export default function Home() {
     [reset, setReset] = useState(false),
     [saveError, setSaveError] = useState(false),
     [badSave, setBadSave] = useState(false);
-    
+
   const [roomCode, setRoomCode] = useState(''),
     [roomInput, setRoomInput] = useState(''),
     [roomNotice, setRoomNotice] = useState(''),
@@ -60,12 +65,20 @@ export default function Home() {
     [roomRole, setRoomRole] = useState<'host' | 'guest' | ''>(''),
     [roomNameDraft, setRoomNameDraft] = useState(''),
     [roomNameDirty, setRoomNameDirty] = useState(false),
-    [roomPresence, setRoomPresence] = useState<Array<{ connected: boolean }>>([]),
+    [roomPresence, setRoomPresence] = useState<Array<{ connected: boolean }>>(
+      [],
+    ),
     [online, setOnline] = useState(true),
-    [roomRefresh, setRoomRefresh] = useState(0);
+    [pendingAction, setPendingAction] = useState<Action['type'] | null>(null),
+    [roomRefresh, setRoomRefresh] = useState(0),
+    [roomConnected, setRoomConnected] = useState(false);
+  const mutation = useRef(false),
+    epoch = useRef(0),
+    retiredMatches = useRef(new Set<string>());
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
   const copy = (en: string, ko: string, es: string) => ({ en, ko, es })[lang];
+  const special = specialCopy[lang];
   const t = ui[lang],
     g = session?.game,
     s = board[selected],
@@ -79,7 +92,8 @@ export default function Home() {
     const handleOffline = () => setOnline(false);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    if ('serviceWorker' in navigator) void navigator.serviceWorker.register('/sw.js');
+    if ('serviceWorker' in navigator)
+      void navigator.serviceWorker.register('/sw.js');
     const initialRoom = roomFromLocation();
     if (initialRoom) {
       setRoomCode(initialRoom);
@@ -87,20 +101,6 @@ export default function Home() {
       const savedToken = localStorage.getItem(`dubipoly.room.${initialRoom}`);
       if (savedToken) setRoomToken(savedToken);
     }
-    const channel = 'BroadcastChannel' in window && initialRoom
-      ? new BroadcastChannel(`dubipoly-room-${initialRoom}`)
-      : null;
-    const onMessage = (event: MessageEvent<RoomMessage>) => {
-      if (event.data.type !== 'state' || event.data.roomCode !== initialRoom) return;
-      const restored = restore(JSON.stringify(event.data.save));
-      if (restored) {
-        current.current = restored;
-        setSession(restored);
-        setSelected(restored.game.players[restored.game.current].position);
-        setRoomNotice(copy("Game state received from another tab.", "다른 탭에서 게임 상태를 받았습니다.", "Estado recibido desde otra pestaña."));
-      }
-    };
-    channel?.addEventListener('message', onMessage);
     try {
       const language = localStorage.getItem('dubipoly.lang');
       if (language === 'en' || language === 'ko' || language === 'es') {
@@ -121,7 +121,6 @@ export default function Home() {
     }
     setLoaded(true);
     return () => {
-      channel?.close();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
@@ -129,32 +128,84 @@ export default function Home() {
   useEffect(() => {
     if (!roomCode || !roomToken) return;
     let stopped = false;
+    let presenceAt = 0;
+    let timer: ReturnType<typeof setTimeout>;
     async function syncRoom() {
+      const requestEpoch = epoch.current;
       try {
-        const response = await fetch(`/api/rooms?room=${encodeURIComponent(roomCode)}&token=${encodeURIComponent(roomToken)}`, {
-          cache: 'no-store',
-        });
-        if (!response.ok || stopped) return;
+        if (mutation.current) return;
+        const reportPresence =
+          Date.now() - presenceAt >= 5000 || !current.current?.matchId;
+        const response = await fetch(
+          `/api/rooms?room=${encodeURIComponent(roomCode)}&token=${encodeURIComponent(roomToken)}${!reportPresence && current.current?.matchId ? `&sync=1&match=${current.current.matchId}&revision=${current.current.game.revision}` : ''}`,
+          {
+            cache: 'no-store',
+          },
+        );
+        if (stopped || requestEpoch !== epoch.current || mutation.current)
+          return;
+        if (!response.ok) throw new Error('Room unavailable');
+        if (response.status === 204) {
+          setRoomConnected(true);
+          return;
+        }
+        if (reportPresence) presenceAt = Date.now();
         const snapshot = (await response.json()) as RoomSnapshot;
-        if (stopped) return;
+        if (stopped || requestEpoch !== epoch.current || mutation.current)
+          return;
+        setRoomConnected(true);
+        setRoomNotice((previous) =>
+          previous ===
+            copy(
+              'Checking the room connection.',
+              '방 연결을 확인하는 중입니다.',
+              'Comprobando la conexión de la sala.',
+            ) ||
+          previous ===
+            copy(
+              'Connection interrupted. Refreshing the room; please check the state before retrying.',
+              '연결이 끊겼습니다. 방 상태를 확인한 뒤 다시 시도하세요.',
+              'Conexión interrumpida. Comprueba el estado antes de reintentar.',
+            )
+            ? ''
+            : previous,
+        );
         setRoomReady(snapshot.ready);
-        setRoomRole(snapshot.playerIndex === 0 ? 'host' : snapshot.playerIndex === 1 ? 'guest' : '');
-        setRoomPresence(snapshot.presence ?? []);
+        setRoomRole(
+          snapshot.playerIndex === 0
+            ? 'host'
+            : snapshot.playerIndex === 1
+              ? 'guest'
+              : '',
+        );
+        if (snapshot.presence) setRoomPresence(snapshot.presence);
         if (snapshot.names) {
           setNames(snapshot.names);
           const playerIndex = snapshot.playerIndex ?? -1;
-          if (!roomNameDirty && playerIndex >= 0) setRoomNameDraft(snapshot.names[playerIndex]);
+          if (!roomNameDirty && playerIndex >= 0)
+            setRoomNameDraft(snapshot.names[playerIndex]);
         }
         if (snapshot.game && snapshot.save) applyRoomSnapshot(snapshot);
       } catch {
-        if (!stopped) setRoomNotice(copy("Checking the room connection.", "방 연결을 확인하는 중입니다.", "Comprobando la conexión de la sala."));
+        if (!stopped) {
+          setRoomConnected(false);
+          setRoomNotice(
+            copy(
+              'Checking the room connection.',
+              '방 연결을 확인하는 중입니다.',
+              'Comprobando la conexión de la sala.',
+            ),
+          );
+        }
+      } finally {
+        if (!stopped)
+          timer = setTimeout(syncRoom, document.hidden ? 1500 : 500);
       }
     }
     void syncRoom();
-    const timer = window.setInterval(syncRoom, 1200);
     return () => {
       stopped = true;
-      window.clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [roomCode, roomToken, roomRefresh, lang, roomNameDirty]);
   function changeLanguage(l: Lang) {
@@ -177,21 +228,51 @@ export default function Home() {
     } catch {
       setSaveError(true);
     }
-    if (roomCode && 'BroadcastChannel' in window) {
-      const channel = new BroadcastChannel(`dubipoly-room-${roomCode}`);
-      channel.postMessage({ type: 'state', roomCode, save: next.save } satisfies RoomMessage);
-      channel.close();
+  }
+
+  async function roomWork(work: () => Promise<void>) {
+    if (mutation.current || (roomToken && !navigator.onLine)) return;
+    mutation.current = true;
+    epoch.current++;
+    setRoomBusy(true);
+    try {
+      await work();
+    } catch {
+      setRoomConnected(false);
+      setRoomNotice(
+        copy(
+          'Connection interrupted. Refreshing the room; please check the state before retrying.',
+          '연결이 끊겼습니다. 방 상태를 확인한 뒤 다시 시도하세요.',
+          'Conexión interrumpida. Comprueba el estado antes de reintentar.',
+        ),
+      );
+    } finally {
+      mutation.current = false;
+      epoch.current++;
+      setRoomBusy(false);
+      setRoomRefresh((value) => value + 1);
     }
   }
   async function createRoom() {
-    const requestedName = names[0].trim() || copy('Traveler 1', '여행자 1', 'Viajero 1');
+    const requestedName =
+      names[0].trim() || copy('Traveler 1', '여행자 1', 'Viajero 1');
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'create', name: requestedName }),
     });
-    if (!response.ok) return setRoomNotice(copy("Unable to create the room.", "방을 만들지 못했습니다.", "No se pudo crear la sala."));
+    if (!response.ok)
+      return setRoomNotice(
+        copy(
+          'Unable to create the room.',
+          '방을 만들지 못했습니다.',
+          'No se pudo crear la sala.',
+        ),
+      );
     const result = (await response.json()) as RoomSnapshot & { token: string };
+    current.current = null;
+    setSession(null);
+    setRoomConnected(true);
     setRoomCode(result.roomCode);
     setRoomInput(result.roomCode);
     setRoomToken(result.token);
@@ -203,41 +284,85 @@ export default function Home() {
     setRoomNameDirty(false);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     window.history.replaceState({}, '', roomUrl(result.roomCode));
-    setRoomNotice(copy("Room created. Enter this code on the other device.", "방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.", "Sala creada. Introduce el código en el otro dispositivo."));
+    setRoomNotice(
+      copy(
+        'Room created. Enter this code on the other device.',
+        '방이 만들어졌습니다. 다른 기기에서 코드를 입력하세요.',
+        'Sala creada. Introduce el código en el otro dispositivo.',
+      ),
+    );
   }
   async function joinRoom() {
     const code = roomInput.trim();
     if (!/^\d{2}$/.test(code)) {
-      setRoomNotice(copy("Enter a 2-digit room code.", "두 자리 숫자 방 코드를 입력하세요.", "Escribe un código de sala de 2 dígitos."));
+      setRoomNotice(
+        copy(
+          'Enter a 2-digit room code.',
+          '두 자리 숫자 방 코드를 입력하세요.',
+          'Escribe un código de sala de 2 dígitos.',
+        ),
+      );
       return;
     }
-    const requestedName = names[0].trim() || names[1].trim() || copy('Traveler 2', '여행자 2', 'Viajero 2');
+    const requestedName =
+      names[0].trim() ||
+      names[1].trim() ||
+      copy('Traveler 2', '여행자 2', 'Viajero 2');
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'join', roomCode: code, name: requestedName }),
+      body: JSON.stringify({
+        action: 'join',
+        roomCode: code,
+        name: requestedName,
+        token: localStorage.getItem(`dubipoly.room.${code}`),
+      }),
     });
     if (!response.ok) {
-      setRoomNotice(copy("Room not found or already full.", "방을 찾을 수 없거나 이미 가득 찼습니다.", "La sala no existe o está llena."));
+      setRoomNotice(
+        copy(
+          'Room not found or already full.',
+          '방을 찾을 수 없거나 이미 가득 찼습니다.',
+          'La sala no existe o está llena.',
+        ),
+      );
       return;
     }
     const result = (await response.json()) as RoomSnapshot & { token: string };
     setRoomCode(result.roomCode);
     setRoomToken(result.token);
     setRoomReady(result.ready);
-    setRoomRole('guest');
+    current.current = null;
+    setSession(null);
+    setRoomConnected(true);
+    setRoomRole(result.role ?? 'guest');
     setRoomPresence(result.presence ?? []);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
     setNames(result.names);
-    setRoomNameDraft(result.names[1] ?? requestedName);
+    setRoomNameDraft(
+      result.names[result.role === 'host' ? 0 : 1] ?? requestedName,
+    );
+    applyRoomSnapshot(result);
     setRoomNameDirty(false);
     window.history.replaceState({}, '', roomUrl(code));
-    setRoomNotice(copy("Joined the room. Both players are ready.", "방에 참가했습니다. 두 플레이어가 준비되었습니다.", "Sala conectada. Los dos jugadores están listos."));
+    setRoomNotice(
+      copy(
+        'Joined the room. Both players are ready.',
+        '방에 참가했습니다. 두 플레이어가 준비되었습니다.',
+        'Sala conectada. Los dos jugadores están listos.',
+      ),
+    );
   }
   async function renameRoom() {
     const name = roomNameDraft.trim();
     if (!roomCode || !roomToken || !name) {
-      setRoomNotice(copy('Enter your name first.', '이름을 먼저 입력하세요.', 'Escribe tu nombre primero.'));
+      setRoomNotice(
+        copy(
+          'Enter your name first.',
+          '이름을 먼저 입력하세요.',
+          'Escribe tu nombre primero.',
+        ),
+      );
       return;
     }
     setRoomBusy(true);
@@ -245,17 +370,30 @@ export default function Home() {
       const response = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'rename', roomCode, token: roomToken, name }),
+        body: JSON.stringify({
+          action: 'rename',
+          roomCode,
+          token: roomToken,
+          name,
+        }),
       });
       if (!response.ok) {
-        setRoomNotice(copy('Your name could not be saved.', '이름을 저장하지 못했습니다.', 'No se pudo guardar tu nombre.'));
+        setRoomNotice(
+          copy(
+            'Your name could not be saved.',
+            '이름을 저장하지 못했습니다.',
+            'No se pudo guardar tu nombre.',
+          ),
+        );
         return;
       }
       const snapshot = (await response.json()) as RoomSnapshot;
       setNames(snapshot.names);
       setRoomNameDraft(name);
       setRoomNameDirty(false);
-      setRoomNotice(copy('Name saved.', '이름을 저장했습니다.', 'Nombre guardado.'));
+      setRoomNotice(
+        copy('Name saved.', '이름을 저장했습니다.', 'Nombre guardado.'),
+      );
       if (snapshot.game && snapshot.save) applyRoomSnapshot(snapshot);
     } finally {
       setRoomBusy(false);
@@ -263,25 +401,51 @@ export default function Home() {
   }
   function applyRoomSnapshot(snapshot: RoomSnapshot) {
     if (!snapshot.game || !snapshot.save) return;
-    const next = { game: snapshot.game, save: snapshot.save };
-    if (current.current?.game.revision === next.game.revision) return;
+    if (retiredMatches.current.has(snapshot.matchId)) return;
+    const next = {
+      game: snapshot.game,
+      save: snapshot.save,
+      matchId: snapshot.matchId,
+    };
+    const previous = current.current;
+    if (
+      previous?.matchId === next.matchId &&
+      previous.game.revision >= next.game.revision
+    )
+      return;
+    if (previous?.matchId && previous.matchId !== next.matchId) {
+      retiredMatches.current.add(previous.matchId);
+      setReset(false);
+    }
     current.current = next;
     setSession(next);
     setSelected(next.game.players[next.game.current].position);
-    setReset(false);
   }
-  async function startRoom() {
+  async function startRoom(rematch = false) {
     if (!roomCode || !roomToken) return;
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'start', roomCode, token: roomToken }),
+      body: JSON.stringify({
+        action: rematch ? 'rematch' : 'start',
+        roomCode,
+        token: roomToken,
+        matchId: current.current?.matchId,
+      }),
     });
     if (!response.ok) {
       setRoomNotice(
         response.status === 409
-          ? copy("Both players must join before starting.", "두 플레이어가 모두 들어와야 시작할 수 있어요.", "Deben entrar los dos jugadores para empezar.")
-          : copy("Only the host can start.", "방장만 게임을 시작할 수 있어요.", "Solo el anfitrión puede empezar."),
+          ? copy(
+              'Both players must join before starting.',
+              '두 플레이어가 모두 들어와야 시작할 수 있어요.',
+              'Deben entrar los dos jugadores para empezar.',
+            )
+          : copy(
+              'Only the host can start.',
+              '방장만 게임을 시작할 수 있어요.',
+              'Solo el anfitrión puede empezar.',
+            ),
       );
       return;
     }
@@ -289,6 +453,8 @@ export default function Home() {
     setRoomReady(snapshot.ready);
     setRoomPresence(snapshot.presence ?? []);
     applyRoomSnapshot(snapshot);
+    setReset(false);
+    setRoomNotice('');
   }
   async function shareRoom() {
     if (!roomCode) return;
@@ -298,22 +464,34 @@ export default function Home() {
     };
     try {
       if (browserNavigator.share) {
-        await browserNavigator.share({ title: 'Dubipoly', text: roomCode, url });
+        await browserNavigator.share({
+          title: 'Dubipoly',
+          text: roomCode,
+          url,
+        });
       } else {
         await navigator.clipboard.writeText(url);
       }
-      setRoomNotice(copy("Room link shared.", "방 링크를 공유했습니다.", "Enlace de sala compartido."));
+      setRoomNotice(
+        copy(
+          'Room link shared.',
+          '방 링크를 공유했습니다.',
+          'Enlace de sala compartido.',
+        ),
+      );
     } catch {
-      setRoomNotice(`${copy('Send this link:', '이 링크를 보내세요:', 'Envía este enlace:')} ${url}`);
+      setRoomNotice(
+        `${copy('Send this link:', '이 링크를 보내세요:', 'Envía este enlace:')} ${url}`,
+      );
     }
   }
   function start() {
     const actual = names.map(
-      (n, i) => n.trim() || `${copy("Traveler", "여행자", "Viajero")} ${i + 1}`,
+      (n, i) => n.trim() || `${copy('Traveler', '여행자', 'Viajero')} ${i + 1}`,
     ) as [string, string];
     commit({
       game: createGame(actual),
-      save: { version: 1, names: actual, actions: [] },
+      save: { version: 2, names: actual, actions: [] },
     });
     setSelected(0);
     setReset(false);
@@ -322,29 +500,53 @@ export default function Home() {
     const old = current.current;
     if (!old) return;
     if (roomCode && roomToken) {
+      if (old.game.current !== (roomRole === 'host' ? 0 : 1)) return;
       setRoomBusy(true);
+      setPendingAction(a.type);
+      if (a.type !== 'roll') {
+        const predicted = transition(old.game, a, old.game.current, revision);
+        if (predicted !== old.game) setSession({ ...old, game: predicted });
+      }
+      let accepted = false;
       try {
-        const response = await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/actions`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: roomToken,
-            type: a.type,
-            revision,
-            requestId: crypto.randomUUID(),
-          }),
-        });
+        const response = await fetch(
+          `/api/rooms/${encodeURIComponent(roomCode)}/actions`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: roomToken,
+              matchId: old.matchId,
+              type: a.type,
+              revision,
+              requestId: crypto.randomUUID(),
+            }),
+          },
+        );
         if (!response.ok) {
           setRoomNotice(
             response.status === 409
-              ? copy("The room state changed. Fetching the latest state.", "다른 기기에서 상태가 바뀌었습니다. 최신 상태를 다시 불러옵니다.", "El otro dispositivo cambió el estado. Actualizando la partida.")
-              : copy("Unable to connect to the room.", "방 서버와 연결할 수 없습니다.", "No se pudo conectar con la sala."),
+              ? copy(
+                  'The room state changed. Fetching the latest state.',
+                  '다른 기기에서 상태가 바뀌었습니다. 최신 상태를 다시 불러옵니다.',
+                  'El otro dispositivo cambió el estado. Actualizando la partida.',
+                )
+              : copy(
+                  'Unable to connect to the room.',
+                  '방 서버와 연결할 수 없습니다.',
+                  'No se pudo conectar con la sala.',
+                ),
           );
           if (response.status === 409) setRoomRefresh((value) => value + 1);
           return;
         }
         applyRoomSnapshot((await response.json()) as RoomSnapshot);
+        accepted = true;
+        setRoomConnected(true);
+        setRoomNotice('');
       } finally {
+        if (!accepted) setSession(current.current);
+        setPendingAction(null);
         setRoomBusy(false);
       }
       return;
@@ -356,7 +558,10 @@ export default function Home() {
   }
   function follow() {
     if (!g) return;
-    const pos = g.players[g.current].position;
+    const pos =
+      g.players[
+        roomToken && roomRole ? (roomRole === 'host' ? 0 : 1) : g.current
+      ].position;
     setSelected(pos);
     const cell = boardRef.current?.querySelector<HTMLElement>(
       `[data-space="${pos}"]`,
@@ -372,8 +577,34 @@ export default function Home() {
     isMyTurn = myPlayerIndex >= 0 && g?.current === myPlayerIndex,
     landed = active ? board[active.position] : null,
     owned = g && active ? g.properties[active.position] : undefined;
+  const actionsBlocked =
+    reset ||
+    roomBusy ||
+    Boolean(roomToken && (!isMyTurn || !online || !roomConnected));
+  const myPosition =
+    g?.players[myPlayerIndex >= 0 ? (myPlayerIndex as PlayerId) : g.current]
+      .position;
+  const tourist = landed?.kind === 'tourist' && g?.rulesVersion === 2;
+  const extraRoll = g?.rulesVersion === 2 && g.extraRoll;
+  const inRest = g?.rulesVersion === 2 && g.restTurns?.[g.current] != null;
+  const hasPropertyAction = !!g && (canBuy(g) || canUpgrade(g));
+  const endEmphasized =
+    !!g &&
+    (g.phase === 'choice' || g.phase === 'end') &&
+    !extraRoll &&
+    !hasPropertyAction;
   return (
-    <main>
+    <main
+      data-match-id={session?.matchId ?? ''}
+      data-revision={g?.revision}
+      data-phase={g?.phase}
+      data-current={g?.current}
+      data-round={g?.round}
+      data-winner={g?.winner ?? ''}
+      data-rules-version={g?.rulesVersion ?? 1}
+      data-extra-roll={String(!!extraRoll)}
+      data-pending={pendingAction ?? ''}
+    >
       <header>
         <a className="wordmark" href="/">
           Dubi<span>poly</span> ✈
@@ -381,8 +612,11 @@ export default function Home() {
         <span className="route-label">KOREA ··· ✈ ··· PERÚ</span>
         <label className="language-options">
           <span>{copy('Language', '언어', 'Idioma')}</span>
-          <select aria-label={copy('Language', '언어', 'Idioma')}
-            value={lang} onChange={(event) => changeLanguage(event.target.value as Lang)}>
+          <select
+            aria-label={copy('Language', '언어', 'Idioma')}
+            value={lang}
+            onChange={(event) => changeLanguage(event.target.value as Lang)}
+          >
             <option value="en">English</option>
             <option value="ko">한국어</option>
             <option value="es">Español</option>
@@ -391,19 +625,36 @@ export default function Home() {
       </header>
       {!online && (
         <p className="network-banner offline" role="status">
-          {copy("You are offline. The room will refresh when your connection returns.", "오프라인 상태입니다. 연결이 돌아오면 방 상태를 다시 확인합니다.", "Estás sin conexión. La sala se actualizará al volver la conexión.")}
+          {copy(
+            'You are offline. The room will refresh when your connection returns.',
+            '오프라인 상태입니다. 연결이 돌아오면 방 상태를 다시 확인합니다.',
+            'Estás sin conexión. La sala se actualizará al volver la conexión.',
+          )}
         </p>
       )}
       {online && roomCode && roomToken && (
         <p className="network-banner online" role="status">
-          {copy("Connected to the room", "방 서버에 연결됨", "Conectado a la sala")} · {roomCode}
+          {roomConnected
+            ? copy(
+                'Connected to the room',
+                '방 서버에 연결됨',
+                'Conectado a la sala',
+              )
+            : copy('Connecting…', '연결 확인 중…', 'Conectando…')}{' '}
+          · {roomCode}
         </p>
       )}
       <div className="toolbar">
         <div>
           <h1>{t.title}</h1>
           <p>
-            {roomToken ? copy('Online · 2 players', '온라인 · 2인 플레이', 'En línea · 2 jugadores') : t.mode}
+            {roomToken
+              ? copy(
+                  'Online · 2 players',
+                  '온라인 · 2인 플레이',
+                  'En línea · 2 jugadores',
+                )
+              : t.mode}
             {g ? ` · ${t.round} ${g.round}/${rules.rounds}` : ''}
           </p>
         </div>
@@ -416,12 +667,21 @@ export default function Home() {
             {zoom ? t.fit : t.zoom} ⤢
           </Button>
           {g && (
-            <Button variant="outline" onClick={() => setReset(true)}>
+            <Button
+              variant="outline"
+              disabled={roomBusy || Boolean(roomToken && roomRole !== 'host')}
+              onClick={() => setReset(true)}
+            >
               {t.new}
             </Button>
           )}
         </div>
       </div>
+      {roomNotice && (
+        <p className="room-notice" role="status">
+          {roomNotice}
+        </p>
+      )}
       {!loaded ? (
         <p role="status">{t.loading}</p>
       ) : (
@@ -437,7 +697,8 @@ export default function Home() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (roomCode && roomToken && !reset) void startRoom();
+                  if (roomCode && roomToken)
+                    void roomWork(() => startRoom(reset));
                   else start();
                 }}
               >
@@ -448,7 +709,11 @@ export default function Home() {
                       <Input
                         maxLength={24}
                         aria-label={copy('Your name', '내 이름', 'Tu nombre')}
-                        placeholder={copy('Traveler 1 or Traveler 2', '여행자 1 또는 여행자 2', 'Viajero 1 o Viajero 2')}
+                        placeholder={copy(
+                          'Traveler 1 or Traveler 2',
+                          '여행자 1 또는 여행자 2',
+                          'Viajero 1 o Viajero 2',
+                        )}
                         value={roomNameDraft}
                         onChange={(e) => {
                           setRoomNameDraft(e.target.value);
@@ -456,7 +721,12 @@ export default function Home() {
                         }}
                       />
                     </label>
-                    <Button type="button" variant="outline" onClick={renameRoom} disabled={roomBusy || !roomNameDirty}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void roomWork(renameRoom)}
+                      disabled={roomBusy || !roomNameDirty}
+                    >
                       {copy('Save name', '이름 저장', 'Guardar nombre')}
                     </Button>
                   </div>
@@ -468,7 +738,7 @@ export default function Home() {
                         <Input
                           maxLength={24}
                           aria-label={`${t.name} ${i + 1}`}
-                          placeholder={`${copy("Traveler", "여행자", "Viajero")} ${i + 1}`}
+                          placeholder={`${copy('Traveler', '여행자', 'Viajero')} ${i + 1}`}
                           value={names[i]}
                           onChange={(e) =>
                             setNames(
@@ -486,17 +756,37 @@ export default function Home() {
                 <div className="setup-actions">
                   <Button
                     type="submit"
-                    disabled={Boolean(roomCode && roomToken && (roomRole === 'guest' || !roomReady))}
+                    disabled={
+                      roomBusy ||
+                      Boolean(
+                        roomCode &&
+                        roomToken &&
+                        (roomRole !== 'host' ||
+                          !roomReady ||
+                          !online ||
+                          !roomConnected ||
+                          roomNameDirty),
+                      )
+                    }
                   >
                     {reset
                       ? t.yes
                       : roomCode && roomToken
                         ? roomRole === 'guest'
-                          ? copy("Waiting for the host", "방장 시작 대기", "Esperar al anfitrión")
+                          ? copy(
+                              'Waiting for the host',
+                              '방장 시작 대기',
+                              'Esperar al anfitrión',
+                            )
                           : roomReady
-                            ? copy("Start game", "게임 시작", "Empezar partida")
-                            : copy("Waiting for a player", "플레이어 대기", "Esperar jugador")
-                        : t.start} ✈
+                            ? copy('Start game', '게임 시작', 'Empezar partida')
+                            : copy(
+                                'Waiting for a player',
+                                '플레이어 대기',
+                                'Esperar jugador',
+                              )
+                        : t.start}{' '}
+                    ✈
                   </Button>
                   {reset && (
                     <Button
@@ -510,39 +800,73 @@ export default function Home() {
                 </div>
               </form>
               <div className="room-lobby">
-                <p className="eyebrow">{copy("Play on two devices", "두 기기로 함께 플레이", "Jugar en dos dispositivos")}</p>
-                <div className="room-actions">
-                  <Button type="button" variant="outline" onClick={createRoom}>
-                    {copy("Create room", "방 만들기", "Crear sala")}
+                <p className="eyebrow">
+                  {copy(
+                    'Play on two devices',
+                    '두 기기로 함께 플레이',
+                    'Jugar en dos dispositivos',
+                  )}
+                </p>
+                <div className="room-actions" hidden={Boolean(roomToken)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={roomBusy}
+                    onClick={() => void roomWork(createRoom)}
+                  >
+                    {copy('Create room', '방 만들기', 'Crear sala')}
                   </Button>
                   <Input
                     maxLength={2}
                     inputMode="numeric"
-                    aria-label={copy("Room code", "방 코드", "Código de sala")}
+                    aria-label={copy('Room code', '방 코드', 'Código de sala')}
                     placeholder="27"
                     value={roomInput}
-                    onChange={(e) => setRoomInput(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    onChange={(e) =>
+                      setRoomInput(
+                        e.target.value.replace(/\D/g, '').slice(0, 2),
+                      )
+                    }
                   />
-                  <Button type="button" variant="outline" onClick={joinRoom}>
-                    {copy("Join", "참가", "Unirse")}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={roomBusy}
+                    onClick={() => void roomWork(joinRoom)}
+                  >
+                    {copy('Join', '참가', 'Unirse')}
                   </Button>
                 </div>
                 {roomCode && (
                   <p className="room-code">
-                    {copy("Current room:", "현재 방:", "Sala actual:")} <strong>{roomCode}</strong>{roomToken ? ' · ✓' : ''}
+                    {copy('Current room:', '현재 방:', 'Sala actual:')}{' '}
+                    <strong>{roomCode}</strong>
+                    {roomToken ? ' · ✓' : ''}
                     <br />
                     {roomRole === 'host'
-                      ? copy("Host", "방장", "Anfitrión")
+                      ? copy('Host', '방장', 'Anfitrión')
                       : roomRole === 'guest'
-                        ? copy("Guest", "참가자", "Invitado")
+                        ? copy('Guest', '참가자', 'Invitado')
                         : ''}{' '}
-                    · {roomPresence.filter((player) => player.connected).length}/2 {copy("connected", "접속", "conectados")}
+                    · {roomPresence.filter((player) => player.connected).length}
+                    /2 {copy('connected', '접속', 'conectados')}
                     <br />
-                    {copy('Your name:', '내 이름:', 'Tu nombre:')} <strong>{names[roomRole === 'host' ? 0 : 1] || roomNameDraft}</strong>
+                    {copy('Your name:', '내 이름:', 'Tu nombre:')}{' '}
+                    <strong>
+                      {names[roomRole === 'host' ? 0 : 1] || roomNameDraft}
+                    </strong>
                     <br />
                     {roomReady
-                      ? copy("Both players are ready. The host can start.", "두 플레이어 준비 완료 · 방장이 시작할 수 있어요.", "Dos jugadores listos · el anfitrión puede empezar.")
-                      : copy("Waiting for the other player…", "다른 플레이어를 기다리는 중…", "Esperando al otro jugador…")}
+                      ? copy(
+                          'Both players are ready. The host can start.',
+                          '두 플레이어 준비 완료 · 방장이 시작할 수 있어요.',
+                          'Dos jugadores listos · el anfitrión puede empezar.',
+                        )
+                      : copy(
+                          'Waiting for the other player…',
+                          '다른 플레이어를 기다리는 중…',
+                          'Esperando al otro jugador…',
+                        )}
                   </p>
                 )}
                 {roomCode && roomToken && (
@@ -553,23 +877,70 @@ export default function Home() {
                       onClick={() => setRoomRefresh((value) => value + 1)}
                       disabled={!online || roomBusy}
                     >
-                      {copy("Refresh room", "상태 새로고침", "Actualizar estado")}
+                      {copy(
+                        'Refresh room',
+                        '상태 새로고침',
+                        'Actualizar estado',
+                      )}
                     </Button>
                     <Button type="button" variant="outline" onClick={shareRoom}>
-                      {copy("Share room", "방 링크 공유", "Compartir sala")}
+                      {copy('Share room', '방 링크 공유', 'Compartir sala')}
                     </Button>
-                    <span className="presence-dots" aria-label={`${roomPresence.filter((player) => player.connected).length}/2 connected`}>
+                    <span
+                      className="presence-dots"
+                      aria-label={`${roomPresence.filter((player) => player.connected).length}/2 connected`}
+                    >
                       {roomPresence.map((player, index) => (
-                        <span key={index} className={player.connected ? 'presence-dot connected' : 'presence-dot'}>
+                        <span
+                          key={index}
+                          className={
+                            player.connected
+                              ? 'presence-dot connected'
+                              : 'presence-dot'
+                          }
+                        >
                           {player.connected ? '●' : '○'} {index + 1}
                         </span>
                       ))}
                     </span>
                   </div>
                 )}
-                {roomNotice && <p className="room-notice" role="status">{roomNotice}</p>}
               </div>
             </section>
+          )}
+          {g && roomToken && !reset && (
+            <details className="rules">
+              <summary>
+                {copy(
+                  'Your name / Room',
+                  '내 이름 / 방 정보',
+                  'Tu nombre / Sala',
+                )}{' '}
+                · {myPlayerIndex >= 0 ? names[myPlayerIndex as PlayerId] : ''} ·{' '}
+                {roomCode}
+              </summary>
+              <label>
+                {copy('Your name', '내 이름', 'Tu nombre')}
+                <Input
+                  aria-label={copy('Your name', '내 이름', 'Tu nombre')}
+                  maxLength={24}
+                  value={roomNameDraft}
+                  onChange={(e) => {
+                    setRoomNameDraft(e.target.value);
+                    setRoomNameDirty(true);
+                  }}
+                />
+              </label>
+              <Button
+                disabled={roomBusy || !roomNameDirty || !roomNameDraft.trim()}
+                onClick={() => void roomWork(renameRoom)}
+              >
+                {copy('Save name', '이름 저장', 'Guardar nombre')}
+              </Button>
+              <Button variant="outline" onClick={shareRoom}>
+                {copy('Share room', '방 링크 공유', 'Compartir sala')}
+              </Button>
+            </details>
           )}
           <div className="workspace">
             <section
@@ -586,7 +957,11 @@ export default function Home() {
                     Dubi<span>poly</span>
                   </h2>
                   <p className="center-route">🇰🇷 ··· ✈ ··· 🇵🇪</p>
-                  <img className="dubu" src="/dubu-mascot.png" alt="Dubu the cat mascot" />
+                  <img
+                    className="dubu"
+                    src="/dubu-mascot.png"
+                    alt="Dubu the cat mascot"
+                  />
                   <p className="photo-caption">Dubu ♥</p>
                   <div className="legend">
                     <span>● {t.korea}</span>
@@ -599,7 +974,11 @@ export default function Home() {
                     <button
                       key={x.index}
                       data-space={x.index}
-                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${selected === x.index ? 'selected' : ''}`}
+                      data-kind={x.kind ?? x.type}
+                      data-my-position={String(myPosition === x.index)}
+                      data-owner={p?.owner ?? ''}
+                      data-level={p?.level ?? ''}
+                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''}`}
                       style={{ gridRow: x.row, gridColumn: x.col }}
                       aria-label={`${x.index + 1}. ${x.name[lang]}${p ? ` · ${g!.players[p.owner].name} · ${t.level} ${p.level}` : ''}`}
                       aria-pressed={selected === x.index}
@@ -611,7 +990,28 @@ export default function Home() {
                       <span className="tile-icon" aria-hidden="true">
                         {x.icon}
                       </span>
-                      <span className="tile-name">{x.name[lang]}</span>
+                      <span className="tile-name">
+                        {x.index === rules.delaySpace && g?.rulesVersion === 2
+                          ? special.delay
+                          : x.name[lang]}
+                      </span>
+                      {x.kind === 'tourist' && (
+                        <span
+                          className="tourist-badge"
+                          title={special.tourist}
+                          aria-label={special.tourist}
+                        >
+                          ✦
+                        </span>
+                      )}
+                      {myPosition === x.index && (
+                        <span
+                          className="position-marker"
+                          aria-label={special.youHere}
+                        >
+                          ▼
+                        </span>
+                      )}
                       {p ? (
                         <span className={`ownership owner-${p.owner}`}>
                           {p.owner === 0 ? '●' : '◆'}{' '}
@@ -647,16 +1047,27 @@ export default function Home() {
                       <section
                         className={`player player-${i + 1} ${g.current === i && g.phase !== 'finished' ? 'active-player' : ''} ${roomToken && i === myPlayerIndex ? 'my-player' : ''}`}
                         key={i}
+                        data-player={i}
+                        data-cash={p.cash}
+                        data-position={p.position}
                       >
-                        <img className="player-mascot" src="/dubu-mascot.png" alt="Dubu" />
+                        <img
+                          className="player-mascot"
+                          src="/dubu-mascot.png"
+                          alt="Dubu"
+                        />
                         <div>
                           <span className="player-name">
                             {i + 1}. {p.name}
                           </span>
                           {roomToken && (
                             <span className="player-role">
-                              {i === myPlayerIndex ? copy('You', '나', 'Tú') : copy('Opponent', '상대', 'Oponente')}
-                              {g.current === i && g.phase !== 'finished' ? ` · ${copy('Current turn', '현재 턴', 'Turno actual')}` : ''}
+                              {i === myPlayerIndex
+                                ? copy('You', '나', 'Tú')
+                                : copy('Opponent', '상대', 'Oponente')}
+                              {g.current === i && g.phase !== 'finished'
+                                ? ` · ${copy('Current turn', '현재 턴', 'Turno actual')}`
+                                : ''}
                             </span>
                           )}
                           <strong>
@@ -688,15 +1099,32 @@ export default function Home() {
                           </strong>
                         </p>
                       ))}
-                      <Button onClick={() => setReset(true)}>{t.new}</Button>
+                      <Button
+                        disabled={
+                          roomBusy || Boolean(roomToken && roomRole !== 'host')
+                        }
+                        onClick={() => setReset(true)}
+                      >
+                        {t.new}
+                      </Button>
                     </section>
                   ) : (
-                    <section className="action-panel" aria-live="polite">
-                      <p className={`turn-status ${isMyTurn ? 'my-turn' : 'opponent-turn'}`}>
+                    <section
+                      className="action-panel"
+                      aria-live="polite"
+                      aria-busy={roomBusy}
+                    >
+                      <p
+                        className={`turn-status ${isMyTurn ? 'my-turn' : 'opponent-turn'}`}
+                      >
                         {roomToken
                           ? isMyTurn
                             ? copy('Your turn', '내 턴', 'Tu turno')
-                            : copy('Opponent’s turn', '상대방 턴', 'Turno del oponente')
+                            : copy(
+                                'Opponent’s turn',
+                                '상대방 턴',
+                                'Turno del oponente',
+                              )
                           : copy('Current turn', '현재 턴', 'Turno actual')}
                       </p>
                       <h2>
@@ -706,7 +1134,14 @@ export default function Home() {
                       <p className="landed">
                         📍 {board[active!.position].name[lang]}
                       </p>
-                      <div className="dice" aria-label={g.dice?.join(' + ')}>
+                      <div
+                        className={`dice ${pendingAction === 'roll' ? 'rolling' : ''}`}
+                        aria-label={
+                          pendingAction === 'roll'
+                            ? special.rolling
+                            : g.dice?.join(' + ')
+                        }
+                      >
                         {g.dice ? (
                           g.dice.map((d, i) => (
                             <span key={i}>
@@ -723,77 +1158,154 @@ export default function Home() {
                         </p>
                       )}
                       <p>
-                        {g.phase === 'roll'
-                          ? t.rollHint
-                          : g.phase === 'choice'
-                            ? t.choice
-                            : t.endHint}
-                      </p>
-                      <div className="actions">
-                        <Button
-                          disabled={g.phase !== 'roll' || reset || roomBusy}
-                          onClick={() =>
-                            act(
-                              {
-                                type: 'roll',
-                                dice: [randomInt(6) + 1, randomInt(6) + 1],
-                                event: randomInt(events.length),
-                              },
-                              g.revision,
+                        {roomToken && !isMyTurn
+                          ? copy(
+                              `Waiting for ${active!.name}`,
+                              `${active!.name}의 플레이를 기다리는 중`,
+                              `Esperando a ${active!.name}`,
                             )
-                          }
-                        >
-                          {t.roll}
-                        </Button>
+                          : inRest
+                            ? special.restHint
+                            : extraRoll
+                              ? g.phase === 'choice'
+                                ? special.doubleChoice
+                                : special.doubleHint
+                              : g.phase === 'roll'
+                                ? t.rollHint
+                                : g.phase === 'choice'
+                                  ? t.choice
+                                  : t.endHint}
+                      </p>
+                      {inRest && (
+                        <p className="event-card">
+                          {special.restAttempt}{' '}
+                          {(g.restTurns?.[g.current] ?? 0) +
+                            (g.phase === 'roll' ? 1 : 0)}
+                          /3
+                        </p>
+                      )}
+                      {pendingAction && (
+                        <p className="action-feedback" role="status">
+                          {pendingAction === 'roll'
+                            ? special.rolling
+                            : special.saving}
+                        </p>
+                      )}
+                      <div className="actions">
+                        {g.phase === 'roll' && (
+                          <Button
+                            data-action="roll"
+                            disabled={actionsBlocked}
+                            onClick={() =>
+                              void roomWork(() =>
+                                act(
+                                  {
+                                    type: 'roll',
+                                    dice: [randomInt(6) + 1, randomInt(6) + 1],
+                                    event: randomInt(events.length),
+                                  },
+                                  g.revision,
+                                ),
+                              )
+                            }
+                          >
+                            {pendingAction === 'roll'
+                              ? special.rolling
+                              : inRest
+                                ? special.tryDoubles
+                                : extraRoll
+                                  ? special.rollAgain
+                                  : t.roll}
+                          </Button>
+                        )}
+                        {inRest && g.phase === 'roll' && (
+                          <Button
+                            data-action="bail"
+                            variant="outline"
+                            disabled={
+                              actionsBlocked || active!.cash < rules.restFee
+                            }
+                            onClick={() =>
+                              void roomWork(() =>
+                                act({ type: 'bail' }, g.revision),
+                              )
+                            }
+                          >
+                            {special.payRest} · {rules.restFee} Dubi
+                          </Button>
+                        )}
                         {g.phase === 'choice' && landed?.type === 'city' && (
                           <>
                             {!owned ? (
                               <Button
-                                disabled={active!.cash < landed.price! || reset || roomBusy}
-                                onClick={() => act({ type: 'buy' }, g.revision)}
-                              >
-                                {t.buy} · {landed.price} Dubi
-                              </Button>
-                            ) : (
-                              <Button
-                                disabled={
-                                  owned.level >= 3 ||
-                                  active!.cash < landed.upgrade! ||
-                                  reset ||
-                                  roomBusy
-                                }
+                                data-action="buy"
+                                disabled={actionsBlocked || !canBuy(g)}
                                 onClick={() =>
-                                  act({ type: 'upgrade' }, g.revision)
+                                  void roomWork(() =>
+                                    act({ type: 'buy' }, g.revision),
+                                  )
                                 }
                               >
-                                {t.upgrade} · {landed.upgrade} Dubi
+                                {copy('Buy', '구매', 'Comprar')}{' '}
+                                {landed.name[lang]} · {landed.price} Dubi
                               </Button>
-                            )}
-                            {owned && owned.level >= 3 ? (
-                              <p>{t.max}</p>
                             ) : (
-                              active!.cash <
-                                (owned ? landed.upgrade! : landed.price!) && (
-                                <p>{t.low}</p>
+                              !tourist && (
+                                <Button
+                                  data-action="upgrade"
+                                  disabled={actionsBlocked || !canUpgrade(g)}
+                                  onClick={() =>
+                                    void roomWork(() =>
+                                      act({ type: 'upgrade' }, g.revision),
+                                    )
+                                  }
+                                >
+                                  {landed.name[lang]} · {t.upgrade} ·{' '}
+                                  {landed.upgrade} Dubi
+                                </Button>
                               )
+                            )}
+                            {!hasPropertyAction && (
+                              <p>{owned && owned.level >= 3 ? t.max : t.low}</p>
                             )}
                           </>
                         )}
-                        <Button
-                          variant="outline"
-                          disabled={g.phase === 'roll' || reset || roomBusy}
-                          onClick={() => act({ type: 'end' }, g.revision)}
-                        >
-                          {g.phase === 'choice' ? t.skip : t.end}
-                        </Button>
+                        {(g.phase === 'choice' || g.phase === 'end') && (
+                          <Button
+                            data-action="end"
+                            className={endEmphasized ? 'end-turn-primary' : ''}
+                            variant={endEmphasized ? 'default' : 'outline'}
+                            disabled={actionsBlocked}
+                            onClick={() =>
+                              void roomWork(() =>
+                                act({ type: 'end' }, g.revision),
+                              )
+                            }
+                          >
+                            {extraRoll
+                              ? special.skipRoll
+                              : g.phase === 'choice' && hasPropertyAction
+                                ? t.skip
+                                : t.end}{' '}
+                            {endEmphasized ? '→' : ''}
+                          </Button>
+                        )}
                         <Button variant="ghost" onClick={follow}>
-                          {t.follow}
+                          {special.myPosition}
                         </Button>
                       </div>
                     </section>
                   )}
                   <p className="save-status" role="status">
-                    {saveError ? t.saveFail : t.saved}
+                    {saveError
+                      ? t.saveFail
+                      : roomToken
+                        ? copy(
+                            'Game state saved on the server',
+                            '게임 상태는 서버에 저장됩니다',
+                            'Partida guardada en el servidor',
+                          )
+                        : t.saved}
                   </p>
                 </>
               )}
@@ -813,13 +1325,32 @@ export default function Home() {
                     {String(s.index + 1).padStart(2, '0')} ·{' '}
                     {s.country ? t[s.country] : t.special}
                   </p>
-                  <h2>{s.name[lang]}</h2>
+                  <h2>
+                    {s.index === rules.delaySpace && g?.rulesVersion === 2
+                      ? special.delay
+                      : s.name[lang]}
+                  </h2>
+                  {s.kind === 'tourist' && (
+                    <p className="tourist-description">
+                      ✦ {special.tourist}
+                      {!g || g.rulesVersion === 2
+                        ? ` · ${special.touristHint}`
+                        : ''}
+                    </p>
+                  )}
                   {s.type === 'city' ? (
                     <>
                       <p className="subtitle">
                         {s.region?.[lang]} · {t.owner}:{' '}
                         {property ? g!.players[property.owner].name : t.none} ·{' '}
-                        {t.level} {property?.level ?? 0}/3
+                        {s.kind === 'tourist' && g?.rulesVersion !== 1
+                          ? special.noBuildings
+                          : `${t.level} ${property?.level ?? 0}/3`}
+                        {g?.rulesVersion === 2 &&
+                        property &&
+                        ownsRegion(g, selected, property.owner)
+                          ? ` · ${special.regionSet}`
+                          : ''}
                       </p>
                       <dl>
                         <div>
@@ -831,26 +1362,47 @@ export default function Home() {
                         <div>
                           <dt>{t.rent}</dt>
                           <dd>
-                            {g ? rentAt(g, selected) : s.rent}{' '}
+                            {g
+                              ? rentAt(g, selected)
+                              : s.kind === 'tourist'
+                                ? 25
+                                : s.rent}{' '}
                             <small>Dubi</small>
                           </dd>
                         </div>
                         <div>
-                          <dt>{t.cost}</dt>
+                          <dt>
+                            {s.kind === 'tourist' && g?.rulesVersion !== 1
+                              ? special.tourist
+                              : t.cost}
+                          </dt>
                           <dd>
-                            {s.upgrade} <small>Dubi</small>
+                            {s.kind === 'tourist' && g?.rulesVersion !== 1
+                              ? '25 / 50 / 100 / 200'
+                              : s.upgrade}{' '}
+                            <small>Dubi</small>
                           </dd>
                         </div>
                       </dl>
                     </>
                   ) : (
-                    <p>{s.type === 'event' ? t.event : t.rest}</p>
+                    <p>
+                      {s.type === 'event'
+                        ? t.event
+                        : s.index === rules.delaySpace && g?.rulesVersion === 2
+                          ? special.delayHint
+                          : s.index === rules.restSpace && g?.rulesVersion === 2
+                            ? special.restSpaceHint
+                            : t.rest}
+                    </p>
                   )}
                 </div>
               </section>
               <details className="rules">
                 <summary>{t.rules}</summary>
                 <p>{t.rulesText}</p>
+                {(!g || g.rulesVersion === 2) && <p>{special.rules}</p>}
+                {g && g.rulesVersion !== 2 && <p>{special.legacy}</p>}
               </details>
               {g && (
                 <details className="travel-log" open>

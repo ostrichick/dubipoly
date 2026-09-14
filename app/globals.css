@@ -2,10 +2,32 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
-.language-options { display: flex; align-items: center; gap: .5rem; font-size: .875rem; }
-.language-options select { min-height: 44px; padding: .5rem; border: 1px solid #cbd9d6; border-radius: 12px; background: white; color: #173d50; font-size: 1rem; }
-.language-options select:focus-visible { outline: 3px solid #0858b5; outline-offset: 2px; }
-@media (max-width: 480px) { .language-options { flex-direction: column; align-items: flex-end; gap: 0; } }
+.language-options {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+.language-options select {
+  min-height: 44px;
+  padding: 0.5rem;
+  border: 1px solid #cbd9d6;
+  border-radius: 12px;
+  background: white;
+  color: #173d50;
+  font-size: 1rem;
+}
+.language-options select:focus-visible {
+  outline: 3px solid #0858b5;
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .language-options {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0;
+  }
+}
 
 .setup {
   background: #fffef8;
@@ -14,18 +36,63 @@
   padding: 22px;
   margin-bottom: 20px;
 }
-.room-lobby { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px dashed var(--line); }
-.room-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-.room-actions input { width: 5.25rem; text-align: center; letter-spacing: .12em; }
-.room-code { margin: .65rem 0 0; color: var(--ink); }
-.room-code strong { letter-spacing: .16em; color: var(--accent); }
-.room-notice { margin: .4rem 0 0; color: var(--muted); font-size: .85rem; }
-.room-share-actions { margin-top: .65rem; }
-.presence-dots { display: inline-flex; gap: .6rem; align-items: center; color: #8c9b93; font-size: .82rem; }
-.presence-dot.connected { color: #25834d; }
-.network-banner { margin: 12px 0 0; padding: 10px 14px; border-radius: 12px; font-size: 13px; font-weight: 700; }
-.network-banner.online { background: #e3f5e9; color: #226744; }
-.network-banner.offline { background: #fff0ce; color: #80451c; }
+.room-lobby {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--line);
+}
+.room-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.room-actions input {
+  width: 5.25rem;
+  text-align: center;
+  letter-spacing: 0.12em;
+}
+.room-code {
+  margin: 0.65rem 0 0;
+  color: var(--ink);
+}
+.room-code strong {
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+.room-notice {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.room-share-actions {
+  margin-top: 0.65rem;
+}
+.presence-dots {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: center;
+  color: #8c9b93;
+  font-size: 0.82rem;
+}
+.presence-dot.connected {
+  color: #25834d;
+}
+.network-banner {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.network-banner.online {
+  background: #e3f5e9;
+  color: #226744;
+}
+.network-banner.offline {
+  background: #fff0ce;
+  color: #80451c;
+}
 .setup h2 {
   font-size: 22px;
   font-weight: 800;
@@ -458,6 +525,82 @@ nav button,
 }
 .tile:hover {
   filter: brightness(0.95);
+}
+.tile.owned-by-0 {
+  background: #c9e4ff;
+  border: 2px solid #176bb0;
+  border-bottom-width: 5px;
+}
+.tile.owned-by-1 {
+  background: #ffd8d0;
+  border: 2px solid #b53c2e;
+  border-bottom-width: 5px;
+}
+.tile.my-position {
+  outline: 4px solid #e7a100;
+  outline-offset: -4px;
+  box-shadow:
+    inset 0 0 0 6px #fff4ac,
+    0 2px 0 #bca987;
+  z-index: 3;
+}
+.tile.selected:not(.my-position) {
+  outline: 2px dashed #173d50;
+  outline-offset: -4px;
+}
+.tourist-tile .tile-name {
+  font-weight: 900;
+}
+.tourist-badge {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  color: #956100;
+  font-size: 15px;
+  line-height: 1;
+}
+.position-marker {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: #8d5900;
+  line-height: 1;
+}
+.tourist-description {
+  background: #fff0bd;
+  border-radius: 10px;
+  padding: 9px;
+  font-size: 14px;
+}
+.actions .end-turn-primary {
+  background: #0b6267;
+  border: 2px solid #064c50;
+  color: white;
+  font-weight: 850;
+  box-shadow: 0 3px 0 #064c50;
+  font-size: 17px;
+}
+.action-feedback {
+  color: #086469;
+  font-weight: 800;
+}
+.dice.rolling span {
+  animation: dice-roll 0.32s ease-in-out infinite alternate;
+}
+@keyframes dice-roll {
+  from {
+    transform: rotate(-15deg) translateY(2px);
+  }
+  to {
+    transform: rotate(15deg) translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice.rolling span {
+    animation: none;
+  }
 }
 .tile-number {
   position: absolute;

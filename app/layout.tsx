@@ -16,6 +16,7 @@ export const metadata: Metadata = {
   title: 'Dubipoly · Travel with Dubu',
   description: 'A board game for two, traveling through Korea and Peru.',
   manifest: '/manifest.webmanifest',
+  icons: { icon: '/favicon.svg' },
   themeColor: '#167f82',
 };
 

@@ -5,12 +5,15 @@ export const rules = {
   startBonus: 200,
   rounds: 20,
   maxLevel: 3,
+  restFee: 50,
+  restSpace: 20,
+  delaySpace: 30,
 };
 export type PlayerId = 0 | 1;
 export type Phase = 'roll' | 'choice' | 'end' | 'finished';
 export type Action =
   | { type: 'roll'; dice: [number, number]; event: number }
-  | { type: 'buy' | 'upgrade' | 'end' };
+  | { type: 'buy' | 'upgrade' | 'end' | 'bail' };
 export type Entry = {
   kind:
     | 'roll'
@@ -22,6 +25,13 @@ export type Entry = {
     | 'rest'
     | 'finish'
     | 'bankrupt';
+  detail?:
+    | 'doubles'
+    | 'three-doubles'
+    | 'delay'
+    | 'rest-wait'
+    | 'rest-release'
+    | 'rest-fee';
   player: PlayerId;
   amount?: number;
   space?: number;
@@ -29,6 +39,10 @@ export type Entry = {
   dice?: [number, number];
 };
 export type Game = {
+  rulesVersion?: 1 | 2;
+  doubles?: number;
+  extraRoll?: boolean;
+  restTurns?: [number | null, number | null];
   players: [
     { name: string; cash: number; position: number },
     { name: string; cash: number; position: number },
@@ -44,8 +58,15 @@ export type Game = {
   reason: 'rounds' | 'bankruptcy' | null;
   revision: number;
 };
-export function createGame(names: [string, string]): Game {
+export function createGame(
+  names: [string, string],
+  rulesVersion: 1 | 2 = 2,
+): Game {
   return {
+    rulesVersion,
+    doubles: 0,
+    extraRoll: false,
+    restTurns: [null, null],
     players: names.map((name) => ({
       name: name.trim().slice(0, 24),
       cash: rules.startingCash,
@@ -77,7 +98,76 @@ export function assets(g: Game, id: PlayerId) {
   );
 }
 export function rentAt(g: Game, index: number) {
+  const space = board[index],
+    property = g.properties[index];
+  if (g.rulesVersion === 2 && space.kind === 'tourist') {
+    const count = property
+      ? board.filter(
+          (s) =>
+            s.kind === 'tourist' &&
+            g.properties[s.index]?.owner === property.owner,
+        ).length
+      : 1;
+    return 25 * 2 ** (Math.max(1, count) - 1);
+  }
+  if (
+    g.rulesVersion === 2 &&
+    property?.level === 0 &&
+    ownsRegion(g, index, property.owner)
+  )
+    return (space.rent ?? 0) * 2;
   return (board[index].rent ?? 0) * (1 + (g.properties[index]?.level ?? 0));
+}
+export function ownsRegion(g: Game, index: number, owner: PlayerId) {
+  const space = board[index];
+  if (space.type !== 'city' || space.kind === 'tourist') return false;
+  const group = board.filter(
+    (s) =>
+      s.type === 'city' &&
+      s.kind !== 'tourist' &&
+      s.country === space.country &&
+      s.region?.en === space.region?.en,
+  );
+  return (
+    group.length > 1 &&
+    group.every((s) => g.properties[s.index]?.owner === owner)
+  );
+}
+export function canBuy(g: Game) {
+  const p = g.players[g.current],
+    s = board[p.position];
+  return (
+    g.phase === 'choice' &&
+    s.type === 'city' &&
+    !g.properties[p.position] &&
+    p.cash >= s.price!
+  );
+}
+export function canUpgrade(g: Game) {
+  const p = g.players[g.current],
+    s = board[p.position],
+    prop = g.properties[p.position];
+  return (
+    g.phase === 'choice' &&
+    s.type === 'city' &&
+    !(g.rulesVersion === 2 && s.kind === 'tourist') &&
+    !!prop &&
+    prop.owner === g.current &&
+    prop.level < rules.maxLevel &&
+    p.cash >= s.upgrade!
+  );
+}
+function finishLanding(g: Game) {
+  if (g.rulesVersion === 2 && g.phase === 'end' && g.extraRoll)
+    g.phase = 'roll';
+}
+function sendToRest(g: Game, detail: Entry['detail']) {
+  g.players[g.current].position = rules.restSpace;
+  g.restTurns![g.current] = 0;
+  g.doubles = 0;
+  g.extraRoll = false;
+  g.phase = 'end';
+  log(g, { kind: 'rest', player: g.current, space: rules.restSpace, detail });
 }
 function log(g: Game, e: Entry) {
   g.logs.push(e);
@@ -89,6 +179,8 @@ function pay(g: Game, amount: number, to?: PlayerId) {
     if (to !== undefined) g.players[to].cash += p.cash;
     p.cash = 0;
     g.phase = 'finished';
+    g.extraRoll = false;
+    g.doubles = 0;
     g.winner = g.current === 0 ? 1 : 0;
     g.reason = 'bankruptcy';
     log(g, { kind: 'bankrupt', player: g.current, amount });
@@ -110,9 +202,17 @@ function land(g: Game, allowEvent: boolean, event: number) {
   const index = g.players[g.current].position,
     s = board[index];
   g.phase = 'end';
+  if (g.rulesVersion === 2 && index === rules.delaySpace) {
+    sendToRest(g, 'delay');
+    return;
+  }
   if (s.type === 'city') {
     const property = g.properties[index];
-    if (!property || property.owner === g.current) {
+    if (
+      !property ||
+      (property.owner === g.current &&
+        !(g.rulesVersion === 2 && s.kind === 'tourist'))
+    ) {
       g.phase = 'choice';
       return;
     }
@@ -173,6 +273,7 @@ export function transition(
   if (
     action.type === 'upgrade' &&
     (state.phase !== 'choice' ||
+      (state.rulesVersion === 2 && city.kind === 'tourist') ||
       city.type !== 'city' ||
       !prop ||
       prop.owner !== actor ||
@@ -186,21 +287,70 @@ export function transition(
     state.phase !== 'end'
   )
     return state;
-  if (!['roll', 'buy', 'upgrade', 'end'].includes(action.type)) return state;
+  if (
+    action.type === 'bail' &&
+    (state.rulesVersion !== 2 ||
+      state.phase !== 'roll' ||
+      state.restTurns?.[actor] == null ||
+      state.players[actor].cash < rules.restFee)
+  )
+    return state;
+  if (!['roll', 'buy', 'upgrade', 'end', 'bail'].includes(action.type))
+    return state;
   const g = structuredClone(state);
   g.revision++;
   if (action.type === 'roll') {
     g.dice = action.dice;
     g.lastEvent = null;
     log(g, { kind: 'roll', player: actor, dice: action.dice });
+    if (g.rulesVersion === 2) {
+      const doubles = action.dice[0] === action.dice[1];
+      g.extraRoll = false;
+      if (g.restTurns![actor] !== null) {
+        if (!doubles) {
+          g.restTurns![actor]!++;
+          if (g.restTurns![actor]! < 3) {
+            g.phase = 'end';
+            log(g, {
+              kind: 'rest',
+              player: actor,
+              space: rules.restSpace,
+              detail: 'rest-wait',
+            });
+            return g;
+          }
+          pay(g, rules.restFee);
+          log(g, {
+            kind: 'rest',
+            player: actor,
+            amount: rules.restFee,
+            detail: 'rest-fee',
+          });
+          if (g.phase === 'finished') return g;
+        }
+        g.restTurns![actor] = null;
+        g.doubles = 0;
+        log(g, { kind: 'rest', player: actor, detail: 'rest-release' });
+      } else {
+        g.doubles = doubles ? (g.doubles ?? 0) + 1 : 0;
+        if (g.doubles >= 3) {
+          sendToRest(g, 'three-doubles');
+          return g;
+        }
+        g.extraRoll = doubles;
+        if (doubles) log(g, { kind: 'rest', player: actor, detail: 'doubles' });
+      }
+    }
     move(g, action.dice[0] + action.dice[1]);
     land(g, true, action.event);
+    finishLanding(g);
   }
   if (action.type === 'buy') {
     g.players[actor].cash -= city.price!;
     g.properties[pos] = { owner: actor, level: 0 };
     g.phase = 'end';
     log(g, { kind: 'buy', player: actor, space: pos, amount: city.price });
+    finishLanding(g);
   }
   if (action.type === 'upgrade') {
     g.players[actor].cash -= city.upgrade!;
@@ -212,8 +362,25 @@ export function transition(
       space: pos,
       amount: city.upgrade,
     });
+    finishLanding(g);
+  }
+  if (action.type === 'bail') {
+    pay(g, rules.restFee);
+    g.restTurns![actor] = null;
+    log(g, {
+      kind: 'rest',
+      player: actor,
+      amount: rules.restFee,
+      detail: 'rest-fee',
+    });
   }
   if (action.type === 'end') {
+    if (g.rulesVersion === 2 && g.extraRoll) {
+      g.phase = 'roll';
+      return g;
+    }
+    g.doubles = 0;
+    g.extraRoll = false;
     if (g.current === 1 && g.round === rules.rounds) {
       g.phase = 'finished';
       g.reason = 'rounds';
@@ -231,13 +398,17 @@ export function transition(
   return g;
 }
 // Save actions, replay with the rules on restore: malformed states cannot inject balances or ownership.
-export type Save = { version: 1; names: [string, string]; actions: Action[] };
+export type Save = {
+  version: 1 | 2;
+  names: [string, string];
+  actions: Action[];
+};
 export function restore(raw: string): { save: Save; game: Game } | null {
   try {
     if (raw.length > 100000) return null;
     const v = JSON.parse(raw);
     if (
-      v.version !== 1 ||
+      ![1, 2].includes(v.version) ||
       !Array.isArray(v.names) ||
       v.names.length !== 2 ||
       !v.names.every(
@@ -245,10 +416,10 @@ export function restore(raw: string): { save: Save; game: Game } | null {
           typeof n === 'string' && n.trim().length > 0 && n.length <= 24,
       ) ||
       !Array.isArray(v.actions) ||
-      v.actions.length > 150
+      v.actions.length > (v.version === 2 ? 500 : 150)
     )
       return null;
-    let game = createGame(v.names);
+    let game = createGame(v.names, v.version);
     for (const a of v.actions) {
       if (!a || typeof a !== 'object') return null;
       const next = transition(game, a);
