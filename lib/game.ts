@@ -7,14 +7,20 @@ export const rules = {
   maxLevel: 3,
   restFee: 50,
   restSpace: 20,
+  harborSpace: 10,
+  airportSpace: 30,
+  flightFee: 50,
+  sailFee: 20,
   delaySpace: 30,
 };
 export type PlayerId = 0 | 1;
 export type Phase = 'roll' | 'choice' | 'end' | 'finished';
 export type Action =
   | { type: 'roll'; dice: [number, number]; event: number }
-  | { type: 'buy' | 'upgrade' | 'end' | 'bail' }
-  | { type: 'sell'; space: number };
+  | { type: 'buy' | 'upgrade' | 'end' | 'bail' | 'skipFly' | 'skipSail' }
+  | { type: 'sell'; space: number }
+  | { type: 'fly'; space: number; event?: number }
+  | { type: 'sail'; space: number; event?: number };
 export type Entry = {
   kind:
     | 'roll'
@@ -26,14 +32,17 @@ export type Entry = {
     | 'rest'
     | 'finish'
     | 'bankrupt'
-    | 'sell';
+    | 'sell'
+    | 'flight'
+    | 'sail';
   detail?:
     | 'doubles'
     | 'three-doubles'
     | 'delay'
     | 'rest-wait'
     | 'rest-release'
-    | 'rest-fee';
+    | 'rest-fee'
+    | 'harbor-wait';
   player: PlayerId;
   amount?: number;
   space?: number;
@@ -45,6 +54,7 @@ export type Game = {
   doubles?: number;
   extraRoll?: boolean;
   restTurns?: [number | null, number | null];
+  harborTurns?: [number | null, number | null];
   players: [
     { name: string; cash: number; position: number },
     { name: string; cash: number; position: number },
@@ -69,6 +79,7 @@ export function createGame(
     doubles: 0,
     extraRoll: false,
     restTurns: [null, null],
+    harborTurns: [null, null],
     players: names.map((name) => ({
       name: name.trim().slice(0, 24),
       cash: rules.startingCash,
@@ -172,6 +183,24 @@ export function canSell(g: Game, index: number, actor: PlayerId = g.current) {
   const prop = g.properties[index];
   return !!prop && prop.owner === actor;
 }
+export function canFly(g: Game, actor: PlayerId = g.current) {
+  if (g.rulesVersion !== 2) return false;
+  if (actor !== g.current) return false;
+  if (g.phase !== 'choice') return false;
+  const p = g.players[actor];
+  return p.position === rules.airportSpace && p.cash >= rules.flightFee;
+}
+export function canSail(g: Game, actor: PlayerId = g.current) {
+  if (g.rulesVersion !== 2) return false;
+  if (actor !== g.current) return false;
+  if (g.phase !== 'roll') return false;
+  const p = g.players[actor];
+  return (
+    p.position === rules.harborSpace &&
+    g.harborTurns?.[actor] === 1 &&
+    p.cash >= rules.sailFee
+  );
+}
 function finishLanding(g: Game) {
   if (g.rulesVersion === 2 && g.phase === 'end' && g.extraRoll)
     g.phase = 'roll';
@@ -217,8 +246,22 @@ function land(g: Game, allowEvent: boolean, event: number) {
   const index = g.players[g.current].position,
     s = board[index];
   g.phase = 'end';
-  if (g.rulesVersion === 2 && index === rules.delaySpace) {
-    sendToRest(g, 'delay');
+  if (g.rulesVersion === 2 && index === rules.airportSpace) {
+    if (g.players[g.current].cash >= rules.flightFee) {
+      g.phase = 'choice';
+    }
+    return;
+  }
+  if (g.rulesVersion === 2 && index === rules.harborSpace) {
+    g.harborTurns![g.current] = 1;
+    g.doubles = 0;
+    g.extraRoll = false;
+    log(g, {
+      kind: 'rest',
+      player: g.current,
+      space: rules.harborSpace,
+      detail: 'harbor-wait',
+    });
     return;
   }
   if (s.type === 'city') {
@@ -315,11 +358,60 @@ export function transition(
     (action.space == null || !canSell(state, action.space, actor))
   )
     return state;
-  if (!['roll', 'buy', 'upgrade', 'end', 'bail', 'sell'].includes(action.type))
+  if (
+    action.type === 'fly' &&
+    (!canFly(state, actor) ||
+      action.space == null ||
+      !Number.isInteger(action.space) ||
+      action.space < 0 ||
+      action.space >= 40)
+  )
+    return state;
+  if (
+    action.type === 'skipFly' &&
+    (state.rulesVersion !== 2 ||
+      pos !== rules.airportSpace ||
+      state.phase !== 'choice')
+  )
+    return state;
+  if (
+    action.type === 'sail' &&
+    (!canSail(state, actor) ||
+      action.space == null ||
+      !Number.isInteger(action.space) ||
+      action.space < 0 ||
+      action.space >= 40)
+  )
+    return state;
+  if (
+    action.type === 'skipSail' &&
+    (state.rulesVersion !== 2 ||
+      pos !== rules.harborSpace ||
+      state.harborTurns?.[actor] !== 1 ||
+      state.phase !== 'roll')
+  )
+    return state;
+  if (
+    ![
+      'roll',
+      'buy',
+      'upgrade',
+      'end',
+      'bail',
+      'sell',
+      'fly',
+      'skipFly',
+      'sail',
+      'skipSail',
+    ].includes(action.type)
+  )
     return state;
   const g = structuredClone(state);
   g.revision++;
   if (action.type === 'roll') {
+    if (g.harborTurns?.[actor] === 1) {
+      g.harborTurns[actor] = null;
+    }
     g.dice = action.dice;
     g.lastEvent = null;
     log(g, { kind: 'roll', player: actor, dice: action.dice });
@@ -403,6 +495,50 @@ export function transition(
       delete g.properties[spaceIndex];
       log(g, { kind: 'sell', player: actor, space: spaceIndex, amount: value });
     }
+  }
+  if (action.type === 'fly') {
+    pay(g, rules.flightFee);
+    if (g.phase === 'finished') return g;
+    const dest = action.space;
+    if (dest <= rules.airportSpace) {
+      g.players[actor].cash += rules.startBonus;
+      log(g, { kind: 'bonus', player: actor, amount: rules.startBonus });
+    }
+    g.players[actor].position = dest;
+    log(g, {
+      kind: 'flight',
+      player: actor,
+      space: dest,
+      amount: rules.flightFee,
+    });
+    land(g, false, action.event ?? 0);
+    finishLanding(g);
+  }
+  if (action.type === 'skipFly') {
+    g.phase = 'end';
+    finishLanding(g);
+  }
+  if (action.type === 'sail') {
+    pay(g, rules.sailFee);
+    g.harborTurns![actor] = null;
+    if (g.phase === 'finished') return g;
+    const dest = action.space;
+    if (dest < rules.harborSpace) {
+      g.players[actor].cash += rules.startBonus;
+      log(g, { kind: 'bonus', player: actor, amount: rules.startBonus });
+    }
+    g.players[actor].position = dest;
+    log(g, {
+      kind: 'sail',
+      player: actor,
+      space: dest,
+      amount: rules.sailFee,
+    });
+    land(g, false, action.event ?? 0);
+    finishLanding(g);
+  }
+  if (action.type === 'skipSail') {
+    g.harborTurns![actor] = null;
   }
   if (action.type === 'end') {
     if (g.rulesVersion === 2 && g.extraRoll) {

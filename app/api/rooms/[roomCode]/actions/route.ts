@@ -35,7 +35,7 @@ export async function POST(
     if (
       !body ||
       typeof body.type !== 'string' ||
-      !['roll', 'buy', 'upgrade', 'end', 'bail', 'sell', 'reaction'].includes(
+      !['roll', 'buy', 'upgrade', 'end', 'bail', 'sell', 'reaction', 'fly', 'skipFly', 'sail', 'skipSail'].includes(
         body.type,
       )
     )
@@ -72,7 +72,11 @@ export async function POST(
           }
         : body.type === 'sell'
           ? { type: 'sell', space: Number(body.space) }
-          : { type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' };
+          : body.type === 'fly'
+            ? { type: 'fly', space: Number(body.space) }
+            : body.type === 'sail'
+              ? { type: 'sail', space: Number(body.space) }
+              : { type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' | 'skipFly' | 'skipSail' };
     for (let attempt = 0; attempt < 4; attempt++) {
       const room = await loadRoom(roomCode);
       if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);

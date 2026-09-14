@@ -7,6 +7,8 @@ import {
   canBuy,
   canUpgrade,
   canSell,
+  canFly,
+  canSail,
   sellValue,
   ownsRegion,
   createGame,
@@ -27,6 +29,7 @@ import { BoardMiniMap } from '../components/game/BoardMiniMap';
 import { RoomQrCode } from '../components/game/RoomQrCode';
 import { Confetti } from '../components/game/Confetti';
 import { EventCardModal } from '../components/game/EventCardModal';
+import { TravelAnimation, type TravelMode } from '../components/game/TravelAnimation';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
@@ -89,7 +92,19 @@ export default function Home() {
     [displayPositions, setDisplayPositions] = useState<[number, number]>([0, 0]),
     [activeEventModal, setActiveEventModal] = useState<number | null>(null),
     [bonusPopup, setBonusPopup] = useState<{ active: boolean; at: number }>({ active: false, at: 0 }),
-    [opponentToast, setOpponentToast] = useState<string | null>(null);
+    [opponentToast, setOpponentToast] = useState<string | null>(null),
+    [constructingSpace, setConstructingSpace] = useState<{
+      space: number;
+      level: number;
+      kind: 'buy' | 'upgrade';
+    } | null>(null),
+    [travelAnim, setTravelAnim] = useState<{
+      mode: TravelMode;
+      fromSpace: number;
+      toSpace: number;
+      toName: string;
+    } | null>(null),
+    [targetTravelSpace, setTargetTravelSpace] = useState<number>(0);
   const mutation = useRef(false),
     epoch = useRef(0),
     lastProcessedReactionAt = useRef(0),
@@ -314,7 +329,7 @@ export default function Home() {
 
       if (roomToken && latest.player !== myPlayerIndex) {
         const desc = describe(latest, g, lang);
-        setOpponentToast(desc);
+        setOpponentToast(desc ?? null);
         setTimeout(() => {
           setOpponentToast(null);
         }, 3500);
@@ -663,13 +678,41 @@ export default function Home() {
         setIsRolling(false);
         setRollingDice(null);
       }, 400);
-    } else if (a.type === 'buy' || a.type === 'sell' || a.type === 'bail') {
+    } else if (a.type === 'buy') {
       sound.playCoin();
       triggerHaptic('light');
+      const pos = old.game.players[old.game.current].position;
+      setConstructingSpace({ space: pos, level: 0, kind: 'buy' });
+      setTimeout(() => setConstructingSpace(null), 1500);
     } else if (a.type === 'upgrade') {
       sound.playBuild();
       triggerHaptic('light');
-    } else if (a.type === 'end') {
+      const pos = old.game.players[old.game.current].position;
+      const nextLevel = (old.game.properties[pos]?.level ?? 0) + 1;
+      setConstructingSpace({ space: pos, level: nextLevel, kind: 'upgrade' });
+      setTimeout(() => setConstructingSpace(null), 1500);
+    } else if (a.type === 'fly') {
+      sound.playCoin();
+      triggerHaptic('medium');
+      setTravelAnim({
+        mode: 'flight',
+        fromSpace: old.game.players[old.game.current].position,
+        toSpace: a.space,
+        toName: board[a.space].name[lang],
+      });
+    } else if (a.type === 'sail') {
+      sound.playCoin();
+      triggerHaptic('medium');
+      setTravelAnim({
+        mode: 'sail',
+        fromSpace: old.game.players[old.game.current].position,
+        toSpace: a.space,
+        toName: board[a.space].name[lang],
+      });
+    } else if (a.type === 'sell' || a.type === 'bail') {
+      sound.playCoin();
+      triggerHaptic('light');
+    } else if (a.type === 'end' || a.type === 'skipFly' || a.type === 'skipSail') {
       sound.playPop();
     }
 
@@ -692,7 +735,7 @@ export default function Home() {
               token: roomToken,
               matchId: old.matchId,
               type: a.type,
-              space: a.type === 'sell' ? a.space : undefined,
+              space: (a.type === 'sell' || a.type === 'fly' || a.type === 'sail') ? a.space : undefined,
               revision,
               requestId: crypto.randomUUID(),
             }),
@@ -1216,12 +1259,26 @@ export default function Home() {
                       data-my-position={String(myPosition === x.index)}
                       data-owner={p?.owner ?? ''}
                       data-level={p?.level ?? ''}
-                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''}`}
+                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''}`}
                       style={{ gridRow: x.row, gridColumn: x.col }}
                       aria-label={`${x.index + 1}. ${x.name[lang]}${p ? ` · ${g!.players[p.owner].name} · ${t.level} ${p.level}` : ''}`}
                       aria-pressed={selected === x.index}
-                      onClick={() => setSelected(x.index)}
+                      onClick={() => {
+                        setSelected(x.index);
+                        setTargetTravelSpace(x.index);
+                      }}
                     >
+                      {constructingSpace?.space === x.index && (
+                        <span className="construction-popup">
+                          {constructingSpace.kind === 'buy'
+                            ? copy('Land bought! 🏗️', '토지 매입! 🏗️', '¡Terreno comprado! 🏗️')
+                            : copy(
+                                `Upgrade Lv.${constructingSpace.level}! 🔨`,
+                                `건물 증축 Lv.${constructingSpace.level}! 🔨`,
+                                `¡Mejora Nv.${constructingSpace.level}! 🔨`,
+                              )}
+                        </span>
+                      )}
                       <span className="tile-number">
                         {String(x.index + 1).padStart(2, '0')}
                       </span>
@@ -1229,9 +1286,11 @@ export default function Home() {
                         {x.icon}
                       </span>
                       <span className="tile-name">
-                        {x.index === rules.delaySpace && g?.rulesVersion === 2
-                          ? special.delay
-                          : x.name[lang]}
+                        {x.index === rules.airportSpace && g?.rulesVersion === 2
+                          ? special.airport
+                          : x.index === rules.harborSpace && g?.rulesVersion === 2
+                            ? special.harbor
+                            : x.name[lang]}
                       </span>
                       {x.kind === 'tourist' && (
                         <span
@@ -1508,6 +1567,128 @@ export default function Home() {
                             )}
                           </>
                         )}
+                        {g.phase === 'choice' && active!.position === rules.airportSpace && (
+                          <div className="w-full my-2 rounded-2xl border-2 border-sky-300 bg-sky-50/90 p-3.5 text-center shadow-sm">
+                            <div className="flex items-center justify-center gap-1.5 text-sm font-black text-sky-900">
+                              <span>🛫</span>
+                              <span>{special.airport}</span>
+                              <span className="rounded-full bg-sky-200 px-2 py-0.5 text-xs text-sky-800 font-bold">
+                                {rules.flightFee} Dubi
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-sky-700">
+                              {special.airportHint}
+                            </p>
+                            <div className="mt-2.5 flex items-center justify-center gap-2">
+                              <select
+                                value={targetTravelSpace}
+                                onChange={(e) => setTargetTravelSpace(Number(e.target.value))}
+                                className="rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs"
+                              >
+                                {board.map((sp) => (
+                                  <option key={sp.index} value={sp.index}>
+                                    {String(sp.index + 1).padStart(2, '0')}. {sp.name[lang]} {sp.kind === 'tourist' ? '✦' : ''} {sp.index <= rules.airportSpace ? '(+200 Dubi)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {targetTravelSpace <= rules.airportSpace && (
+                              <p className="mt-1.5 text-[11px] font-bold text-emerald-700">
+                                ✨ {special.crossingBonus}
+                              </p>
+                            )}
+                            <div className="mt-3 flex justify-center gap-2">
+                              <Button
+                                size="sm"
+                                className="bg-sky-600 hover:bg-sky-700 text-white font-black"
+                                disabled={actionsBlocked || active!.cash < rules.flightFee}
+                                onClick={() =>
+                                  void roomWork(() =>
+                                    act(
+                                      { type: 'fly', space: targetTravelSpace },
+                                      g.revision,
+                                    ),
+                                  )
+                                }
+                              >
+                                {special.flyBtn}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={actionsBlocked}
+                                onClick={() =>
+                                  void roomWork(() =>
+                                    act({ type: 'skipFly' }, g.revision),
+                                  )
+                                }
+                              >
+                                {special.skipFly}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        {canSail(g, (roomToken ? myPlayerIndex : g.current) as PlayerId) && (
+                          <div className="w-full my-2 rounded-2xl border-2 border-emerald-300 bg-emerald-50/90 p-3.5 text-center shadow-sm">
+                            <div className="flex items-center justify-center gap-1.5 text-sm font-black text-emerald-900">
+                              <span>🚢</span>
+                              <span>{special.harbor}</span>
+                              <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-xs text-emerald-800 font-bold">
+                                {rules.sailFee} Dubi
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-emerald-700">
+                              {special.harborHint}
+                            </p>
+                            <div className="mt-2.5 flex items-center justify-center gap-2">
+                              <select
+                                value={targetTravelSpace}
+                                onChange={(e) => setTargetTravelSpace(Number(e.target.value))}
+                                className="rounded-xl border border-emerald-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs"
+                              >
+                                {board.map((sp) => (
+                                  <option key={sp.index} value={sp.index}>
+                                    {String(sp.index + 1).padStart(2, '0')}. {sp.name[lang]} {sp.kind === 'tourist' ? '✦' : ''} {sp.index < rules.harborSpace ? '(+200 Dubi)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {targetTravelSpace < rules.harborSpace && (
+                              <p className="mt-1.5 text-[11px] font-bold text-emerald-700">
+                                ✨ {special.crossingBonus}
+                              </p>
+                            )}
+                            <div className="mt-3 flex justify-center gap-2">
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black"
+                                disabled={actionsBlocked || active!.cash < rules.sailFee}
+                                onClick={() =>
+                                  void roomWork(() =>
+                                    act(
+                                      { type: 'sail', space: targetTravelSpace },
+                                      g.revision,
+                                    ),
+                                  )
+                                }
+                              >
+                                {special.sailBtn}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={actionsBlocked}
+                                onClick={() =>
+                                  void roomWork(() =>
+                                    act({ type: 'skipSail' }, g.revision),
+                                  )
+                                }
+                              >
+                                {special.skipSail}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                         {(g.phase === 'choice' || g.phase === 'end') && (
                           <Button
                             data-action="end"
@@ -1564,9 +1745,11 @@ export default function Home() {
                     {s.country ? t[s.country] : t.special}
                   </p>
                   <h2>
-                    {s.index === rules.delaySpace && g?.rulesVersion === 2
-                      ? special.delay
-                      : s.name[lang]}
+                    {s.index === rules.airportSpace && g?.rulesVersion === 2
+                      ? special.airport
+                      : s.index === rules.harborSpace && g?.rulesVersion === 2
+                        ? special.harbor
+                        : s.name[lang]}
                   </h2>
                   {s.kind === 'tourist' && (
                     <p className="tourist-description">
@@ -1657,11 +1840,13 @@ export default function Home() {
                     <p>
                       {s.type === 'event'
                         ? t.event
-                        : s.index === rules.delaySpace && g?.rulesVersion === 2
-                          ? special.delayHint
-                          : s.index === rules.restSpace && g?.rulesVersion === 2
-                            ? special.restSpaceHint
-                            : t.rest}
+                        : s.index === rules.airportSpace && g?.rulesVersion === 2
+                          ? special.airportHint
+                          : s.index === rules.harborSpace && g?.rulesVersion === 2
+                            ? special.harborHint
+                            : s.index === rules.restSpace && g?.rulesVersion === 2
+                              ? special.restSpaceHint
+                              : t.rest}
                     </p>
                   )}
                 </div>
@@ -1723,6 +1908,14 @@ export default function Home() {
         eventIndex={activeEventModal}
         lang={lang}
         onClose={() => setActiveEventModal(null)}
+      />
+      <TravelAnimation
+        mode={travelAnim?.mode ?? null}
+        fromSpace={travelAnim?.fromSpace ?? 0}
+        toSpace={travelAnim?.toSpace ?? 0}
+        toName={travelAnim?.toName ?? ''}
+        lang={lang}
+        onComplete={() => setTravelAnim(null)}
       />
     </main>
   );

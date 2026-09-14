@@ -548,16 +548,38 @@ nav button,
   outline: 2px dashed #173d50;
   outline-offset: -4px;
 }
-.tourist-tile .tile-name {
+.tile.tourist-tile {
+  background: linear-gradient(145deg, #e6fcf5 0%, #bbf7e6 100%) !important;
+  border: 2px solid #10b981 !important;
+  border-bottom: 5px solid #059669 !important;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.25);
+}
+.tile.tourist-tile .tile-name {
   font-weight: 900;
+  color: #046c4e !important;
+}
+.tile.tourist-tile.owned-by-0 {
+  background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 100%) !important;
+  border: 2px solid #2563eb !important;
+  border-bottom: 5px solid #1d4ed8 !important;
+}
+.tile.tourist-tile.owned-by-1 {
+  background: linear-gradient(145deg, #fee2e2 0%, #fecaca 100%) !important;
+  border: 2px solid #dc2626 !important;
+  border-bottom: 5px solid #b91c1c !important;
 }
 .tourist-badge {
   position: absolute;
-  top: 1px;
-  right: 3px;
-  color: #956100;
-  font-size: 15px;
+  top: 2px;
+  right: 2px;
+  background: #059669;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 1px 4px;
+  font-size: 10px;
+  font-weight: 900;
   line-height: 1;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.4);
 }
 .position-marker {
   position: absolute;
@@ -958,3 +980,70 @@ footer {
   background-size: 200% 100%;
   animation: gold-shimmer 2.5s infinite linear;
 }
+
+/* Construction Animations */
+.tile.is-constructing {
+  animation: construct-tile-bounce 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  z-index: 10;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.9), inset 0 0 8px rgba(245, 158, 11, 0.6) !important;
+}
+@keyframes construct-tile-bounce {
+  0% { transform: scale(1); }
+  25% { transform: scale(1.18) translateY(-4px); }
+  50% { transform: scale(0.96) translateY(2px); }
+  75% { transform: scale(1.08) translateY(-2px); }
+  100% { transform: scale(1) translateY(0); }
+}
+
+.construction-popup {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: white;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+  animation: construct-badge-pop 1.4s ease-out forwards;
+  pointer-events: none;
+  z-index: 25;
+}
+@keyframes construct-badge-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.6); }
+  20% { opacity: 1; transform: translateX(-50%) translateY(-2px) scale(1.15); }
+  80% { opacity: 1; transform: translateX(-50%) translateY(-6px) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(0.9); }
+}
+
+/* Event Cash Particles */
+@keyframes coin-fountain {
+  0% { opacity: 0; transform: translateY(20px) scale(0.5); }
+  30% { opacity: 1; transform: translateY(-20px) scale(1.2) rotate(15deg); }
+  70% { opacity: 1; transform: translateY(-40px) scale(1) rotate(-15deg); }
+  100% { opacity: 0; transform: translateY(-60px) scale(0.8) rotate(30deg); }
+}
+
+@keyframes cash-drop {
+  0% { opacity: 0; transform: translateY(-10px) scale(0.8); }
+  30% { opacity: 1; transform: translateY(15px) scale(1.1) rotate(-10deg); }
+  70% { opacity: 1; transform: translateY(35px) scale(1) rotate(10deg); }
+  100% { opacity: 0; transform: translateY(65px) scale(0.7) rotate(20deg); }
+}
+
+/* Flight & Sail Travel Animations */
+@keyframes flight-glide {
+  0% { transform: translate(-30px, 12px) rotate(-6deg) scale(0.9); }
+  50% { transform: translate(15px, -15px) rotate(6deg) scale(1.06); }
+  100% { transform: translate(-30px, 12px) rotate(-6deg) scale(0.9); }
+}
+
+@keyframes sail-wave {
+  0% { transform: translateY(0) rotate(-4deg); }
+  50% { transform: translateY(-12px) rotate(4deg); }
+  100% { transform: translateY(0) rotate(-4deg); }
+}
+

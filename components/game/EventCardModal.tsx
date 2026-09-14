@@ -15,7 +15,7 @@ export function EventCardModal({ eventIndex, lang, onClose }: EventCardModalProp
     if (eventIndex === null) return;
     const timer = setTimeout(() => {
       onClose();
-    }, 2800);
+    }, 3200);
     return () => clearTimeout(timer);
   }, [eventIndex, onClose]);
 
@@ -27,15 +27,33 @@ export function EventCardModal({ eventIndex, lang, onClose }: EventCardModalProp
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-auto"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-sm overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-b from-amber-50 via-white to-amber-50/80 p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-sm overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-b from-amber-50 via-white to-amber-50/90 p-6 shadow-2xl animate-in zoom-in-95 duration-200"
       >
         {/* Ticket punch hole decorations */}
-        <div className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-black/50" />
-        <div className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-black/50" />
+        <div className="absolute -left-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-black/55" />
+        <div className="absolute -right-3 top-1/2 h-6 w-6 -translate-y-1/2 rounded-full bg-black/55" />
+
+        {/* Dynamic Cash Burst Particles */}
+        {item.effect.kind === 'cash' && isPositive && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <span className="absolute left-1/4 top-1/3 text-2xl animate-[coin-fountain_1.8s_ease-out_infinite]" style={{ animationDelay: '0.1s' }}>🪙</span>
+            <span className="absolute left-1/2 top-1/4 text-3xl animate-[coin-fountain_1.8s_ease-out_infinite]" style={{ animationDelay: '0.3s' }}>💰</span>
+            <span className="absolute right-1/4 top-1/3 text-2xl animate-[coin-fountain_1.8s_ease-out_infinite]" style={{ animationDelay: '0.5s' }}>✨</span>
+            <span className="absolute left-1/3 top-2/3 text-xl animate-[coin-fountain_1.8s_ease-out_infinite]" style={{ animationDelay: '0.7s' }}>🪙</span>
+            <span className="absolute right-1/3 top-2/3 text-2xl animate-[coin-fountain_1.8s_ease-out_infinite]" style={{ animationDelay: '0.4s' }}>✨</span>
+          </div>
+        )}
+        {item.effect.kind === 'cash' && !isPositive && (
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <span className="absolute left-1/4 top-1/4 text-2xl animate-[cash-drop_2s_ease-in_infinite]" style={{ animationDelay: '0.1s' }}>💸</span>
+            <span className="absolute left-1/2 top-1/3 text-2xl animate-[cash-drop_2s_ease-in_infinite]" style={{ animationDelay: '0.4s' }}>💸</span>
+            <span className="absolute right-1/4 top-1/4 text-3xl animate-[cash-drop_2s_ease-in_infinite]" style={{ animationDelay: '0.6s' }}>💨</span>
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-dashed border-amber-200 pb-3">
@@ -56,26 +74,26 @@ export function EventCardModal({ eventIndex, lang, onClose }: EventCardModalProp
         </div>
 
         {/* Body */}
-        <div className="py-5 text-center">
+        <div className="py-5 text-center relative z-10">
           <div className="mb-3 text-4xl animate-bounce">🎒</div>
           <p className="text-base font-bold text-slate-900 leading-snug px-2">
             {item.text[lang]}
           </p>
 
           {/* Effect Badge */}
-          <div className="mt-4 flex justify-center">
+          <div className="mt-5 flex justify-center">
             {item.effect.kind === 'cash' ? (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-black shadow-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-base font-black shadow-md transition-all ${
                   isPositive
-                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                    : 'bg-rose-100 text-rose-800 border border-rose-300'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-emerald-200 animate-pulse'
+                    : 'bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-rose-200 animate-pulse'
                 }`}
               >
-                {item.effect.amount > 0 ? `+${item.effect.amount} Dubi 💸` : `${item.effect.amount} Dubi 💸`}
+                {item.effect.amount > 0 ? `+${item.effect.amount} Dubi 💰` : `${item.effect.amount} Dubi 💸`}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm font-black text-blue-800 border border-blue-300 shadow-sm">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-1.5 text-base font-black text-white shadow-md shadow-blue-200">
                 {item.effect.steps > 0 ? `+${item.effect.steps} ` : `${item.effect.steps} `}
                 {lang === 'ko' ? '칸 이동 🏃' : lang === 'es' ? 'pasos 🏃' : 'steps 🏃'}
               </span>

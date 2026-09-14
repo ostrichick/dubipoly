@@ -287,20 +287,22 @@ test('complete online game and rematch: every action matches both players and re
     403,
   );
   await equalPlayers(code, tokens);
-  const rolled = await action(code, {
+  let step = await action(code, {
     token: tokens[0],
     matchId: reset.matchId,
     revision: 0,
     requestId: 'new-match',
     type: 'roll',
   });
-  await action(code, {
-    token: tokens[0],
-    matchId: reset.matchId,
-    revision: rolled.game!.revision,
-    requestId: 'new-end',
-    type: 'end',
-  });
+  while (step.game!.current === 0 && step.game!.phase !== 'finished') {
+    step = await action(code, {
+      token: tokens[0],
+      matchId: reset.matchId,
+      revision: step.game!.revision,
+      requestId: crypto.randomUUID(),
+      type: step.game!.phase === 'roll' ? 'roll' : 'end',
+    });
+  }
   const final = await equalPlayers(code, tokens);
   assert.equal(final.game!.current, 1);
   console.log(

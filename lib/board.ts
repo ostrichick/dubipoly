@@ -300,9 +300,9 @@ export function position(i: number) {
 }
 const corners: Record<number, string[]> = {
   0: ['출발', 'Salida', '✈️'],
-  10: ['여행 공항', 'Aeropuerto', '🛫'],
+  10: ['여행 항구', 'Puerto', '🚢'],
   20: ['Dubu의 쉼터', 'Descanso', '🐾'],
-  30: ['여행 항구', 'Puerto', '🚢'],
+  30: ['여행 공항', 'Aeropuerto', '🛫'],
 };
 let ki = 0,
   pi = 0;
@@ -319,9 +319,9 @@ export const board: Space[] = Array.from({ length: 40 }, (_, index) => {
         en: (
           {
             0: 'Start',
-            10: 'Airport',
+            10: 'Harbor',
             20: 'Dubu’s rest',
-            30: 'Harbor',
+            30: 'Airport',
           } as Record<number, string>
         )[index],
       },

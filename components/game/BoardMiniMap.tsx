@@ -40,6 +40,10 @@ export function BoardMiniMap({ game, lang, onClose, onSelectSpace }: BoardMiniMa
             <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
             <span>{lang === 'ko' ? '페루 (21~40)' : lang === 'es' ? 'Perú (21~40)' : 'Peru (21~40)'}</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 ring-1 ring-emerald-300" />
+            <span className="font-bold text-emerald-800">{lang === 'ko' ? '✦ 관광지 (4곳)' : lang === 'es' ? '✦ Destinos (4)' : '✦ Tourist (4)'}</span>
+          </div>
           {p0 && (
             <div className="flex items-center gap-1">
               <span className="inline-block rounded bg-teal-600 px-1 py-0.5 text-[10px] font-bold text-white">P1</span>
@@ -73,11 +77,13 @@ export function BoardMiniMap({ game, lang, onClose, onSelectSpace }: BoardMiniMa
                     onClose();
                   }}
                   className={`relative flex flex-col items-center justify-between rounded-xl p-1.5 text-center transition-all border ${
-                    isKorea
-                      ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-100/60'
-                      : isPeru
-                        ? 'border-rose-200 bg-rose-50/50 hover:bg-rose-100/60'
-                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                    space.kind === 'tourist'
+                      ? 'border-emerald-400 bg-emerald-50/90 text-emerald-950 font-bold shadow-sm ring-1 ring-emerald-300 hover:bg-emerald-100'
+                      : isKorea
+                        ? 'border-blue-200 bg-blue-50/50 hover:bg-blue-100/60'
+                        : isPeru
+                          ? 'border-rose-200 bg-rose-50/50 hover:bg-rose-100/60'
+                          : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex w-full items-center justify-between text-[10px] text-slate-400">

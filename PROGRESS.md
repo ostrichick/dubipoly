@@ -1,5 +1,15 @@
 # Progress
 
+## Special spaces overhaul & visual animations: Airport/Harbor swap & rules, tourist theme, construction & cash VFX — 2026-09-14
+- Swapped positions of Airport (now space 30) and Harbor (now space 10) in `lib/board.ts`.
+- Implemented space 30 (Airport) special rule: pay 50 Dubi to fly immediately to any chosen board space (`fly` action); crossing or landing on Start awards the +200 Dubi salary bonus.
+- Implemented space 10 (Harbor) special rule: player rests for 1 turn upon landing; on their next turn they can pay 20 Dubi to set sail to any destination space (`sail` action) with Start bonus applied if crossing Start.
+- Added distinct, dedicated styling for 4 tourist spots (Gyeongju, Jeju, Cusco, Piura) with shared emerald gradients (`.tile.tourist-tile`), glowing borders, and mini-map legend integration.
+- Added visual construction animations (`@keyframes construct-tile-bounce`, floating `🏗️ 토지 매입!` / `🔨 증축 Lv.X!` badge, and golden highlight) triggered upon purchasing land or upgrading buildings.
+- Enhanced special travel events (`EventCardModal.tsx`) with animated gold coin bursts (`+amount Dubi 💰`) on positive events and red falling cash notes (`-amount Dubi 💸`) on negative events.
+- Added flight (`🛫`) and sailing (`🚢`) travel animation overlay (`components/game/TravelAnimation.tsx`) with clouds/waves and destination announcement during air/sea travel.
+- Updated room actions API endpoint, game copy in 3 languages (ko, en, es), and tests in `tests/special-rules.test.ts` and `tests/rooms-flow.test.ts` (all 30 tests 100% passing).
+
 ## Polish & Mobile optimizations: visibility sync, audio unlock, salary float, confetti, event ticket & fever time — 2026-09-14
 - Added mobile `visibilitychange` immediate resync to eliminate delay when waking the phone or switching back to the browser.
 - Added global audio unlock on first user interaction to guarantee instant sound playback on mobile web.

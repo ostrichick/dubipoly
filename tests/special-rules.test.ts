@@ -62,16 +62,41 @@ test('double rent resolves payment and extra roll, but bankruptcy cancels it', (
   assert.equal(poor.phase, 'finished');
   assert.equal(poor.winner, 1);
 });
-test('travel delay sends to rest, ordinary rest landing is only a visit', () => {
+test('airport flight with bonus, harbor rest and sail, ordinary rest visit', () => {
   let g = fresh();
+  // Land on space 30 (Airport)
   g.players[0].position = 27;
   g = transition(g, roll(1, 2));
-  assert.equal(g.players[0].position, 20);
-  assert.equal(g.restTurns![0], 0);
-  g = fresh();
-  g.players[0].position = 17;
-  g = transition(g, roll(1, 2));
-  assert.equal(g.restTurns![0], null);
+  assert.equal(g.players[0].position, 30);
+  assert.equal(g.phase, 'choice');
+  // Fly to space 5 (crosses Start 0, receives +200 bonus, pays 50 flight fee)
+  g = transition(g, { type: 'fly', space: 5 });
+  assert.equal(g.players[0].position, 5);
+  assert.equal(g.players[0].cash, 1500 - 50 + 200); // 1650
+
+  // Land on space 10 (Harbor)
+  let h = fresh();
+  h.players[0].position = 7;
+  h = transition(h, roll(1, 2));
+  assert.equal(h.players[0].position, 10);
+  assert.equal(h.harborTurns![0], 1);
+  assert.equal(h.phase, 'end');
+  h = resolve(h); // end turn, now player 1
+  h = resolve(transition(h, roll(1, 2))); // player 1 rolls & ends turn
+  assert.equal(h.current, 0);
+  assert.equal(h.harborTurns![0], 1);
+  // Player 0 sails to space 2 (crosses Start 0, receives +200 bonus, pays 20 sail fee)
+  h = transition(h, { type: 'sail', space: 2 });
+  assert.equal(h.players[0].position, 2);
+  assert.equal(h.players[0].cash, 1500 - 20 + 200); // 1680
+  assert.equal(h.harborTurns![0], null);
+
+  // Ordinary rest landing is only a visit
+  let r = fresh();
+  r.players[0].position = 17;
+  r = transition(r, roll(1, 2));
+  assert.equal(r.players[0].position, 20);
+  assert.equal(r.restTurns![0], null);
 });
 test('rest escape doubles give no extra roll; voluntary fee keeps normal roll available', () => {
   let g = fresh();

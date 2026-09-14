@@ -244,6 +244,18 @@ export const specialCopy = {
       'This trip keeps its original rules. Start a new game to use doubles, tourist destinations and special rules.',
     rules:
       'New trips: doubles grant another roll after resolving your landing. Three consecutive doubles send you directly to Dubu’s rest, with no Start bonus. Travel delay also sends you there. Roll doubles to leave (no extra roll), or pay 50 before rolling. The third failed attempt requires 50, then you move using that roll. Rent is still collected during rest. Owning every regular city in a region doubles only its unupgraded rent. Tourist destinations cannot be upgraded; owning 1–4 gives fees of 25/50/100/200. Extra rolls do not advance the round. These casual rules do not include auctions, mortgages or trading.',
+    airport: 'Airport',
+    airportHint:
+      'Pay 50 Dubi to fly immediately to any space. Crossing Start awards 200 Dubi!',
+    harbor: 'Harbor',
+    harborHint:
+      'Rest for 1 turn. Next turn, pay 20 Dubi to sail to any destination space!',
+    flyBtn: '🛫 Take Flight (50 Dubi)',
+    skipFly: 'Skip Flight',
+    sailBtn: '🚢 Set Sail (20 Dubi)',
+    skipSail: 'Roll Dice Normally',
+    chooseDest: 'Choose your destination',
+    crossingBonus: 'Crosses Start: +200 Dubi bonus!',
     log: {
       doubles: 'Doubles: another roll after this landing.',
       'three-doubles': 'Three doubles: go directly to Dubu’s rest.',
@@ -251,6 +263,9 @@ export const specialCopy = {
       'rest-wait': 'No doubles: remain at rest.',
       'rest-release': 'Leave rest and move; no bonus roll.',
       'rest-fee': 'Paid to leave rest',
+      flight: 'Flew directly to destination.',
+      sail: 'Set sail and arrived at destination.',
+      'harbor-wait': 'Resting at harbor for 1 turn.',
     },
   },
   ko: {
@@ -265,6 +280,18 @@ export const specialCopy = {
     delayHint: '출발 보너스 없이 Dubu 쉼터로 바로 이동하고 턴을 마칩니다.',
     restSpaceHint:
       '일반 방문은 무료입니다. 강제 휴식 중이면 더블 또는 50 Dubi로 나올 수 있어요.',
+    airport: '여행 공항',
+    airportHint:
+      '50 Dubi를 내고 원하는 칸으로 즉시 비행할 수 있어요. 출발점을 지나면 +200 Dubi 보너스!',
+    harbor: '여행 항구',
+    harborHint:
+      '이번 턴은 쉬고, 다음 턴에 20 Dubi를 내고 원하는 칸으로 출항할 수 있어요.',
+    flyBtn: '🛫 비행기 탑승 (50 Dubi)',
+    skipFly: '비행 건너뛰기',
+    sailBtn: '🚢 여객선 출항 (20 Dubi)',
+    skipSail: '일반 주사위 굴리기',
+    chooseDest: '이동할 목적지를 선택하세요',
+    crossingBonus: '출발점 통과: +200 Dubi 보너스 획득!',
     rolling: '주사위 굴리는 중…',
     saving: '행동을 확인하는 중…',
     rollAgain: '더블! 한 번 더 굴리기',
@@ -281,7 +308,7 @@ export const specialCopy = {
     legacy:
       '진행 중인 여행은 기존 규칙을 유지합니다. 새 게임부터 더블·관광지·특수 규칙이 적용됩니다.',
     rules:
-      '새 경기: 더블이면 도착 칸 처리를 마친 뒤 한 번 더 굴립니다. 한 턴에 3연속 더블이면 출발 보너스 없이 Dubu 쉼터로 갑니다. 여행 지연 칸도 쉼터로 보냅니다. 더블로 탈출하면 추가 굴림은 없으며, 굴리기 전 50 Dubi를 내고 나올 수도 있습니다. 3번째 실패 시 50 Dubi를 내고 그 주사위만큼 이동합니다. 휴식 중에도 방문료를 받습니다. 같은 지역 일반 도시를 모두 소유하면 발전하지 않은 도시의 기본 방문료가 2배입니다. 관광지는 발전할 수 없고 보유 1~4곳에 따라 방문료가 25/50/100/200입니다. 추가 굴림은 라운드를 증가시키지 않습니다. 경매·저당·거래는 이 캐주얼 규칙에 포함되지 않습니다.',
+      '새 경기: 더블이면 도착 칸 처리를 마친 뒤 한 번 더 굴립니다. 한 턴에 3연속 더블이면 출발 보너스 없이 Dubu 쉼터로 갑니다. 30번 공항은 50 Dubi로 원하는 칸으로 비행(출발 통과 시 +200 Dubi), 10번 항구는 1턴 휴식 후 20 Dubi로 원하는 칸으로 출항합니다. 더블로 쉼터 탈출 시 추가 굴림은 없으며, 굴리기 전 50 Dubi를 내고 나올 수도 있습니다. 관광지는 발전할 수 없고 보유 1~4곳에 따라 25/50/100/200입니다.',
     log: {
       doubles: '더블! 도착 칸 처리 후 다시 굴립니다.',
       'three-doubles': '3연속 더블! Dubu 쉼터로 바로 이동합니다.',
@@ -289,6 +316,9 @@ export const specialCopy = {
       'rest-wait': '더블 실패: 쉼터에 머뭅니다.',
       'rest-release': '쉼터에서 나와 이동합니다. 추가 굴림은 없어요.',
       'rest-fee': '쉼터 복귀 비용 지불',
+      flight: '비행기를 타고 목적지로 이동했어요.',
+      sail: '여객선을 타고 목적지로 출항했어요.',
+      'harbor-wait': '항구에서 출항 준비로 한 턴 쉽니다.',
     },
   },
   es: {
@@ -304,6 +334,18 @@ export const specialCopy = {
       'Ve directamente al descanso de Dubu, sin bono de Salida, y termina el turno.',
     restSpaceHint:
       'La visita normal es gratis. Si te enviaron aquí, sal con dobles o pagando 50 Dubi.',
+    airport: 'Aeropuerto',
+    airportHint:
+      'Paga 50 Dubi para volar a cualquier casilla. ¡Cruzar Salida da 200 Dubi!',
+    harbor: 'Puerto',
+    harborHint:
+      'Descansa 1 turno. En el siguiente turno, paga 20 Dubi para zarpar a cualquier casilla.',
+    flyBtn: '🛫 Tomar vuelo (50 Dubi)',
+    skipFly: 'Pasar vuelo',
+    sailBtn: '🚢 Zarpar en barco (20 Dubi)',
+    skipSail: 'Lanzar dados normalmente',
+    chooseDest: 'Elige tu destino',
+    crossingBonus: '¡Cruza Salida: +200 Dubi de bono!',
     rolling: 'Lanzando…',
     saving: 'Confirmando tu acción…',
     rollAgain: '¡Dobles! Lanzar otra vez',
@@ -320,7 +362,7 @@ export const specialCopy = {
     legacy:
       'Este viaje mantiene las reglas anteriores. Empieza una nueva partida para activar dobles, turismo y reglas especiales.',
     rules:
-      'Partidas nuevas: con dobles, resuelve la casilla y lanza de nuevo. Tres dobles seguidos te envían al descanso de Dubu sin bono de Salida. Retraso de viaje también te envía allí. Sal con dobles (sin lanzamiento extra) o paga 50 antes de lanzar. Al tercer fallo, paga 50 y avanza lo indicado. Sigues cobrando tarifas durante el descanso. Una región completa duplica la tarifa de sus ciudades sin mejoras. Los destinos turísticos no admiten mejoras: con 1–4 destinos, la tarifa es 25/50/100/200. Los lanzamientos extra no avanzan la ronda. Estas reglas casuales no incluyen subastas, hipotecas ni intercambios.',
+      'Partidas nuevas: con dobles, resuelve la casilla y lanza de nuevo. Tres dobles seguidos te envían al descanso de Dubu. En el aeropuerto puedes volar pagando 50 Dubi; en el puerto descansas 1 turno y luego zarpas pagando 20 Dubi. Los destinos turísticos dan tarifas de 25/50/100/200 según la cantidad que poseas.',
     log: {
       doubles: 'Dobles: vuelve a lanzar tras resolver la casilla.',
       'three-doubles': 'Tres dobles: ve al descanso de Dubu.',
@@ -328,6 +370,9 @@ export const specialCopy = {
       'rest-wait': 'Sin dobles: sigues en el descanso.',
       'rest-release': 'Sales y avanzas, sin lanzamiento extra.',
       'rest-fee': 'Pago para salir del descanso',
+      flight: 'Voló en avión a su destino.',
+      sail: 'Zarpó en barco a su destino.',
+      'harbor-wait': 'Descansando en el puerto por 1 turno.',
     },
   },
 };
