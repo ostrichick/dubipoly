@@ -35,61 +35,63 @@ export function TravelAnimation({
   return (
     <div
       onClick={onComplete}
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/65 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-auto"
+      className="travel-board-center-overlay"
+      role="status"
+      aria-label={isFlight ? 'Flight animation' : 'Sailing animation'}
     >
-      <div className="relative flex flex-col items-center max-w-sm w-full p-8 text-center text-white overflow-hidden">
+      <div className="relative flex flex-col items-center w-full text-center">
         {isFlight ? (
           <>
-            {/* Cloud particles */}
-            <div className="absolute top-10 left-4 text-3xl opacity-60 animate-pulse">☁️</div>
-            <div className="absolute top-16 right-6 text-4xl opacity-50 animate-bounce">☁️</div>
-            <div className="absolute bottom-12 left-10 text-2xl opacity-40">☁️</div>
+            {/* Drifting Cloud particles */}
+            <div className="pointer-events-none absolute top-2 left-6 text-2xl opacity-75 animate-pulse">☁️</div>
+            <div className="pointer-events-none absolute top-8 right-8 text-3xl opacity-60 animate-bounce">☁️</div>
+            <div className="pointer-events-none absolute bottom-4 left-10 text-xl opacity-50">☁️</div>
 
             {/* Flying Airplane */}
-            <div className="relative my-6 text-7xl animate-[flight-glide_2s_ease-in-out_infinite]">
+            <div className="relative my-3 text-6xl animate-[flight-glide_2s_ease-in-out_infinite] filter drop-shadow-md">
               🛫
-              <div className="absolute -left-12 top-1/2 -translate-y-1/2 text-2xl opacity-75">
+              <div className="absolute -left-10 top-1/2 -translate-y-1/2 text-xl opacity-75">
                 💨💨
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl bg-white/15 px-5 py-3.5 backdrop-blur-md border border-white/20 shadow-xl">
-              <span className="text-xs font-black uppercase tracking-widest text-sky-300">
-                {lang === 'ko' ? '항공 여행 중' : lang === 'es' ? 'Volando en avión' : 'In Flight'}
+            <div className="mt-2 rounded-2xl bg-white/95 px-5 py-3 border-2 border-sky-300 shadow-lg max-w-[260px]">
+              <span className="inline-block rounded-full bg-sky-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-sky-700">
+                {lang === 'ko' ? '🛫 항공 여행 중' : lang === 'es' ? '🛫 Vuelo en avión' : '🛫 In Flight'}
               </span>
-              <h3 className="mt-1 text-xl font-black text-white">
-                ✈️ {toName} {lang === 'ko' ? '(으)로 비행합니다!' : lang === 'es' ? '¡Llegando al destino!' : 'Arriving!'}
+              <h3 className="mt-1 text-base font-extrabold text-slate-800 leading-snug">
+                {toName}{lang === 'ko' ? '(으)로 비행합니다!' : lang === 'es' ? ' ¡Llegando!' : ' Arriving!'}
               </h3>
             </div>
           </>
         ) : (
           <>
             {/* Wave ripples */}
-            <div className="absolute top-14 left-6 text-3xl opacity-60">🌊</div>
-            <div className="absolute top-20 right-8 text-4xl opacity-50">🌊</div>
-            <div className="absolute bottom-16 left-12 text-3xl opacity-40">🌊</div>
+            <div className="pointer-events-none absolute top-4 left-6 text-2xl opacity-75 animate-pulse">🌊</div>
+            <div className="pointer-events-none absolute top-6 right-8 text-3xl opacity-60 animate-bounce">🌊</div>
+            <div className="pointer-events-none absolute bottom-4 left-10 text-2xl opacity-50">🌊</div>
 
             {/* Sailing Ship */}
-            <div className="relative my-6 text-7xl animate-[sail-wave_2s_ease-in-out_infinite]">
+            <div className="relative my-3 text-6xl animate-[sail-wave_2s_ease-in-out_infinite] filter drop-shadow-md">
               🚢
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-xl opacity-80">
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-lg opacity-80">
                 🌊🌊🌊
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl bg-white/15 px-5 py-3.5 backdrop-blur-md border border-white/20 shadow-xl">
-              <span className="text-xs font-black uppercase tracking-widest text-emerald-300">
-                {lang === 'ko' ? '여객선 항해 중' : lang === 'es' ? 'Navegando en barco' : 'Setting Sail'}
+            <div className="mt-2 rounded-2xl bg-white/95 px-5 py-3 border-2 border-emerald-300 shadow-lg max-w-[260px]">
+              <span className="inline-block rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                {lang === 'ko' ? '🚢 여객선 출항 중' : lang === 'es' ? '🚢 En navegación' : '🚢 Setting Sail'}
               </span>
-              <h3 className="mt-1 text-xl font-black text-white">
-                ⚓ {toName} {lang === 'ko' ? '(으)로 출항합니다!' : lang === 'es' ? '¡Zarpando al destino!' : 'Sailing in!'}
+              <h3 className="mt-1 text-base font-extrabold text-slate-800 leading-snug">
+                {toName}{lang === 'ko' ? '(으)로 출항합니다!' : lang === 'es' ? ' ¡Zarpando!' : ' Sailing in!'}
               </h3>
             </div>
           </>
         )}
 
-        <p className="mt-6 text-xs text-white/70">
-          {lang === 'ko' ? '화면을 탭하면 즉시 이동합니다 ✕' : lang === 'es' ? 'Toca para saltar ✕' : 'Tap to skip ✕'}
+        <p className="mt-3 text-[10px] font-bold text-slate-400">
+          {lang === 'ko' ? '탭하여 건너뛰기 ✕' : lang === 'es' ? 'Toca para saltar ✕' : 'Tap to skip ✕'}
         </p>
       </div>
     </div>

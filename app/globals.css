@@ -428,6 +428,7 @@ nav button,
   min-width: 1000px;
 }
 .board-center {
+  position: relative;
   grid-area: 2/2/11/11;
   background: radial-gradient(ellipse at center, #fff8e6 10%, #d7f4ec 75%);
   border-radius: 20px;
@@ -1184,6 +1185,33 @@ footer {
 }
 
 /* Flight & Sail Travel Animations */
+.travel-board-center-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.94) 25%, rgba(230, 250, 245, 0.9) 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 25;
+  padding: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  animation: travel-center-fade 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: inset 0 0 20px rgba(19, 123, 131, 0.15);
+}
+@keyframes travel-center-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes flight-glide {
   0% { transform: translate(-30px, 12px) rotate(-6deg) scale(0.9); }
   50% { transform: translate(15px, -15px) rotate(6deg) scale(1.06); }

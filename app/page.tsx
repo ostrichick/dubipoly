@@ -996,9 +996,15 @@ export default function Home() {
           aria-label="Fever time announcement"
           className="fever-shimmer mx-auto mb-3 flex w-full max-w-lg items-center justify-between rounded-2xl px-4 py-1.5 text-xs font-extrabold text-amber-950 shadow-md border border-amber-300"
         >
-          <span>✨ {copy('Golden Travel Fever Time!', '골든 트래블 피버 타임!', '¡Viaje Dorado!')}</span>
+          <span>
+            {g.round === rules.rounds
+              ? `🏁 ${copy('FINAL ROUND! Match concludes after this round.', '마지막 20라운드! 이번 라운드 종료 시 최종 승자가 결정됩니다.', '¡ÚLTIMA RONDA! La partida finaliza tras esta ronda.')}`
+              : `✨ ${copy('Golden Travel Fever Time!', '골든 트래블 피버 타임!', '¡Viaje Dorado!')}`}
+          </span>
           <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px]">
-            {copy(`${rules.rounds - g.round + 1} rounds left`, `남은 ${rules.rounds - g.round + 1}라운드`, `Quedan ${rules.rounds - g.round + 1} rondas`)}
+            {g.round === rules.rounds
+              ? copy('Final 20/20', '마지막 20/20', 'Final 20/20')
+              : copy(`${rules.rounds - g.round + 1} rounds left`, `남은 ${rules.rounds - g.round + 1}라운드`, `Quedan ${rules.rounds - g.round + 1} rondas`)}
           </span>
         </aside>
       )}
@@ -1310,6 +1316,16 @@ export default function Home() {
                     <span>● {t.korea}</span>
                     <span>● {t.peru}</span>
                   </div>
+                  {travelAnim && (
+                    <TravelAnimation
+                      mode={travelAnim.mode}
+                      fromSpace={travelAnim.fromSpace}
+                      toSpace={travelAnim.toSpace}
+                      toName={travelAnim.toName}
+                      lang={lang}
+                      onComplete={() => setTravelAnim(null)}
+                    />
+                  )}
                 </div>
                 {board.map((x) => {
                   const p = g?.properties[x.index];
@@ -1567,6 +1583,39 @@ export default function Home() {
                           ? t.tie
                           : `${g.players[g.winner!].name} · ${t.win}`}
                       </h2>
+                      <div
+                        style={{
+                          margin: '8px 0 12px',
+                          display: 'flex',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <span
+                          style={{
+                            padding: '4px 12px',
+                            borderRadius: '9999px',
+                            fontSize: '0.85rem',
+                            fontWeight: 700,
+                            background:
+                              g.reason === 'bankruptcy' ? '#fee2e2' : '#e0f2fe',
+                            color:
+                              g.reason === 'bankruptcy' ? '#b91c1c' : '#0369a1',
+                            border: `1px solid ${g.reason === 'bankruptcy' ? '#fca5a5' : '#bae6fd'}`,
+                          }}
+                        >
+                          {g.reason === 'bankruptcy'
+                            ? copy(
+                                '💥 Bankruptcy Decision',
+                                '💥 상대방 파산 판정승',
+                                '💥 Victoria por bancarrota',
+                              )
+                            : copy(
+                                `🏁 ${rules.rounds} Rounds Complete · Total Assets Decision`,
+                                `🏁 ${rules.rounds}라운드 완주 · 총자산 판정승`,
+                                `🏁 ${rules.rounds} rondas completadas · Decisión por activos`,
+                              )}
+                        </span>
+                      </div>
                       <p>{g.reason === 'bankruptcy' ? t.bankrupt : t.score}</p>
                       {g.players.map((p, i) => (
                         <p key={i}>
@@ -2143,14 +2192,6 @@ export default function Home() {
         eventIndex={activeEventModal}
         lang={lang}
         onClose={() => setActiveEventModal(null)}
-      />
-      <TravelAnimation
-        mode={travelAnim?.mode ?? null}
-        fromSpace={travelAnim?.fromSpace ?? 0}
-        toSpace={travelAnim?.toSpace ?? 0}
-        toName={travelAnim?.toName ?? ''}
-        lang={lang}
-        onComplete={() => setTravelAnim(null)}
       />
     </main>
   );

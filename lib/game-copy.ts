@@ -1,6 +1,6 @@
 import { board, type Lang } from './board.ts';
 import { events } from './events.ts';
-import type { Entry, Game } from './game.ts';
+import { rules, type Entry, type Game } from './game.ts';
 export const ui = {
   en: {
     start: 'Start a new trip',
@@ -210,7 +210,7 @@ export function describe(e: Entry, g: Game, l: Lang) {
     case 'sell':
       return `${n}: ${c} · +${a} (${en ? 'sold' : es ? 'venta' : '매각'})`;
     case 'finish':
-      return ui[l].finished;
+      return `${ui[l].finished} (${rules.rounds} ${en ? 'rounds completed' : es ? 'rondas completadas' : '라운드 완주!'})`;
   }
 }
 
