@@ -179,6 +179,8 @@ export function BoardCenterHub({
 
   const p0 = game.players[0];
   const p1 = game.players[1];
+  const activeEvent = game.lastEvent !== null ? events[game.lastEvent] : null;
+  const activeEffect = activeEvent?.effect;
 
   const getSenderName = (from: 'p0' | 'p1' | 'bank') => {
     if (from === 'p0') return names[0] || 'Player 1';
@@ -408,6 +410,51 @@ export function BoardCenterHub({
           </div>
         </div>
       </div>
+
+      {/* Travel Event Display (Directly on the Board Center!) */}
+      {activeEvent && activeEffect && (
+        <div className="hub-event-card" role="status" aria-label="Travel event announcement">
+          <div className="hub-event-top">
+            <span className="hub-event-tag">{activeEvent.icon ?? '🎒'} {copy('Travel Event', '여행 이벤트', 'Evento')}</span>
+            <span className="hub-event-number">#{game.lastEvent! + 1}</span>
+          </div>
+          <p className="hub-event-desc">{activeEvent.text[lang]}</p>
+          <div className="hub-event-effect">
+            {activeEffect.kind === 'cash' && (
+              <span className={`hub-event-pill ${activeEffect.amount > 0 ? 'pill-gain' : 'pill-loss'}`}>
+                {activeEffect.amount > 0
+                  ? `+${activeEffect.amount} Dubi 💰`
+                  : `${activeEffect.amount} Dubi 💸`}
+              </span>
+            )}
+            {activeEffect.kind === 'startBonus' && (
+              <span className="hub-event-pill pill-buff">💼 {copy('Salary +', '월급 +', 'Salario +')}{activeEffect.amount} Dubi</span>
+            )}
+            {activeEffect.kind === 'singleDie' && (
+              <span className="hub-event-pill pill-buff">🚶 {copy('1 Die Next Roll', '다음 주사위 1개', '1 Dado')}</span>
+            )}
+            {activeEffect.kind === 'guaranteedDoubles' && (
+              <span className="hub-event-pill pill-buff">✨ {copy('Guaranteed Doubles', '확정 더블', 'Dobles')}</span>
+            )}
+            {activeEffect.kind === 'freePass' && (
+              <span className="hub-event-pill pill-buff">🎫 {copy('Free Pass x1', '통행료 면제권', 'Pase')}</span>
+            )}
+            {activeEffect.kind === 'freeUpgrade' && (
+              <span className="hub-event-pill pill-buff">🏗️ {copy('Free Upgrade', '무료 1단계 증축', 'Mejora')}</span>
+            )}
+            {activeEffect.kind === 'warpTourist' && (
+              <span className="hub-event-pill pill-buff">📸 {copy('Tourist Warp', '관광지 직행', 'Destino Turístico')}</span>
+            )}
+            {activeEffect.kind === 'move' && (
+              <span className="hub-event-pill pill-move">
+                {activeEffect.steps > 0
+                  ? `🚀 +${activeEffect.steps} ${copy('steps', '칸 전진', 'casillas')}`
+                  : `🔙 ${activeEffect.steps} ${copy('steps', '칸 후진', 'casillas')}`}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Money Transfer Flying FX Layer */}
       <div className="hub-transfer-layer">

@@ -498,67 +498,67 @@ nav button,
   letter-spacing: 1.5px;
 }
 
-/* 3-Hub Main Arena */
+/* 3-Hub Main Arena - Moderately sized, compact and balanced */
 .hub-main-arena {
   display: grid;
-  grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.95fr) minmax(0, 1.22fr);
-  gap: 6px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1.25fr);
+  gap: 5px;
   align-items: stretch;
-  flex: 1;
-  min-height: 0;
-  margin-top: 2px;
+  max-width: 380px;
+  width: 92%;
+  margin: 2px auto 0;
 }
 
-/* Hub Player Cards (P0 & P1) */
+/* Hub Player Cards (P0 & P1) - Clean & Compact */
 .hub-player-card {
-  border-radius: 13px;
-  padding: 6px 7px;
+  border-radius: 11px;
+  padding: 4px 6px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 3px;
+  gap: 2px;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   position: relative;
   overflow: hidden;
 }
 .hub-card-0 {
   background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
-  border: 2px solid #93c5fd;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+  border: 1.5px solid #93c5fd;
+  box-shadow: 0 2px 5px rgba(37, 99, 235, 0.1);
 }
 .hub-card-1 {
   background: linear-gradient(180deg, #ffffff 0%, #fef2f2 100%);
-  border: 2px solid #fca5a5;
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.12);
+  border: 1.5px solid #fca5a5;
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.1);
 }
 .hub-card-0.hub-active-turn {
   border-color: #2563eb !important;
-  box-shadow: 0 0 0 2px #60a5fa, 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+  box-shadow: 0 0 0 2px #60a5fa, 0 3px 10px rgba(37, 99, 235, 0.35) !important;
   animation: hub-turn-pulse-blue 1.8s ease-in-out infinite;
 }
 .hub-card-1.hub-active-turn {
   border-color: #dc2626 !important;
-  box-shadow: 0 0 0 2px #f87171, 0 4px 12px rgba(220, 38, 38, 0.35) !important;
+  box-shadow: 0 0 0 2px #f87171, 0 3px 10px rgba(220, 38, 38, 0.35) !important;
   animation: hub-turn-pulse-red 1.8s ease-in-out infinite;
 }
 @keyframes hub-turn-pulse-blue {
   0%, 100% {
-    box-shadow: 0 0 0 2px #60a5fa, 0 3px 8px rgba(37, 99, 235, 0.25);
+    box-shadow: 0 0 0 2px #60a5fa, 0 2px 6px rgba(37, 99, 235, 0.25);
     transform: translateY(0);
   }
   50% {
-    box-shadow: 0 0 0 4px #3b82f6, 0 6px 16px rgba(37, 99, 235, 0.45);
-    transform: translateY(-1.5px);
+    box-shadow: 0 0 0 3px #3b82f6, 0 4px 12px rgba(37, 99, 235, 0.4);
+    transform: translateY(-1px);
   }
 }
 @keyframes hub-turn-pulse-red {
   0%, 100% {
-    box-shadow: 0 0 0 2px #f87171, 0 3px 8px rgba(220, 38, 38, 0.25);
+    box-shadow: 0 0 0 2px #f87171, 0 2px 6px rgba(220, 38, 38, 0.25);
     transform: translateY(0);
   }
   50% {
-    box-shadow: 0 0 0 4px #ef4444, 0 6px 16px rgba(220, 38, 38, 0.45);
-    transform: translateY(-1.5px);
+    box-shadow: 0 0 0 3px #ef4444, 0 4px 12px rgba(220, 38, 38, 0.4);
+    transform: translateY(-1px);
   }
 }
 
@@ -566,36 +566,36 @@ nav button,
 .hub-card-header {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 .hub-avatar-box {
-  width: clamp(28px, 3.2vw, 36px);
-  height: clamp(28px, 3.2vw, 36px);
+  width: clamp(22px, 2.7vw, 30px);
+  height: clamp(22px, 2.7vw, 30px);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 .avatar-box-0 {
   background: #dbeafe;
-  border: 2px solid #3b82f6;
+  border: 1.5px solid #3b82f6;
 }
 .avatar-box-1 {
   background: #fee2e2;
-  border: 2px solid #ef4444;
+  border: 1.5px solid #ef4444;
 }
 .hub-avatar-icon {
-  font-size: clamp(14px, 1.8vw, 19px);
+  font-size: clamp(12px, 1.5vw, 16px);
   line-height: 1;
 }
 .hub-avatar-accessory {
   position: absolute;
-  top: -4px;
-  right: -4px;
-  font-size: clamp(9px, 1.2vw, 12px);
+  top: -3px;
+  right: -3px;
+  font-size: clamp(8px, 1vw, 10.5px);
   line-height: 1;
 }
 .hub-player-meta {
@@ -605,13 +605,13 @@ nav button,
 .hub-name-row {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 2.5px;
 }
 .hub-pbadge {
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 900;
-  border-radius: 3px;
-  padding: 0.5px 3px;
+  border-radius: 2.5px;
+  padding: 0.5px 2.5px;
   line-height: 1.1;
   color: white;
 }
@@ -622,51 +622,50 @@ nav button,
   background: #dc2626;
 }
 .hub-you-chip {
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 900;
   background: #10b981;
   color: white;
-  padding: 0.5px 3px;
-  border-radius: 3px;
+  padding: 0.5px 2.5px;
+  border-radius: 2.5px;
 }
 .hub-player-name {
   display: block;
-  font-size: clamp(10px, 1.2vw, 13px);
+  font-size: clamp(9px, 1.05vw, 11.5px);
   font-weight: 850;
   color: #1e293b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 /* Hub Cash Panel */
 .hub-cash-panel {
   background: #ffffff;
-  border-radius: 8px;
-  padding: 3px 5px;
+  border-radius: 7px;
+  padding: 2px 4px;
   border: 1px solid #e2e8f0;
   position: relative;
   display: flex;
   flex-direction: column;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 .hub-cash-line {
   display: flex;
   align-items: baseline;
-  gap: 3px;
+  gap: 2.5px;
   line-height: 1;
 }
 .hub-cash-icon {
-  font-size: clamp(10px, 1.2vw, 13px);
+  font-size: clamp(9px, 1.1vw, 11.5px);
 }
 .hub-cash-num {
-  font-size: clamp(11px, 1.4vw, 15px);
+  font-size: clamp(10px, 1.25vw, 13.5px);
   font-weight: 900;
   color: #0f172a;
 }
 .hub-cash-unit {
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 700;
   color: #64748b;
 }
@@ -674,13 +673,12 @@ nav button,
   display: flex;
   flex-direction: column;
   gap: 1px;
-  margin-top: 1px;
 }
 .hub-delta-tag {
-  font-size: 8px;
+  font-size: 7.5px;
   font-weight: 900;
-  border-radius: 4px;
-  padding: 0.5px 3px;
+  border-radius: 3px;
+  padding: 0.5px 2.5px;
   line-height: 1.1;
   animation: hub-delta-bounce 0.25s ease-out;
 }
@@ -699,7 +697,7 @@ nav button,
 
 /* Hub Assets Line */
 .hub-assets-line {
-  font-size: clamp(8px, 0.95vw, 10px);
+  font-size: clamp(7.5px, 0.9vw, 9.5px);
   color: #475569;
   display: flex;
   justify-content: space-between;
@@ -712,29 +710,29 @@ nav button,
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  min-height: 14px;
+  min-height: 12px;
 }
 .hub-buff-badge {
-  font-size: 7.5px;
+  font-size: 7px;
   font-weight: 850;
-  padding: 0.5px 3px;
-  border-radius: 3px;
+  padding: 0.5px 2.5px;
+  border-radius: 2.5px;
   line-height: 1.1;
   white-space: nowrap;
 }
 
-/* Central Dubi Bank */
+/* Central Dubi Bank - Compact & Elegant */
 .hub-bank-card {
   background: radial-gradient(circle at 50% 25%, #fef3c7 0%, #ecfdf5 100%);
-  border: 2px solid #f59e0b;
-  border-radius: 13px;
-  padding: 5px 3px;
+  border: 1.5px solid #f59e0b;
+  border-radius: 11px;
+  padding: 3px 2px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.15);
   transition: transform 0.2s ease, filter 0.2s ease;
   position: relative;
   overflow: hidden;
@@ -744,19 +742,19 @@ nav button,
 }
 @keyframes bank-vault-flash {
   0% { transform: scale(1); filter: brightness(1); }
-  25% { transform: scale(1.06) rotate(-2deg); filter: brightness(1.2) drop-shadow(0 0 10px #fbbf24); }
-  50% { transform: scale(1.06) rotate(2deg); filter: brightness(1.25) drop-shadow(0 0 14px #f59e0b); }
-  75% { transform: scale(1.03); filter: brightness(1.1); }
+  25% { transform: scale(1.05) rotate(-2deg); filter: brightness(1.2) drop-shadow(0 0 8px #fbbf24); }
+  50% { transform: scale(1.05) rotate(2deg); filter: brightness(1.25) drop-shadow(0 0 10px #f59e0b); }
+  75% { transform: scale(1.02); filter: brightness(1.1); }
   100% { transform: scale(1); filter: brightness(1); }
 }
 .bank-pediment {
-  font-size: clamp(14px, 1.8vw, 20px);
+  font-size: clamp(12px, 1.5vw, 16px);
   line-height: 1;
 }
 .bank-vault-visual {
   position: relative;
-  width: clamp(34px, 4.2vw, 48px);
-  height: clamp(34px, 4.2vw, 48px);
+  width: clamp(26px, 3.2vw, 36px);
+  height: clamp(26px, 3.2vw, 36px);
 }
 .vault-glow-ring {
   position: absolute;
@@ -774,8 +772,8 @@ nav button,
   height: 100%;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid #f59e0b;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  border: 1.5px solid #f59e0b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   position: relative;
   z-index: 2;
 }
@@ -783,23 +781,23 @@ nav button,
   position: absolute;
   bottom: -2px;
   right: -2px;
-  font-size: clamp(8px, 1vw, 11px);
+  font-size: clamp(7px, 0.9vw, 9.5px);
   line-height: 1;
   z-index: 3;
 }
 .bank-name-plate {
-  line-height: 1.1;
+  line-height: 1.05;
   display: flex;
   flex-direction: column;
 }
 .bank-name-plate strong {
-  font-size: clamp(9px, 1.15vw, 12px);
+  font-size: clamp(7.5px, 0.95vw, 10.5px);
   font-weight: 950;
   color: #78350f;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
 }
 .bank-name-plate small {
-  font-size: clamp(7.5px, 0.9vw, 9.5px);
+  font-size: clamp(6.5px, 0.8vw, 8.5px);
   font-weight: 750;
   color: #059669;
 }
@@ -807,16 +805,187 @@ nav button,
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.88);
   border: 1px solid #fde68a;
   border-radius: 9999px;
-  padding: 0.5px 5px;
-  font-size: clamp(7px, 0.85vw, 8.5px);
+  padding: 0.5px 4px;
+  font-size: clamp(6.5px, 0.75vw, 8px);
   font-weight: 800;
   color: #92400e;
 }
 .bank-sparkle {
-  font-size: 7px;
+  font-size: 6.5px;
+}
+
+/* Board Center Travel Event Display - Prominently Displayed on Board */
+.hub-event-card {
+  max-width: 380px;
+  width: 92%;
+  margin: 3px auto 0;
+  background: linear-gradient(135deg, #fffdf2 0%, #fef3c7 100%);
+  border: 1.5px solid #fcd34d;
+  border-radius: 10px;
+  padding: 4px 8px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5px;
+  animation: hub-event-pop 0.3s ease-out;
+  position: relative;
+  z-index: 10;
+}
+@keyframes hub-event-pop {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.hub-event-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  line-height: 1;
+}
+.hub-event-tag {
+  font-size: clamp(8px, 1vw, 10px);
+  font-weight: 900;
+  color: #92400e;
+  letter-spacing: -0.01em;
+}
+.hub-event-number {
+  font-size: 7.5px;
+  font-weight: 800;
+  background: #fde68a;
+  color: #78350f;
+  padding: 0.5px 3.5px;
+  border-radius: 9999px;
+}
+.hub-event-desc {
+  font-size: clamp(8.5px, 1.05vw, 11px);
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1.22;
+  margin: 0;
+}
+.hub-event-effect {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 1px;
+}
+.hub-event-pill {
+  font-size: 7.5px;
+  font-weight: 900;
+  padding: 0.5px 5px;
+  border-radius: 9999px;
+  line-height: 1.2;
+}
+.hub-event-pill.pill-gain {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+.hub-event-pill.pill-loss {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+.hub-event-pill.pill-buff {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+.hub-event-pill.pill-move {
+  background: #f3e8ff;
+  color: #7e22ce;
+  border: 1px solid #d8b4fe;
+}
+
+/* Moving Token Speech Bubble */
+.tile.has-speech-bubble {
+  overflow: visible !important;
+  z-index: 50 !important;
+}
+.token-has-bubble {
+  z-index: 60 !important;
+}
+.token-speech-bubble {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #ffffff;
+  color: #0f172a;
+  padding: 2.5px 7px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 900;
+  pointer-events: none;
+  border: 2px solid #0284c7;
+  z-index: 100;
+}
+.token-speech-bubble.bubble-pos-above {
+  bottom: calc(100% + 7px);
+  animation: bubble-hop-above 0.6s ease-in-out infinite alternate;
+}
+.token-speech-bubble.bubble-pos-below {
+  top: calc(100% + 7px);
+  animation: bubble-hop-below 0.6s ease-in-out infinite alternate;
+}
+.token-speech-bubble.bubble-flight {
+  border-color: #0284c7;
+  color: #0369a1;
+  background: #f0f9ff;
+}
+.token-speech-bubble.bubble-sail {
+  border-color: #059669;
+  color: #065f46;
+  background: #ecfdf5;
+}
+.token-speech-bubble .bubble-icon {
+  font-size: 11px;
+  line-height: 1;
+}
+.token-speech-bubble .bubble-dest {
+  letter-spacing: -0.02em;
+}
+.token-speech-bubble.bubble-pos-above .bubble-arrow {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid #0284c7;
+}
+.token-speech-bubble.bubble-pos-above.bubble-sail .bubble-arrow {
+  border-top-color: #059669;
+}
+.token-speech-bubble.bubble-pos-below .bubble-arrow {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid #0284c7;
+}
+.token-speech-bubble.bubble-pos-below.bubble-sail .bubble-arrow {
+  border-bottom-color: #059669;
+}
+@keyframes bubble-hop-above {
+  0% { transform: translate(-50%, 0); }
+  100% { transform: translate(-50%, -3px); }
+}
+@keyframes bubble-hop-below {
+  0% { transform: translate(-50%, 0); }
+  100% { transform: translate(-50%, 3px); }
 }
 
 /* Money Transfer Flying FX Layer */

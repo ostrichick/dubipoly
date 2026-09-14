@@ -29,8 +29,6 @@ import { QuickReaction, type ReactionEvent } from '../components/game/QuickReact
 import { BoardMiniMap } from '../components/game/BoardMiniMap';
 import { RoomQrCode } from '../components/game/RoomQrCode';
 import { Confetti } from '../components/game/Confetti';
-import { EventCardModal } from '../components/game/EventCardModal';
-import { TravelAnimation, type TravelMode } from '../components/game/TravelAnimation';
 import { BoardCenterHub } from '../components/game/BoardCenterHub';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -93,7 +91,6 @@ export default function Home() {
     [rollingDice, setRollingDice] = useState<[number, number] | null>(null),
     [activeReaction, setActiveReaction] = useState<ReactionEvent | null>(null),
     [displayPositions, setDisplayPositions] = useState<[number, number]>([0, 0]),
-    [activeEventModal, setActiveEventModal] = useState<number | null>(null),
     [bonusPopup, setBonusPopup] = useState<{ active: boolean; at: number }>({ active: false, at: 0 }),
     [opponentToast, setOpponentToast] = useState<string | null>(null),
     [constructingSpace, setConstructingSpace] = useState<{
@@ -101,14 +98,15 @@ export default function Home() {
       level: number;
       kind: 'buy' | 'upgrade';
     } | null>(null),
-    [travelAnim, setTravelAnim] = useState<{
-      mode: TravelMode;
-      fromSpace: number;
+    [tokenSpeechBubble, setTokenSpeechBubble] = useState<{
+      player: number;
+      mode: 'flight' | 'sail';
       toSpace: number;
       toName: string;
     } | null>(null),
     [targetTravelSpace, setTargetTravelSpace] = useState<number>(0),
     [cashDeltas, setCashDeltas] = useState<[CashDelta[], CashDelta[]]>([[], []]);
+  const tokenBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevCashRef = useRef<[number | null, number | null]>([null, null]),
     nextDeltaId = useRef(1);
   const mutation = useRef(false),
@@ -301,6 +299,11 @@ export default function Home() {
         }
         if (next0 === target0 && next1 === target1) {
           clearInterval(timer);
+          setTokenSpeechBubble(null);
+          if (tokenBubbleTimerRef.current) {
+            clearTimeout(tokenBubbleTimerRef.current);
+            tokenBubbleTimerRef.current = null;
+          }
         }
         return [next0, next1];
       });
@@ -326,7 +329,19 @@ export default function Home() {
 
       if (latest.kind === 'event' && latest.event !== undefined) {
         sound.playFanfare();
-        setActiveEventModal(latest.event);
+      }
+
+      if ((latest.kind === 'flight' || latest.kind === 'sail') && latest.space !== undefined) {
+        if (tokenBubbleTimerRef.current) clearTimeout(tokenBubbleTimerRef.current);
+        setTokenSpeechBubble({
+          player: latest.player,
+          mode: latest.kind === 'flight' ? 'flight' : 'sail',
+          toSpace: latest.space,
+          toName: board[latest.space].name[lang],
+        });
+        tokenBubbleTimerRef.current = setTimeout(() => {
+          setTokenSpeechBubble(null);
+        }, 5000);
       }
 
       if (latest.kind === 'rest' && latest.detail === 'rest-release') {
@@ -753,21 +768,29 @@ export default function Home() {
     } else if (a.type === 'fly') {
       sound.playCoin();
       triggerHaptic('medium');
-      setTravelAnim({
+      if (tokenBubbleTimerRef.current) clearTimeout(tokenBubbleTimerRef.current);
+      setTokenSpeechBubble({
+        player: old.game.current,
         mode: 'flight',
-        fromSpace: old.game.players[old.game.current].position,
         toSpace: a.space,
         toName: board[a.space].name[lang],
       });
+      tokenBubbleTimerRef.current = setTimeout(() => {
+        setTokenSpeechBubble(null);
+      }, 5000);
     } else if (a.type === 'sail') {
       sound.playCoin();
       triggerHaptic('medium');
-      setTravelAnim({
+      if (tokenBubbleTimerRef.current) clearTimeout(tokenBubbleTimerRef.current);
+      setTokenSpeechBubble({
+        player: old.game.current,
         mode: 'sail',
-        fromSpace: old.game.players[old.game.current].position,
         toSpace: a.space,
         toName: board[a.space].name[lang],
       });
+      tokenBubbleTimerRef.current = setTimeout(() => {
+        setTokenSpeechBubble(null);
+      }, 5000);
     } else if (a.type === 'sell' || a.type === 'bail') {
       sound.playCoin();
       triggerHaptic('light');
@@ -1330,21 +1353,12 @@ export default function Home() {
                       </div>
                     </>
                   )}
-                  {travelAnim && (
-                    <TravelAnimation
-                      mode={travelAnim.mode}
-                      fromSpace={travelAnim.fromSpace}
-                      toSpace={travelAnim.toSpace}
-                      toName={travelAnim.toName}
-                      lang={lang}
-                      onComplete={() => setTravelAnim(null)}
-                    />
-                  )}
                 </div>
                 {board.map((x) => {
                   const p = g?.properties[x.index];
                   const isSelectedDest = isTravelSelection && targetTravelSpace === x.index;
                   const isLandmark = Boolean(p && p.level >= 3);
+                  const hasBubble = tokenSpeechBubble && (displayPositions[tokenSpeechBubble.player] ?? g?.players[tokenSpeechBubble.player]?.position) === x.index;
                   return (
                     <button
                       key={x.index}
@@ -1353,7 +1367,7 @@ export default function Home() {
                       data-my-position={String(myPosition === x.index)}
                       data-owner={p?.owner ?? ''}
                       data-level={p?.level ?? ''}
-                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner} building-tier-${p.level} ${isLandmark ? 'has-landmark' : ''}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''} ${isTravelSelection ? 'is-travel-target' : ''} ${isSelectedDest ? 'is-selected-destination' : ''}`}
+                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner} building-tier-${p.level} ${isLandmark ? 'has-landmark' : ''}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''} ${isTravelSelection ? 'is-travel-target' : ''} ${isSelectedDest ? 'is-selected-destination' : ''} ${hasBubble ? 'has-speech-bubble' : ''}`}
                       style={{ gridRow: x.row, gridColumn: x.col }}
                       aria-label={`${x.index + 1}. ${x.name[lang]}${p ? ` · ${g!.players[p.owner].name} · ${t.level} ${p.level}` : ''}`}
                       aria-pressed={selected === x.index}
@@ -1468,11 +1482,24 @@ export default function Home() {
                           (displayPositions[i] ?? p.position) === x.index ? (
                             <span
                               key={i}
-                              className={`token token-${i} token-hopping`}
+                              className={`token token-${i} token-hopping ${tokenSpeechBubble?.player === i ? 'token-has-bubble' : ''}`}
                               title={p.name}
                               aria-label={p.name}
                             >
                               {i + 1}
+                              {tokenSpeechBubble?.player === i && (
+                                <span
+                                  className={`token-speech-bubble bubble-${tokenSpeechBubble.mode} ${x.row === 1 ? 'bubble-pos-below' : 'bubble-pos-above'}`}
+                                  role="status"
+                                  aria-label={`${tokenSpeechBubble.mode === 'flight' ? 'Flight to' : 'Voyage to'} ${tokenSpeechBubble.toName}`}
+                                >
+                                  <span className="bubble-icon">
+                                    {tokenSpeechBubble.mode === 'flight' ? '✈️' : '🚢'}
+                                  </span>
+                                  <span className="bubble-dest">{tokenSpeechBubble.toName}</span>
+                                  <span className="bubble-arrow" />
+                                </span>
+                              )}
                             </span>
                           ) : null,
                         )}
@@ -2202,11 +2229,6 @@ export default function Home() {
       {g && g.phase === 'finished' && g.winner !== null && g.winner !== 'tie' && (
         <Confetti />
       )}
-      <EventCardModal
-        eventIndex={activeEventModal}
-        lang={lang}
-        onClose={() => setActiveEventModal(null)}
-      />
     </main>
   );
 }
