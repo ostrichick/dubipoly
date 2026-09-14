@@ -201,16 +201,27 @@ test('30 seeded modern games terminate and every action replays with doubles/res
       return (r >>> 0) % max;
     };
     while (g.phase !== 'finished') {
-      const candidate: Action =
-        g.phase === 'roll'
-          ? roll(random(6) + 1, random(6) + 1, random(12))
-          : g.phase === 'choice'
-            ? {
-                type: g.properties[g.players[g.current].position]
-                  ? 'upgrade'
-                  : 'buy',
-              }
-            : end;
+      let candidate: Action;
+      if (g.phase === 'roll') {
+        candidate = roll(random(6) + 1, random(6) + 1, random(12));
+      } else if (g.phase === 'choice') {
+        candidate = {
+          type: g.properties[g.players[g.current].position]
+            ? 'upgrade'
+            : 'buy',
+        };
+      } else if (g.phase === 'debt') {
+        if (g.pendingDebt && g.players[g.current].cash >= g.pendingDebt.amount) {
+          candidate = { type: 'payDebt' };
+        } else {
+          const owned = Object.keys(g.properties)
+            .map(Number)
+            .filter((idx) => g.properties[idx].owner === g.current);
+          candidate = owned.length > 0 ? { type: 'sell', space: owned[0] } : { type: 'bankrupt' };
+        }
+      } else {
+        candidate = end;
+      }
       const a = transition(g, candidate) === g ? end : candidate;
       const next = transition(g, a);
       assert.notEqual(next, g);

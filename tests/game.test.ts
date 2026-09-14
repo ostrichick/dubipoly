@@ -266,6 +266,19 @@ test('100 deterministic complete games preserve invariants and every checkpoint 
         const p = g.properties[g.players[g.current].position];
         const candidate: Action = { type: p ? 'upgrade' : 'buy' };
         a = transition(g, candidate) === g ? { type: 'end' } : candidate;
+      } else if (g.phase === 'debt') {
+        if (g.pendingDebt && g.players[g.current].cash >= g.pendingDebt.amount) {
+          a = { type: 'payDebt' };
+        } else {
+          const owned = Object.keys(g.properties)
+            .map(Number)
+            .filter((idx) => g.properties[idx].owner === g.current);
+          if (owned.length > 0) {
+            a = { type: 'sell', space: owned[0] };
+          } else {
+            a = { type: 'bankrupt' };
+          }
+        }
       } else a = { type: 'end' };
       const next = transition(g, a);
       assert.notEqual(next, g);

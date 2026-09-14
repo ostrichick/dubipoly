@@ -35,7 +35,7 @@ export async function POST(
     if (
       !body ||
       typeof body.type !== 'string' ||
-      !['roll', 'buy', 'upgrade', 'end', 'bail', 'sell', 'reaction', 'fly', 'skipFly', 'sail', 'skipSail'].includes(
+      !['roll', 'buy', 'upgrade', 'end', 'bail', 'sell', 'reaction', 'fly', 'skipFly', 'sail', 'skipSail', 'payDebt', 'bankrupt'].includes(
         body.type,
       )
     )
@@ -105,7 +105,15 @@ export async function POST(
         action = { type: 'sail', space: Number(body.space) };
       } else {
         action = {
-          type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' | 'skipFly' | 'skipSail',
+          type: body.type as
+            | 'buy'
+            | 'upgrade'
+            | 'end'
+            | 'bail'
+            | 'skipFly'
+            | 'skipSail'
+            | 'payDebt'
+            | 'bankrupt',
         };
       }
       const next = transition(

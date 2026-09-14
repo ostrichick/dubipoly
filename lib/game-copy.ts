@@ -268,6 +268,7 @@ export const specialCopy = {
       'harbor-wait': 'Resting at harbor for 1 turn.',
       freepass: 'VIP pass used! Rent completely waived.',
       'free-upgrade': 'Urban renewal! Free building upgrade.',
+      'debt-pending': 'Cash shortfall! Liquidate properties to settle debt.',
     },
   },
   ko: {
@@ -323,6 +324,7 @@ export const specialCopy = {
       'harbor-wait': '항구에서 출항 준비로 한 턴 쉽니다.',
       freepass: 'VIP 여행자 패스 사용! 통행료를 전액 면제받았습니다.',
       'free-upgrade': '도시 재생 지원! 건물을 무료로 1단계 증축했습니다.',
+      'debt-pending': '자금 부족! 소유 부동산을 매각하여 채무를 변제하세요.',
     },
   },
   es: {
@@ -379,6 +381,7 @@ export const specialCopy = {
       'harbor-wait': 'Descansando en el puerto por 1 turno.',
       freepass: '¡Pase VIP usado! Alquiler totalmente exento.',
       'free-upgrade': '¡Renovación urbana! Mejora gratuita de edificio.',
+      'debt-pending': '¡Fondos insuficientes! Vende propiedades para saldar deuda.',
     },
   },
 };

@@ -30,6 +30,7 @@ import { BoardMiniMap } from '../components/game/BoardMiniMap';
 import { RoomQrCode } from '../components/game/RoomQrCode';
 import { Confetti } from '../components/game/Confetti';
 import { BoardCenterHub } from '../components/game/BoardCenterHub';
+import { TurnNotifier } from '../lib/turnNotifier';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
@@ -254,7 +255,7 @@ export default function Home() {
         }
       } finally {
         if (!stopped)
-          timer = setTimeout(syncRoom, document.hidden ? 1500 : 500);
+          timer = setTimeout(syncRoom, document.hidden ? 3000 : 1000);
       }
     }
     void syncRoom();
@@ -625,6 +626,15 @@ export default function Home() {
       });
       sound.playPop();
     }
+    const myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1;
+    if (
+      myPlayerIndex !== -1 &&
+      next.game.current === myPlayerIndex &&
+      previous?.game.current !== myPlayerIndex &&
+      next.game.phase !== 'finished'
+    ) {
+      TurnNotifier.notify(names[myPlayerIndex]);
+    }
     current.current = next;
     setSession(next);
     setSelected(next.game.players[next.game.current].position);
@@ -732,6 +742,7 @@ export default function Home() {
     setReset(false);
   }
   async function act(a: Action, revision: number) {
+    TurnNotifier.stop();
     const old = current.current;
     if (!old) return;
 
@@ -791,9 +802,12 @@ export default function Home() {
       tokenBubbleTimerRef.current = setTimeout(() => {
         setTokenSpeechBubble(null);
       }, 5000);
-    } else if (a.type === 'sell' || a.type === 'bail') {
+    } else if (a.type === 'sell' || a.type === 'bail' || a.type === 'payDebt') {
       sound.playCoin();
-      triggerHaptic('light');
+      triggerHaptic('medium');
+    } else if (a.type === 'bankrupt') {
+      sound.playSad();
+      triggerHaptic('heavy');
     } else if (a.type === 'end' || a.type === 'skipFly' || a.type === 'skipSail') {
       sound.playPop();
     }
@@ -1349,6 +1363,14 @@ export default function Home() {
                       roomToken={roomToken}
                       myPlayerIndex={myPlayerIndex}
                       lang={lang}
+                      actionsBlocked={actionsBlocked}
+                      isRolling={isRolling}
+                      rollingDice={rollingDice}
+                      pendingAction={pendingAction}
+                      targetTravelSpace={targetTravelSpace}
+                      onAction={(action) => {
+                        void roomWork(() => act(action, g.revision));
+                      }}
                     />
                   ) : (
                     <>
@@ -2134,13 +2156,13 @@ export default function Home() {
                             <small>Dubi</small>
                           </dd>
                         </div>
-                        <div>
+                        <div className={s.kind === 'tourist' && g?.rulesVersion !== 1 ? 'tourist-fees-row' : ''}>
                           <dt>
                             {s.kind === 'tourist' && g?.rulesVersion !== 1
-                              ? special.tourist
+                              ? copy('Fee tiers', '보유수별 통행료', 'Tarifas')
                               : t.cost}
                           </dt>
-                          <dd>
+                          <dd className={s.kind === 'tourist' && g?.rulesVersion !== 1 ? 'tourist-fees-val' : ''}>
                             {s.kind === 'tourist' && g?.rulesVersion !== 1
                               ? '25 / 50 / 100 / 200'
                               : s.upgrade}{' '}

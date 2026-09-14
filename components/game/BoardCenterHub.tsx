@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import type { Game, PlayerId } from '../../lib/game';
-import { assets, rules } from '../../lib/game';
+import type { Game, PlayerId, Action } from '../../lib/game';
+import { assets, rules, canBuy, canUpgrade, canFly, canSail, sellValue } from '../../lib/game';
+import { board } from '../../lib/board';
 import { events } from '../../lib/events';
 import type { Lang } from '../../lib/board';
 import { sound, triggerHaptic } from '../../lib/audio';
@@ -18,13 +19,19 @@ export type MoneyTransfer = {
 
 type CashDelta = { id: number; amount: number; text: string };
 
-interface BoardCenterHubProps {
+export interface BoardCenterHubProps {
   game: Game;
   names: [string, string];
   cashDeltas: [CashDelta[], CashDelta[]];
   roomToken: string | null;
   myPlayerIndex: number;
   lang: Lang;
+  actionsBlocked?: boolean;
+  isRolling?: boolean;
+  rollingDice?: [number, number] | null;
+  pendingAction?: Action['type'] | null;
+  targetTravelSpace?: number;
+  onAction?: (action: Action) => void;
 }
 
 export function BoardCenterHub({
@@ -34,6 +41,12 @@ export function BoardCenterHub({
   roomToken,
   myPlayerIndex,
   lang,
+  actionsBlocked = false,
+  isRolling = false,
+  rollingDice = null,
+  pendingAction = null,
+  targetTravelSpace = 0,
+  onAction,
 }: BoardCenterHubProps) {
   const [activeTransfer, setActiveTransfer] = useState<MoneyTransfer | null>(null);
   const [bankActive, setBankActive] = useState(false);
@@ -211,17 +224,148 @@ export function BoardCenterHub({
   const isBankSending = activeTransfer?.from === 'bank';
   const isBankReceiving = activeTransfer?.to === 'bank';
 
-  const getSenderName = (from: 'p0' | 'p1' | 'bank') => {
-    if (from === 'p0') return names[0] || (lang === 'ko' ? '여행자 1' : lang === 'es' ? 'Viajero 1' : 'Player 1');
-    if (from === 'p1') return names[1] || (lang === 'ko' ? '여행자 2' : lang === 'es' ? 'Viajero 2' : 'Player 2');
-    return copy('Dubi Bank', '두비은행', 'Banco');
+  // Game state helpers for controls
+  const isMyTurn = !roomToken || myPlayerIndex === game.current;
+  const activeActor = (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : game.current) as PlayerId;
+  const activePlayer = game.players[game.current];
+  const activePos = activePlayer.position;
+  const landedSpace = board[activePos];
+  const ownedProperty = game.properties[activePos];
+  const isTourist = landedSpace.kind === 'tourist' && game.rulesVersion === 2;
+  const extraRoll = Boolean(game.rulesVersion === 2 && game.extraRoll);
+  const inRest = Boolean(game.rulesVersion === 2 && game.restTurns?.[game.current] != null);
+  const isAirportActive = Boolean(game && canFly(game, activeActor));
+  const isHarborActive = Boolean(game && canSail(game, activeActor));
+  const hasPropertyAction = canBuy(game) || canUpgrade(game);
+  const endEmphasized =
+    (game.phase === 'choice' || game.phase === 'end') && !extraRoll && !hasPropertyAction;
+
+  // Dice visual state
+  const displayDice: [number, number] =
+    rollingDice ?? (game.dice ? [game.dice[0] ?? 0, game.dice[1] ?? 0] : [0, 0]);
+  const diceSum = (displayDice[0] || 0) + (displayDice[1] || 0);
+  const isDoubles = displayDice[0] > 0 && displayDice[0] === displayDice[1];
+
+  // Debt state
+  const pendingDebt = game.pendingDebt;
+  const debtAmount = pendingDebt?.amount ?? 0;
+  const shortfall = Math.max(0, debtAmount - activePlayer.cash);
+  const ownedSpaces = Object.keys(game.properties)
+    .map(Number)
+    .filter((idx) => game.properties[idx]?.owner === game.current);
+
+  // Action handlers
+  const handleRoll = () => {
+    if (!onAction || actionsBlocked) return;
+    const modifier = game.players[activeActor]?.nextRollModifier;
+    let dice: [number, number];
+    if (modifier === 'single') {
+      dice = [Math.floor(Math.random() * 6) + 1, 0];
+    } else if (modifier === 'doubles') {
+      const d = Math.floor(Math.random() * 6) + 1;
+      dice = [d, d];
+    } else {
+      dice = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
+    }
+    onAction({
+      type: 'roll',
+      dice,
+      event: Math.floor(Math.random() * events.length),
+    });
   };
 
-  const getReceiverName = (to: 'p0' | 'p1' | 'bank') => {
-    if (to === 'p0') return names[0] || (lang === 'ko' ? '여행자 1' : lang === 'es' ? 'Viajero 1' : 'Player 1');
-    if (to === 'p1') return names[1] || (lang === 'ko' ? '여행자 2' : lang === 'es' ? 'Viajero 2' : 'Player 2');
-    return copy('Dubi Bank', '두비은행', 'Banco');
+  const handleBuy = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'buy' });
   };
+
+  const handleUpgrade = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'upgrade' });
+  };
+
+  const handleEndTurn = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'end' });
+  };
+
+  const handleBail = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'bail' });
+  };
+
+  const handleFly = () => {
+    if (!onAction || actionsBlocked || targetTravelSpace === undefined) return;
+    onAction({ type: 'fly', space: targetTravelSpace });
+  };
+
+  const handleSail = () => {
+    if (!onAction || actionsBlocked || targetTravelSpace === undefined) return;
+    onAction({ type: 'sail', space: targetTravelSpace });
+  };
+
+  const handleSell = (space: number) => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'sell', space });
+  };
+
+  const handlePayDebt = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'payDebt' });
+  };
+
+  const handleBankrupt = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'bankrupt' });
+  };
+
+  // Status message
+  let statusHintText = '';
+  if (game.phase === 'roll') {
+    if (isRolling || pendingAction === 'roll') {
+      statusHintText = copy('Rolling dice...', '주사위를 굴리고 있습니다...', 'Tirando dados...');
+    } else if (extraRoll) {
+      statusHintText = copy('✨ Doubles! Roll again!', '✨ 더블 찬스! 한 번 더 굴리세요!', '¡Dobles! ¡Tira de nuevo!');
+    } else if (inRest) {
+      statusHintText = copy('💤 Rest: Roll doubles or pay bail', '💤 휴식 중: 더블을 노리거나 보석금을 내세요', '💤 Descanso: Saca dobles o paga fianza');
+    } else {
+      statusHintText = copy('Roll dice to move', '주사위를 굴려 이동하세요', 'Tira los dados para avanzar');
+    }
+  } else if (game.phase === 'choice') {
+    if (landedSpace?.type === 'city') {
+      if (!ownedProperty) {
+        statusHintText = copy(
+          `Buy ${landedSpace.name[lang]} (${landedSpace.price} Dubi)`,
+          `${landedSpace.name[lang]} (${landedSpace.price} Dubi) 매입 가능`,
+          `Comprar ${landedSpace.name[lang]}`,
+        );
+      } else if (!isTourist && (ownedProperty.level ?? 0) < 3) {
+        statusHintText = copy(
+          `Upgrade ${landedSpace.name[lang]} Lv.${(ownedProperty.level ?? 0) + 1} (${landedSpace.upgrade} Dubi)`,
+          `${landedSpace.name[lang]} Lv.${(ownedProperty.level ?? 0) + 1} 증축 가능`,
+          `Mejorar ${landedSpace.name[lang]}`,
+        );
+      } else {
+        statusHintText = copy('Ready to end turn', '턴을 마칠 준비가 되었습니다', 'Listo para finalizar');
+      }
+    } else if (isAirportActive) {
+      statusHintText = copy('Tap destination tile on board', '보드에서 비행할 칸을 터치하세요', 'Toca casilla en tablero');
+    } else if (isHarborActive) {
+      statusHintText = copy('Tap destination tile on board', '보드에서 항해할 칸을 터치하세요', 'Toca casilla en tablero');
+    } else {
+      statusHintText = copy('Ready to end turn', '턴을 마칠 준비가 되었습니다', 'Listo para finalizar');
+    }
+  } else if (game.phase === 'end') {
+    statusHintText = copy('Ready to end turn', '턴 종료를 누르세요', 'Finaliza tu turno');
+  } else if (game.phase === 'debt') {
+    statusHintText = copy(
+      '🚨 Cash shortfall! Sell property to settle debt',
+      '🚨 자금 부족! 소유 부동산을 매각하여 채무를 변제하세요',
+      '🚨 ¡Fondos insuficientes! Vende propiedades',
+    );
+  } else if (game.phase === 'finished') {
+    statusHintText = copy('Game finished!', '게임이 종료되었습니다!', '¡Juego terminado!');
+  }
 
   return (
     <div className="board-center-hub" role="region" aria-label="Game board center">
@@ -255,6 +399,243 @@ export function BoardCenterHub({
           <div className="hub-route-subtitle">🇰🇷 SEOUL ↔ LIMA 🇵🇪</div>
         )}
       </div>
+
+      {/* NEW: Upper Turn Controls (Dice, Buy/Upgrade, End Turn, Debt Panel) */}
+      {game.phase !== 'finished' && onAction && (
+        <div className="hub-upper-controls" role="region" aria-label="Turn controls">
+          <div className="hub-turn-indicator-row">
+            <span className={`hub-turn-actor-pill actor-${game.current} ${isMyTurn ? 'is-my-turn' : ''}`}>
+              <span className="turn-bullet">{game.current === 0 ? '●' : '◆'}</span>
+              <strong className="turn-name">{names[game.current] || (game.current === 0 ? 'P1' : 'P2')}</strong>
+              {roomToken && isMyTurn && (
+                <span className="turn-you-tag">{copy('YOU', '내 턴', 'TÚ')}</span>
+              )}
+            </span>
+            <span className="hub-turn-action-hint" title={statusHintText}>
+              {statusHintText}
+            </span>
+          </div>
+
+          <div className="hub-control-deck">
+            {/* Dice Visual Box */}
+            <button
+              type="button"
+              className={`hub-dice-box ${isRolling || pendingAction === 'roll' ? 'is-dice-rolling' : ''} ${
+                game.phase === 'roll' && !actionsBlocked ? 'can-roll-clickable' : ''
+              }`}
+              disabled={actionsBlocked || game.phase !== 'roll'}
+              onClick={handleRoll}
+              title={game.phase === 'roll' ? copy('Click to roll dice', '클릭하여 주사위 굴리기', 'Toca para tirar dados') : undefined}
+            >
+              <div className="hub-dice-pair">
+                {displayDice[0] > 0 ? (
+                  <span className="hub-die-face">{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][displayDice[0] - 1]}</span>
+                ) : (
+                  <span className="hub-die-face">🎲</span>
+                )}
+                {displayDice[1] > 0 ? (
+                  <span className="hub-die-face">{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][displayDice[1] - 1]}</span>
+                ) : (
+                  displayDice[0] > 0 && <span className="hub-die-face die-single-tag">1D</span>
+                )}
+              </div>
+              {diceSum > 0 && !isRolling && (
+                <span className={`hub-dice-sum-badge ${isDoubles ? 'badge-doubles' : ''}`}>
+                  {isDoubles ? `✨ 2x${displayDice[0]}` : `${diceSum}`}
+                </span>
+              )}
+            </button>
+
+            {/* Main Action Buttons */}
+            <div className="hub-action-buttons">
+              {game.phase === 'roll' && (
+                <>
+                  <button
+                    type="button"
+                    className="hub-btn hub-btn-roll"
+                    disabled={actionsBlocked}
+                    onClick={handleRoll}
+                  >
+                    <span className="hub-btn-icon">🎲</span>
+                    <span className="hub-btn-text">
+                      {isRolling || pendingAction === 'roll'
+                        ? copy('Rolling...', '굴리는 중...', 'Tirando...')
+                        : inRest
+                          ? copy('Try Doubles', '더블 도전', 'Dobles')
+                          : extraRoll
+                            ? copy('Roll Again! ✨', '더블! 한 번 더 굴리기 ✨', '¡Tirar de nuevo! ✨')
+                            : copy('Roll Dice', '주사위 굴리기', 'Tirar dados')}
+                    </span>
+                  </button>
+                  {inRest && (
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-bail"
+                      disabled={actionsBlocked || activePlayer.cash < rules.restFee}
+                      onClick={handleBail}
+                    >
+                      <span className="hub-btn-icon">🗝️</span>
+                      <span className="hub-btn-text">
+                        {copy('Bail', '보석금', 'Fianza')} ({rules.restFee})
+                      </span>
+                    </button>
+                  )}
+                </>
+              )}
+
+              {game.phase === 'choice' && (
+                <>
+                  {landedSpace?.type === 'city' && !ownedProperty && (
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-buy"
+                      disabled={actionsBlocked || !canBuy(game)}
+                      onClick={handleBuy}
+                    >
+                      <span className="hub-btn-icon">🏗️</span>
+                      <span className="hub-btn-text">
+                        {copy('Buy Land', '토지 매입', 'Comprar')} ({landedSpace.price} Dubi)
+                      </span>
+                    </button>
+                  )}
+
+                  {landedSpace?.type === 'city' && ownedProperty && !isTourist && (
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-upgrade"
+                      disabled={actionsBlocked || !canUpgrade(game)}
+                      onClick={handleUpgrade}
+                    >
+                      <span className="hub-btn-icon">🔨</span>
+                      <span className="hub-btn-text">
+                        {copy('Upgrade', '증축', 'Mejorar')} Lv.{(ownedProperty.level ?? 0) + 1} ({landedSpace.upgrade} Dubi)
+                      </span>
+                    </button>
+                  )}
+
+                  {landedSpace?.type === 'city' && ownedProperty && (ownedProperty.level ?? 0) >= 3 && !isTourist && (
+                    <span className="hub-landmark-chip">
+                      👑 {copy('Landmark Max', '최고 등급', 'Monumento Máx')}
+                    </span>
+                  )}
+
+                  {isAirportActive && (
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-fly"
+                      disabled={actionsBlocked || activePlayer.cash < rules.flightFee}
+                      onClick={handleFly}
+                    >
+                      <span className="hub-btn-icon">✈️</span>
+                      <span className="hub-btn-text">
+                        #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Fly', '비행', 'Volar')}
+                      </span>
+                    </button>
+                  )}
+
+                  {isHarborActive && (
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-sail"
+                      disabled={actionsBlocked || activePlayer.cash < rules.sailFee}
+                      onClick={handleSail}
+                    >
+                      <span className="hub-btn-icon">🚢</span>
+                      <span className="hub-btn-text">
+                        #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Sail', '항해', 'Navegar')}
+                      </span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className={`hub-btn hub-btn-end ${endEmphasized ? 'hub-btn-end-primary' : 'hub-btn-end-outline'}`}
+                    disabled={actionsBlocked}
+                    onClick={handleEndTurn}
+                  >
+                    <span className="hub-btn-text">
+                      {extraRoll
+                        ? copy('Skip Roll', '더블 포기', 'Pasar')
+                        : hasPropertyAction
+                          ? copy('Skip', '건너뛰기', 'Pasar')
+                          : copy('End Turn', '턴 종료', 'Fin de turno')}
+                    </span>
+                    <span className="hub-btn-arrow">➔</span>
+                  </button>
+                </>
+              )}
+
+              {game.phase === 'end' && (
+                <button
+                  type="button"
+                  className="hub-btn hub-btn-end hub-btn-end-primary"
+                  disabled={actionsBlocked}
+                  onClick={handleEndTurn}
+                >
+                  <span className="hub-btn-text">
+                    {extraRoll
+                      ? copy('Skip Roll', '더블 포기', 'Pasar')
+                      : copy('End Turn', '턴 종료', 'Fin de turno')}
+                  </span>
+                  <span className="hub-btn-arrow">➔</span>
+                </button>
+              )}
+
+              {/* Debt Liquidation Panel inside controls */}
+              {game.phase === 'debt' && (
+                <div className="hub-debt-panel">
+                  <div className="hub-debt-top-row">
+                    <span className="debt-tag">🚨 {copy('Debt Settlement', '긴급 채무 변제', 'Liquidación')}</span>
+                    <span className="debt-shortfall-text">
+                      {copy('Shortfall', '부족액', 'Falta')}: <strong className="shortfall-amount">{shortfall.toLocaleString()} Dubi</strong>
+                    </span>
+                  </div>
+
+                  <div className="hub-debt-sale-scroll">
+                    {ownedSpaces.map((idx) => {
+                      const sp = board[idx];
+                      const prop = game.properties[idx];
+                      const val = sellValue(idx, prop?.level ?? 0);
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          className="hub-debt-sell-btn"
+                          disabled={actionsBlocked}
+                          onClick={() => handleSell(idx)}
+                          title={copy('Sell for 50% refund', '50% 환급 매각', 'Vender por 50%')}
+                        >
+                          <span className="prop-name">{sp.name[lang]}</span>
+                          <span className="prop-val">+{val.toLocaleString()}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="hub-debt-action-row">
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-pay-debt"
+                      disabled={actionsBlocked || activePlayer.cash < debtAmount}
+                      onClick={handlePayDebt}
+                    >
+                      💸 {copy('Pay & Continue', '채무 변제하고 계속', 'Pagar y Continuar')} ({debtAmount.toLocaleString()} Dubi)
+                    </button>
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-bankrupt"
+                      disabled={actionsBlocked}
+                      onClick={handleBankrupt}
+                    >
+                      🏳️ {copy('Bankrupt', '파산 선언', 'Bancarrota')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main 3-Hub Arena */}
       <div className="hub-main-arena">
@@ -463,14 +844,14 @@ export function BoardCenterHub({
           </div>
         </div>
 
-        {/* Active Money Transfer Flow Layer (Overlaid perfectly on top of the 3 cards!) */}
+        {/* Active Money Transfer Flow Layer */}
         {activeTransfer && (
           <div
             key={activeTransfer.id}
             className={`hub-transfer-layer burst-${activeTransfer.from}-to-${activeTransfer.to}`}
             aria-hidden="true"
           >
-            {/* SVG Directional Flow Arc & Glowing Dash */}
+            {/* SVG Directional Flow Arc */}
             <svg
               className="transfer-svg-canvas"
               viewBox="0 0 100 100"
@@ -495,7 +876,6 @@ export function BoardCenterHub({
                 </marker>
               </defs>
 
-              {/* Arcs tailored to exact card centers */}
               {activeTransfer.from === 'p0' && activeTransfer.to === 'p1' && (
                 <path
                   d="M 18.5 50 Q 50 -2 81.5 50"
@@ -540,7 +920,7 @@ export function BoardCenterHub({
               )}
             </svg>
 
-            {/* 8 Staggered Flying Coins & Cash Stream */}
+            {/* Flying Coins & Cash Stream */}
             <div className="hub-coins-flight-container">
               <span className="flying-money money-1">🪙</span>
               <span className="flying-money money-2">💵</span>
@@ -571,7 +951,7 @@ export function BoardCenterHub({
         )}
       </div>
 
-      {/* Travel Event Display (Directly on the Board Center!) */}
+      {/* Travel Event Display */}
       {activeEvent && activeEffect && (
         <div className="hub-event-card" role="status" aria-label="Travel event announcement">
           <div className="hub-event-top">
