@@ -357,17 +357,36 @@ export function BoardCenterHub({
   } else if (game.phase === 'choice') {
     if (landedSpace?.type === 'city') {
       if (!ownedProperty) {
-        statusHintText = copy(
-          `Buy ${landedSpace.name[lang]} (${landedSpace.price} Dubi)`,
-          `${landedSpace.name[lang]} (${landedSpace.price} Dubi) 매입 가능`,
-          `Comprar ${landedSpace.name[lang]}`,
-        );
+        const price = landedSpace.price ?? 0;
+        const canAfford = activePlayer.cash >= price;
+        const missing = price - activePlayer.cash;
+        statusHintText = canAfford
+          ? copy(
+              `Buy ${landedSpace.name[lang]} (${price} Dubi)`,
+              `${landedSpace.name[lang]} (${price} Dubi) 매입 가능`,
+              `Comprar ${landedSpace.name[lang]}`,
+            )
+          : copy(
+              `Insufficient funds to buy ${landedSpace.name[lang]} (Need: ${price} Dubi · Short: ${missing} Dubi)`,
+              `📍 ${landedSpace.name[lang]} 도착 · 잔고 부족 (가격: ${price} Dubi · 부족: ${missing} Dubi)`,
+              `Fondos insuficientes (${price} Dubi · Faltan ${missing} Dubi)`,
+            );
       } else if (!isTourist && (ownedProperty.level ?? 0) < 3) {
-        statusHintText = copy(
-          `Upgrade ${landedSpace.name[lang]} Lv.${(ownedProperty.level ?? 0) + 1} (${landedSpace.upgrade} Dubi)`,
-          `${landedSpace.name[lang]} Lv.${(ownedProperty.level ?? 0) + 1} 증축 가능`,
-          `Mejorar ${landedSpace.name[lang]}`,
-        );
+        const upgradeCost = landedSpace.upgrade ?? 0;
+        const canAfford = activePlayer.cash >= upgradeCost;
+        const missing = upgradeCost - activePlayer.cash;
+        const nextLv = (ownedProperty.level ?? 0) + 1;
+        statusHintText = canAfford
+          ? copy(
+              `Upgrade ${landedSpace.name[lang]} Lv.${nextLv} (${upgradeCost} Dubi)`,
+              `${landedSpace.name[lang]} Lv.${nextLv} 증축 가능 (${upgradeCost} Dubi)`,
+              `Mejorar ${landedSpace.name[lang]} Lv.${nextLv}`,
+            )
+          : copy(
+              `Insufficient funds for Lv.${nextLv} upgrade (Need: ${upgradeCost} Dubi · Short: ${missing} Dubi)`,
+              `📍 ${landedSpace.name[lang]} Lv.${nextLv} 증축 잔고 부족 (비용: ${upgradeCost} Dubi · 부족: ${missing} Dubi)`,
+              `Fondos insuficientes Nv.${nextLv} (${upgradeCost} Dubi · Faltan ${missing} Dubi)`,
+            );
       } else {
         statusHintText = copy('Ready to end turn', '턴을 마칠 준비가 되었습니다', 'Listo para finalizar');
       }
@@ -440,253 +459,78 @@ export function BoardCenterHub({
           </div>
 
           <div className="hub-control-deck">
-            {/* Dice Visual Box */}
-            <button
-              type="button"
-              className={`hub-dice-box ${isRolling || pendingAction === 'roll' ? 'is-dice-rolling' : ''} ${
-                game.phase === 'roll' && !actionsBlocked ? 'can-roll-clickable' : ''
-              }`}
-              disabled={actionsBlocked || game.phase !== 'roll'}
-              onClick={handleRoll}
-              title={game.phase === 'roll' ? copy('Click to roll dice', '클릭하여 주사위 굴리기', 'Toca para tirar dados') : undefined}
-            >
-              <div className="hub-dice-pair">
-                {displayDice[0] > 0 ? (
-                  <span className="hub-die-face">{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][displayDice[0] - 1]}</span>
-                ) : (
-                  <span className="hub-die-face">🎲</span>
-                )}
-                {displayDice[1] > 0 ? (
-                  <span className="hub-die-face">{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][displayDice[1] - 1]}</span>
-                ) : (
-                  displayDice[0] > 0 && <span className="hub-die-face die-single-tag">1D</span>
-                )}
-              </div>
-              {diceSum > 0 && !isRolling && (
-                <span className={`hub-dice-sum-badge ${isDoubles ? 'badge-doubles' : ''}`}>
-                  {isDoubles ? `✨ 2x${displayDice[0]}` : `${diceSum}`}
-                </span>
-              )}
-            </button>
-
-            {/* Main Action Buttons */}
-            <div className="hub-action-buttons">
-              {game.phase === 'roll' && (
-                <>
-                  <button
-                    type="button"
-                    className="hub-btn hub-btn-roll"
-                    disabled={actionsBlocked}
-                    onClick={handleRoll}
-                  >
-                    <span className="hub-btn-icon">🎲</span>
-                    <span className="hub-btn-text">
-                      {isRolling || pendingAction === 'roll'
-                        ? copy('Rolling...', '굴리는 중...', 'Tirando...')
-                        : inRest
-                          ? copy('Try Doubles', '더블 도전', 'Dobles')
-                          : extraRoll
-                            ? copy('Roll Again! ✨', '더블! 한 번 더 굴리기 ✨', '¡Tirar de nuevo! ✨')
-                            : copy('Roll Dice', '주사위 굴리기', 'Tirar dados')}
-                    </span>
-                  </button>
-                  {inRest && (
-                    <button
-                      type="button"
-                      className="hub-btn hub-btn-bail"
-                      disabled={actionsBlocked || activePlayer.cash < rules.restFee}
-                      onClick={handleBail}
-                    >
-                      <span className="hub-btn-icon">🗝️</span>
-                      <span className="hub-btn-text">
-                        {copy('Bail', '보석금', 'Fianza')} ({rules.restFee})
-                      </span>
-                    </button>
-                  )}
-                </>
-              )}
-
-              {game.phase === 'choice' && (
-                <>
-                  {isPendingRent && pendingPayment && (
-                    <button
-                      type="button"
-                      className="hub-btn hub-btn-pay-rent"
-                      disabled={actionsBlocked}
-                      onClick={handlePayRent}
-                    >
-                      <span className="hub-btn-icon">💸</span>
-                      <span className="hub-btn-text">
-                        {copy(
-                          `Pay ${pendingPayment.amount.toLocaleString()} Dubi to ${names[pendingPayment.to as number] || 'Opponent'}`,
-                          `${names[pendingPayment.to as number] || '상대방'}에게 ${pendingPayment.amount.toLocaleString()} Dubi 주기`,
-                          `Pagar ${pendingPayment.amount.toLocaleString()} Dubi a ${names[pendingPayment.to as number] || 'Rival'}`,
-                        )}
-                      </span>
-                    </button>
-                  )}
-
-                  {isPendingEvent && pendingPayment && (
-                    <button
-                      type="button"
-                      className={`hub-btn ${pendingPayment.isGain ? 'hub-btn-claim-event' : 'hub-btn-pay-event'}`}
-                      disabled={actionsBlocked}
-                      onClick={handleClaimEvent}
-                    >
-                      <span className="hub-btn-icon">{pendingPayment.isGain ? '💰' : '💸'}</span>
-                      <span className="hub-btn-text">
-                        {pendingPayment.isGain
-                          ? copy(
-                              `Collect ${pendingPayment.amount.toLocaleString()} Dubi`,
-                              `${pendingPayment.amount.toLocaleString()} Dubi 받기`,
-                              `Cobrar ${pendingPayment.amount.toLocaleString()} Dubi`,
-                            )
-                          : copy(
-                              `Pay ${pendingPayment.amount.toLocaleString()} Dubi`,
-                              `${pendingPayment.amount.toLocaleString()} Dubi 납부하기`,
-                              `Pagar ${pendingPayment.amount.toLocaleString()} Dubi`,
-                            )}
-                      </span>
-                    </button>
-                  )}
-
-                  {!pendingPayment && landedSpace?.type === 'city' && !ownedProperty && (
-                    <button
-                      type="button"
-                      className="hub-btn hub-btn-buy"
-                      disabled={actionsBlocked || !canBuy(game)}
-                      onClick={handleBuy}
-                    >
-                      <span className="hub-btn-icon">🏗️</span>
-                      <span className="hub-btn-text">
-                        {copy('Buy Land', '토지 매입', 'Comprar')} ({landedSpace.price} Dubi)
-                      </span>
-                    </button>
-                  )}
-
-                  {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && !isTourist && (
-                    <button
-                      type="button"
-                      className="hub-btn hub-btn-upgrade"
-                      disabled={actionsBlocked || !canUpgrade(game)}
-                      onClick={handleUpgrade}
-                    >
-                      <span className="hub-btn-icon">🔨</span>
-                      <span className="hub-btn-text">
-                        {copy('Upgrade', '증축', 'Mejorar')} Lv.{(ownedProperty.level ?? 0) + 1} ({landedSpace.upgrade} Dubi)
-                      </span>
-                    </button>
-                  )}
-
-                  {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && (ownedProperty.level ?? 0) >= 3 && !isTourist && (
-                    <span className="hub-landmark-chip">
-                      👑 {copy('Landmark Max', '최고 등급', 'Monumento Máx')}
-                    </span>
-                  )}
-
-                  {!pendingPayment && isAirportActive && (
-                    <button
-                      type="button"
-                      className="hub-btn hub-btn-fly"
-                      disabled={actionsBlocked || activePlayer.cash < rules.flightFee}
-                      onClick={handleFly}
-                    >
-                      <span className="hub-btn-icon">✈️</span>
-                      <span className="hub-btn-text">
-                        #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Fly', '비행', 'Volar')}
-                      </span>
-                    </button>
-                  )}
-
-                  {!pendingPayment && isHarborActive && (
-                    <button
-                      type="button"
-                      className="hub-btn hub-btn-sail"
-                      disabled={actionsBlocked || activePlayer.cash < rules.sailFee}
-                      onClick={handleSail}
-                    >
-                      <span className="hub-btn-icon">🚢</span>
-                      <span className="hub-btn-text">
-                        #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Sail', '항해', 'Navegar')}
-                      </span>
-                    </button>
-                  )}
-
-                  {!pendingPayment && (
-                    <button
-                      type="button"
-                      className={`hub-btn hub-btn-end ${endEmphasized ? 'hub-btn-end-primary' : 'hub-btn-end-outline'}`}
-                      disabled={actionsBlocked}
-                      onClick={handleEndTurn}
-                    >
-                      <span className="hub-btn-text">
-                        {extraRoll
-                          ? copy('Skip Roll', '더블 포기', 'Pasar')
-                          : hasPropertyAction
-                            ? copy('Skip', '건너뛰기', 'Pasar')
-                            : copy('End Turn', '턴 종료', 'Fin de turno')}
-                      </span>
-                      <span className="hub-btn-arrow">➔</span>
-                    </button>
-                  )}
-                </>
-              )}
-
-              {game.phase === 'end' && (
-                <button
-                  type="button"
-                  className="hub-btn hub-btn-end hub-btn-end-primary"
-                  disabled={actionsBlocked}
-                  onClick={handleEndTurn}
-                >
-                  <span className="hub-btn-text">
-                    {extraRoll
-                      ? copy('Skip Roll', '더블 포기', 'Pasar')
-                      : copy('End Turn', '턴 종료', 'Fin de turno')}
-                  </span>
-                  <span className="hub-btn-arrow">➔</span>
-                </button>
-              )}
-
-              {/* Debt Liquidation Panel inside controls */}
-              {game.phase === 'debt' && (
-                <div className="hub-debt-panel">
-                  <div className="hub-debt-top-row">
+            {game.phase === 'debt' ? (
+              <div className="hub-debt-panel" role="region" aria-label="Debt settlement">
+                <div className="hub-debt-top-row">
+                  <div className="debt-title-group">
                     <span className="debt-tag">🚨 {copy('Debt Settlement', '긴급 채무 변제', 'Liquidación')}</span>
-                    <span className="debt-shortfall-text">
-                      {copy('Shortfall', '부족액', 'Falta')}: <strong className="shortfall-amount">{shortfall.toLocaleString()} Dubi</strong>
+                    <span className="debt-target-info">
+                      {copy('Debt', '변제액', 'Deuda')}: <strong>{debtAmount.toLocaleString()} Dubi</strong>
                     </span>
                   </div>
-
-                  <div className="hub-debt-sale-scroll">
-                    {ownedSpaces.map((idx) => {
-                      const sp = board[idx];
-                      const prop = game.properties[idx];
-                      const val = sellValue(idx, prop?.level ?? 0);
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          className="hub-debt-sell-btn"
-                          disabled={actionsBlocked}
-                          onClick={() => handleSell(idx)}
-                          title={copy('Sell for 50% refund', '50% 환급 매각', 'Vender por 50%')}
-                        >
-                          <span className="prop-name">{sp.name[lang]}</span>
-                          <span className="prop-val">+{val.toLocaleString()}</span>
-                        </button>
-                      );
-                    })}
+                  <div className="debt-shortfall-badge">
+                    <span className="shortfall-label">{copy('Shortfall', '부족액', 'Falta')}:</span>
+                    <strong className="shortfall-amount">
+                      {shortfall > 0 ? `${shortfall.toLocaleString()} Dubi` : copy('0 (Cleared!)', '0 (변제 가능)', '0 (¡Cubierto!)')}
+                    </strong>
                   </div>
+                </div>
 
-                  <div className="hub-debt-action-row">
+                <div className="hub-debt-sale-section">
+                  <div className="debt-section-label">
+                    {copy('Tap property to sell (50% refund):', '매각할 부동산 선택 (건설비 50% 환급):', 'Vender propiedad (50%):')}
+                  </div>
+                  <div className="hub-debt-sale-scroll">
+                    {ownedSpaces.length > 0 ? (
+                      ownedSpaces.map((idx) => {
+                        const sp = board[idx];
+                        const prop = game.properties[idx];
+                        const val = sellValue(idx, prop?.level ?? 0);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="hub-debt-sell-btn"
+                            disabled={actionsBlocked}
+                            onClick={() => handleSell(idx)}
+                            title={copy(`Sell ${sp.name[lang]} for ${val} Dubi`, `${sp.name[lang]} 매각하고 ${val} Dubi 확보`, `Vender ${sp.name[lang]}`)}
+                          >
+                            <span className="prop-name">{sp.name[lang]}</span>
+                            <span className="prop-val">+{val.toLocaleString()}</span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <span className="hub-debt-no-props">
+                        {copy('No owned properties available to sell', '매각할 수 있는 보유 부동산이 없습니다', 'Sin propiedades para vender')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="hub-debt-action-row">
+                  <div className="hub-debt-status-note">
+                    {activePlayer.cash >= debtAmount ? (
+                      <span className="status-ready">
+                        ✅ {copy('Ready to settle debt! Tap Pay to continue.', '변제액 확보 완료! 계속하려면 버튼을 누르세요.', '¡Fondos listos!')}
+                      </span>
+                    ) : (
+                      <span className="status-need">
+                        ⚠️ {copy(`Need ${shortfall.toLocaleString()} more Dubi`, `${shortfall.toLocaleString()} Dubi 추가 확보 필요`, `Faltan ${shortfall.toLocaleString()} Dubi`)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="hub-debt-btns-group">
                     <button
                       type="button"
                       className="hub-btn hub-btn-pay-debt"
                       disabled={actionsBlocked || activePlayer.cash < debtAmount}
                       onClick={handlePayDebt}
                     >
-                      💸 {copy('Pay & Continue', '채무 변제하고 계속', 'Pagar y Continuar')} ({debtAmount.toLocaleString()} Dubi)
+                      <span className="hub-btn-icon">💸</span>
+                      <span className="hub-btn-text">
+                        {copy('Pay & Continue', '채무 변제하고 계속', 'Pagar y Continuar')} ({debtAmount.toLocaleString()})
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -694,12 +538,260 @@ export function BoardCenterHub({
                       disabled={actionsBlocked}
                       onClick={handleBankrupt}
                     >
-                      🏳️ {copy('Bankrupt', '파산 선언', 'Bancarrota')}
+                      <span className="hub-btn-icon">🏳️</span>
+                      <span className="hub-btn-text">
+                        {copy('Bankrupt', '파산 선언', 'Bancarrota')}
+                      </span>
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <>
+                {/* Dice Visual Box */}
+                <button
+                  type="button"
+                  className={`hub-dice-box ${isRolling || pendingAction === 'roll' ? 'is-dice-rolling' : ''} ${
+                    game.phase === 'roll' && !actionsBlocked ? 'can-roll-clickable' : ''
+                  }`}
+                  disabled={actionsBlocked || game.phase !== 'roll'}
+                  onClick={handleRoll}
+                  title={game.phase === 'roll' ? copy('Click to roll dice', '클릭하여 주사위 굴리기', 'Toca para tirar dados') : undefined}
+                >
+                  <div className="hub-dice-pair">
+                    {displayDice[0] > 0 ? (
+                      <span className="hub-die-face">{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][displayDice[0] - 1]}</span>
+                    ) : (
+                      <span className="hub-die-face">🎲</span>
+                    )}
+                    {displayDice[1] > 0 ? (
+                      <span className="hub-die-face">{['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][displayDice[1] - 1]}</span>
+                    ) : (
+                      displayDice[0] > 0 && <span className="hub-die-face die-single-tag">1D</span>
+                    )}
+                  </div>
+                  {diceSum > 0 && !isRolling && (
+                    <span className={`hub-dice-sum-badge ${isDoubles ? 'badge-doubles' : ''}`}>
+                      {isDoubles ? `✨ 2x${displayDice[0]}` : `${diceSum}`}
+                    </span>
+                  )}
+                </button>
+
+                {/* Main Action Buttons */}
+                <div className="hub-action-buttons">
+                  {game.phase === 'roll' && (
+                    <>
+                      <button
+                        type="button"
+                        className="hub-btn hub-btn-roll"
+                        disabled={actionsBlocked}
+                        onClick={handleRoll}
+                      >
+                        <span className="hub-btn-icon">🎲</span>
+                        <span className="hub-btn-text">
+                          {isRolling || pendingAction === 'roll'
+                            ? copy('Rolling...', '굴리는 중...', 'Tirando...')
+                            : inRest
+                              ? copy('Try Doubles', '더블 도전', 'Dobles')
+                              : extraRoll
+                                ? copy('Roll Again! ✨', '더블! 한 번 더 굴리기 ✨', '¡Tirar de nuevo! ✨')
+                                : copy('Roll Dice', '주사위 굴리기', 'Tirar dados')}
+                        </span>
+                      </button>
+                      {inRest && (
+                        <button
+                          type="button"
+                          className="hub-btn hub-btn-bail"
+                          disabled={actionsBlocked || activePlayer.cash < rules.restFee}
+                          onClick={handleBail}
+                        >
+                          <span className="hub-btn-icon">🗝️</span>
+                          <span className="hub-btn-text">
+                            {copy('Bail', '보석금', 'Fianza')} ({rules.restFee})
+                          </span>
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {game.phase === 'choice' && (
+                    <>
+                      {isPendingRent && pendingPayment && (
+                        <button
+                          type="button"
+                          className="hub-btn hub-btn-pay-rent"
+                          disabled={actionsBlocked}
+                          onClick={handlePayRent}
+                        >
+                          <span className="hub-btn-icon">💸</span>
+                          <span className="hub-btn-text">
+                            {copy(
+                              `Pay ${pendingPayment.amount.toLocaleString()} Dubi to ${names[pendingPayment.to as number] || 'Opponent'}`,
+                              `${names[pendingPayment.to as number] || '상대방'}에게 ${pendingPayment.amount.toLocaleString()} Dubi 주기`,
+                              `Pagar ${pendingPayment.amount.toLocaleString()} Dubi a ${names[pendingPayment.to as number] || 'Rival'}`,
+                            )}
+                          </span>
+                        </button>
+                      )}
+
+                      {isPendingEvent && pendingPayment && (
+                        <button
+                          type="button"
+                          className={`hub-btn ${pendingPayment.isGain ? 'hub-btn-claim-event' : 'hub-btn-pay-event'}`}
+                          disabled={actionsBlocked}
+                          onClick={handleClaimEvent}
+                        >
+                          <span className="hub-btn-icon">{pendingPayment.isGain ? '💰' : '💸'}</span>
+                          <span className="hub-btn-text">
+                            {pendingPayment.isGain
+                              ? copy(
+                                  `Collect ${pendingPayment.amount.toLocaleString()} Dubi`,
+                                  `${pendingPayment.amount.toLocaleString()} Dubi 받기`,
+                                  `Cobrar ${pendingPayment.amount.toLocaleString()} Dubi`,
+                                )
+                              : copy(
+                                  `Pay ${pendingPayment.amount.toLocaleString()} Dubi`,
+                                  `${pendingPayment.amount.toLocaleString()} Dubi 납부하기`,
+                                  `Pagar ${pendingPayment.amount.toLocaleString()} Dubi`,
+                                )}
+                          </span>
+                        </button>
+                      )}
+
+                      {!pendingPayment && landedSpace?.type === 'city' && !ownedProperty && (
+                        canBuy(game) ? (
+                          <button
+                            type="button"
+                            className="hub-btn hub-btn-buy"
+                            disabled={actionsBlocked}
+                            onClick={handleBuy}
+                          >
+                            <span className="hub-btn-icon">🏗️</span>
+                            <span className="hub-btn-text">
+                              {copy('Buy Land', '토지 매입', 'Comprar')} ({landedSpace.price} Dubi)
+                            </span>
+                          </button>
+                        ) : (
+                          <div
+                            className="hub-btn hub-btn-shortfall"
+                            title={copy(
+                              `Price: ${landedSpace.price} Dubi · Short by ${(landedSpace.price ?? 0) - activePlayer.cash} Dubi`,
+                              `매입가 ${landedSpace.price} Dubi · ${(landedSpace.price ?? 0) - activePlayer.cash} Dubi 부족`,
+                              `Precio: ${landedSpace.price} Dubi · Faltan ${(landedSpace.price ?? 0) - activePlayer.cash} Dubi`,
+                            )}
+                          >
+                            <span className="hub-btn-icon">⚠️</span>
+                            <span className="hub-btn-text">
+                              {copy('Cannot Buy', '매입 불가', 'No disponible')} ({landedSpace.price} Dubi · <span className="shortfall-sub">{copy(`-${(landedSpace.price ?? 0) - activePlayer.cash} Dubi`, `${(landedSpace.price ?? 0) - activePlayer.cash} 부족`, `-${(landedSpace.price ?? 0) - activePlayer.cash}`)}</span>)
+                            </span>
+                          </div>
+                        )
+                      )}
+
+                      {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && !isTourist && (
+                        (ownedProperty.level ?? 0) < 3 ? (
+                          canUpgrade(game) ? (
+                            <button
+                              type="button"
+                              className="hub-btn hub-btn-upgrade"
+                              disabled={actionsBlocked}
+                              onClick={handleUpgrade}
+                            >
+                              <span className="hub-btn-icon">🔨</span>
+                              <span className="hub-btn-text">
+                                {copy('Upgrade', '증축', 'Mejorar')} Lv.{(ownedProperty.level ?? 0) + 1} ({landedSpace.upgrade} Dubi)
+                              </span>
+                            </button>
+                          ) : (
+                            <div
+                              className="hub-btn hub-btn-shortfall"
+                              title={copy(
+                                `Upgrade: ${landedSpace.upgrade} Dubi · Short by ${(landedSpace.upgrade ?? 0) - activePlayer.cash} Dubi`,
+                                `증축비 ${landedSpace.upgrade} Dubi · ${(landedSpace.upgrade ?? 0) - activePlayer.cash} Dubi 부족`,
+                                `Mejora: ${landedSpace.upgrade} Dubi · Faltan ${(landedSpace.upgrade ?? 0) - activePlayer.cash} Dubi`,
+                              )}
+                            >
+                              <span className="hub-btn-icon">⚠️</span>
+                              <span className="hub-btn-text">
+                                {copy('Cannot Upgrade', '증축 불가', 'Sin fondos')} Lv.{(ownedProperty.level ?? 0) + 1} ({landedSpace.upgrade} Dubi · <span className="shortfall-sub">{copy(`-${(landedSpace.upgrade ?? 0) - activePlayer.cash} Dubi`, `${(landedSpace.upgrade ?? 0) - activePlayer.cash} 부족`, `-${(landedSpace.upgrade ?? 0) - activePlayer.cash}`)}</span>)
+                              </span>
+                            </div>
+                          )
+                        ) : null
+                      )}
+
+                      {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && (ownedProperty.level ?? 0) >= 3 && !isTourist && (
+                        <span className="hub-landmark-chip">
+                          👑 {copy('Landmark Max', '최고 등급', 'Monumento Máx')}
+                        </span>
+                      )}
+
+                      {!pendingPayment && isAirportActive && (
+                        <button
+                          type="button"
+                          className="hub-btn hub-btn-fly"
+                          disabled={actionsBlocked || activePlayer.cash < rules.flightFee}
+                          onClick={handleFly}
+                        >
+                          <span className="hub-btn-icon">✈️</span>
+                          <span className="hub-btn-text">
+                            #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Fly', '비행', 'Volar')}
+                          </span>
+                        </button>
+                      )}
+
+                      {!pendingPayment && isHarborActive && (
+                        <button
+                          type="button"
+                          className="hub-btn hub-btn-sail"
+                          disabled={actionsBlocked || activePlayer.cash < rules.sailFee}
+                          onClick={handleSail}
+                        >
+                          <span className="hub-btn-icon">🚢</span>
+                          <span className="hub-btn-text">
+                            #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Sail', '항해', 'Navegar')}
+                          </span>
+                        </button>
+                      )}
+
+                      {!pendingPayment && (
+                        <button
+                          type="button"
+                          className={`hub-btn hub-btn-end ${endEmphasized ? 'hub-btn-end-primary' : 'hub-btn-end-outline'}`}
+                          disabled={actionsBlocked}
+                          onClick={handleEndTurn}
+                        >
+                          <span className="hub-btn-text">
+                            {extraRoll
+                              ? copy('Skip Roll', '더블 포기', 'Pasar')
+                              : hasPropertyAction
+                                ? copy('Skip', '건너뛰기', 'Pasar')
+                                : copy('End Turn', '턴 종료', 'Fin de turno')}
+                          </span>
+                          <span className="hub-btn-arrow">➔</span>
+                        </button>
+                      )}
+                    </>
+                  )}
+
+                  {game.phase === 'end' && (
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-end hub-btn-end-primary"
+                      disabled={actionsBlocked}
+                      onClick={handleEndTurn}
+                    >
+                      <span className="hub-btn-text">
+                        {extraRoll
+                          ? copy('Skip Roll', '더블 포기', 'Pasar')
+                          : copy('End Turn', '턴 종료', 'Fin de turno')}
+                      </span>
+                      <span className="hub-btn-arrow">➔</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

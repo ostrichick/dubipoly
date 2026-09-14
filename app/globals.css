@@ -567,16 +567,19 @@ nav button,
   align-items: center;
   gap: clamp(3px, 0.6vw, 6px);
   width: 96%;
-  max-width: 480px;
+  max-width: 520px;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: clamp(4px, 0.7vw, 7px) clamp(8px, 1.2vw, 12px);
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
   border: 1.5px solid rgba(255, 255, 255, 0.95);
   border-radius: 14px;
   box-shadow: 0 4px 14px rgba(22, 101, 110, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
   position: relative;
   z-index: 2;
+  overflow: hidden;
 }
 
 /* Turn Indicator Row */
@@ -660,6 +663,9 @@ nav button,
   justify-content: center;
   gap: clamp(6px, 1.2vw, 10px);
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Dice Box */
@@ -892,6 +898,32 @@ nav button,
   border-radius: 7px;
 }
 
+.hub-btn-shortfall {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(3px, 0.5vw, 6px);
+  font-size: clamp(10px, 1.2vw, 12px);
+  font-weight: 850;
+  border-radius: 9px;
+  padding: clamp(4px, 0.7vw, 6px) clamp(7px, 1.1vw, 11px);
+  background: #fff1f2;
+  border: 1.5px dashed #f43f5e;
+  color: #9f1239;
+  cursor: not-allowed;
+  white-space: nowrap;
+  line-height: 1.2;
+  user-select: none;
+}
+
+.hub-btn-shortfall .shortfall-sub {
+  color: #e11d48;
+  font-weight: 900;
+  background: #ffe4e6;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 .hub-btn-end-primary {
   background: linear-gradient(135deg, #164e63, #083344);
   color: #ffffff;
@@ -924,12 +956,17 @@ nav button,
 .hub-debt-panel {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   width: 100%;
-  background: #fff1f2;
-  border: 1.5px solid #fecdd3;
-  border-radius: 10px;
-  padding: 5px 8px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  border: 1.5px solid #fca5a5;
+  border-radius: 12px;
+  padding: 7px 10px;
+  box-shadow: 0 3px 10px rgba(225, 29, 72, 0.12);
+  overflow: hidden;
 }
 
 .hub-debt-top-row {
@@ -937,63 +974,153 @@ nav button,
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  font-size: 11px;
+  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.debt-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .debt-tag {
-  font-weight: 850;
+  font-size: 11.5px;
+  font-weight: 900;
   color: #be123c;
+  background: #ffffff;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #fecdd3;
+  letter-spacing: -0.2px;
 }
 
-.debt-shortfall-text {
+.debt-target-info {
+  font-size: 11px;
   color: #881337;
+}
+
+.debt-shortfall-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #f43f5e;
+  font-size: 11px;
+}
+
+.shortfall-label {
+  color: #64748b;
   font-weight: 700;
 }
 
 .shortfall-amount {
   color: #e11d48;
-  font-size: 12px;
+  font-weight: 900;
+}
+
+.hub-debt-sale-section {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+}
+
+.debt-section-label {
+  font-size: 10.5px;
+  font-weight: 750;
+  color: #9f1239;
 }
 
 .hub-debt-sale-scroll {
   display: flex;
-  gap: 4px;
+  gap: 5px;
   overflow-x: auto;
-  padding: 2px 0;
+  overflow-y: hidden;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 3px 1px 6px 1px;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  scrollbar-color: #fda4af transparent;
+  box-sizing: border-box;
 }
 
 .hub-debt-sell-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   background: #ffffff;
-  border: 1px solid #f43f5e;
+  border: 1.5px solid #f43f5e;
   color: #9f1239;
-  border-radius: 6px;
-  padding: 2px 6px;
-  font-size: 10.5px;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 11px;
   font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: all 0.15s ease;
 }
 
-.hub-debt-sell-btn:hover {
+.hub-debt-sell-btn:hover:not(:disabled) {
   background: #ffe4e6;
+  border-color: #be123c;
   transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(225, 29, 72, 0.2);
 }
 
 .hub-debt-sell-btn .prop-val {
   color: #059669;
+  font-weight: 900;
+}
+
+.hub-debt-no-props {
+  font-size: 11px;
+  color: #881337;
+  font-style: italic;
+  padding: 4px 0;
 }
 
 .hub-debt-action-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  justify-content: flex-end;
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  flex-wrap: wrap;
   margin-top: 2px;
+}
+
+.hub-debt-status-note {
+  font-size: 11px;
+  flex: 1;
+  min-width: 140px;
+}
+
+.hub-debt-status-note .status-ready {
+  color: #047857;
+  font-weight: 800;
+}
+
+.hub-debt-status-note .status-need {
+  color: #be123c;
+  font-weight: 750;
+}
+
+.hub-debt-btns-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .hub-btn-pay-debt {
@@ -2198,7 +2325,88 @@ nav button,
     0 2px 0 #bca987;
   z-index: 3;
 }
-.tile.selected:not(.my-position) {
+
+.tile.is-active-turn-tile {
+  z-index: 12 !important;
+  animation: active-tile-pulse 1.6s ease-in-out infinite alternate;
+}
+
+.tile.is-active-turn-tile.active-turn-p0 {
+  outline: 3.5px solid #2563eb !important;
+  outline-offset: -2px;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, 0.45),
+    0 0 22px rgba(37, 99, 235, 0.7),
+    inset 0 0 12px rgba(191, 219, 254, 0.6) !important;
+}
+
+.tile.is-active-turn-tile.active-turn-p1 {
+  outline: 3.5px solid #e11d48 !important;
+  outline-offset: -2px;
+  box-shadow:
+    0 0 0 3px rgba(225, 29, 72, 0.45),
+    0 0 22px rgba(225, 29, 72, 0.7),
+    inset 0 0 12px rgba(254, 205, 211, 0.6) !important;
+}
+
+@keyframes active-tile-pulse {
+  0% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+  100% {
+    filter: brightness(1.08);
+    transform: scale(1.025);
+  }
+}
+
+.active-turn-indicator {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1.5px 6px;
+  border-radius: 9999px;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.active-turn-indicator.actor-turn-0 {
+  background: linear-gradient(135deg, #1d4ed8, #1e40af);
+  color: #ffffff;
+  border: 1.5px solid #93c5fd;
+  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.5);
+}
+
+.active-turn-indicator.actor-turn-1 {
+  background: linear-gradient(135deg, #e11d48, #be123c);
+  color: #ffffff;
+  border: 1.5px solid #fca5a5;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.5);
+}
+
+.active-turn-pulse-ring {
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: turn-dot-ping 1s infinite alternate;
+}
+
+@keyframes turn-dot-ping {
+  0% { transform: scale(0.8); opacity: 0.7; }
+  100% { transform: scale(1.3); opacity: 1; }
+}
+
+.tile.selected:not(.my-position):not(.is-active-turn-tile) {
   outline: 2px dashed #173d50;
   outline-offset: -4px;
 }

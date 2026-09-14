@@ -100,9 +100,17 @@ export async function POST(
       } else if (body.type === 'sell') {
         action = { type: 'sell', space: Number(body.space) };
       } else if (body.type === 'fly') {
-        action = { type: 'fly', space: Number(body.space) };
+        action = {
+          type: 'fly',
+          space: Number(body.space),
+          event: randomInt(events.length),
+        };
       } else if (body.type === 'sail') {
-        action = { type: 'sail', space: Number(body.space) };
+        action = {
+          type: 'sail',
+          space: Number(body.space),
+          event: randomInt(events.length),
+        };
       } else {
         action = {
           type: body.type as

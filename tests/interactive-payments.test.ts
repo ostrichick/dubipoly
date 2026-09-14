@@ -5,6 +5,7 @@ import {
   transition,
   canBuy,
   canUpgrade,
+  rules,
   type Action,
 } from '../lib/game.ts';
 
@@ -122,3 +123,55 @@ test('auto-settlement fallback on end turn action', () => {
   assert.equal(g.players[0].cash, p0InitialCash - rent);
   assert.equal(g.players[1].cash, p1InitialCash + rent);
 });
+
+test('flying to event space triggers event and pendingPayment', () => {
+  let g = createGame(['Dubu', 'Dubi'], 2);
+  g.players[0].position = 30; // Airport
+  g.phase = 'choice';
+  const initialCash = g.players[0].cash; // 1500
+
+  // Fly to space 38 (travel event) with event 0 (+120 cash)
+  g = transition(g, { type: 'fly', space: 38, event: 0 });
+
+  assert.equal(g.players[0].position, 38);
+  assert.equal(g.phase, 'choice');
+  assert.notEqual(g.pendingPayment, null);
+  assert.equal(g.pendingPayment?.type, 'event');
+  assert.equal(g.pendingPayment?.amount, 120);
+  assert.equal(g.pendingPayment?.isGain, true);
+  // Flight fee 50 deducted
+  assert.equal(g.players[0].cash, initialCash - 50);
+
+  // Claim event
+  g = transition(g, { type: 'claimEvent' });
+  assert.equal(g.players[0].cash, initialCash - 50 + 120);
+  assert.equal(g.pendingPayment, null);
+  assert.equal(g.phase, 'end');
+});
+
+test('sailing to event space triggers event and pendingPayment', () => {
+  let g = createGame(['Dubu', 'Dubi'], 2);
+  g.players[0].position = 10; // Harbor
+  g.phase = 'roll';
+  g.harborTurns![0] = 1;
+  const initialCash = g.players[0].cash;
+
+  // Sail to space 18 (event space) with event 0 (+120 cash)
+  g = transition(g, { type: 'sail', space: 18, event: 0 });
+
+  assert.equal(g.players[0].position, 18);
+  assert.equal(g.phase, 'choice');
+  assert.notEqual(g.pendingPayment, null);
+  assert.equal(g.pendingPayment?.type, 'event');
+  assert.equal(g.pendingPayment?.amount, 120);
+  assert.equal(g.pendingPayment?.isGain, true);
+  // Sail fee deducted (20 Dubi)
+  assert.equal(g.players[0].cash, initialCash - rules.sailFee);
+
+  // Claim event
+  g = transition(g, { type: 'claimEvent' });
+  assert.equal(g.players[0].cash, initialCash - rules.sailFee + 120);
+  assert.equal(g.pendingPayment, null);
+  assert.equal(g.phase, 'end');
+});
+

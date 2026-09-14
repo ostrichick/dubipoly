@@ -722,7 +722,7 @@ export function transition(
       space: dest,
       amount: rules.flightFee,
     });
-    land(g, false, action.event ?? 0);
+    land(g, true, action.event ?? 0);
     finishLanding(g);
   }
   if (action.type === 'skipFly') {
@@ -746,7 +746,7 @@ export function transition(
       space: dest,
       amount: rules.sailFee,
     });
-    land(g, false, action.event ?? 0);
+    land(g, true, action.event ?? 0);
     finishLanding(g);
   }
   if (action.type === 'payRent') {

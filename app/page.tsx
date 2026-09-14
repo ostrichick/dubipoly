@@ -812,12 +812,17 @@ export default function Home() {
       sound.playPop();
     }
 
+    let actionToExecute = a;
+    if ((a.type === 'fly' || a.type === 'sail') && a.event === undefined) {
+      actionToExecute = { ...a, event: Math.floor(Math.random() * events.length) };
+    }
+
     if (roomCode && roomToken) {
       if (old.game.current !== (roomRole === 'host' ? 0 : 1)) return;
       setRoomBusy(true);
       setPendingAction(a.type);
       if (a.type !== 'roll') {
-        const predicted = transition(old.game, a, old.game.current, revision);
+        const predicted = transition(old.game, actionToExecute, old.game.current, revision);
         if (predicted !== old.game) setSession({ ...old, game: predicted });
       }
       let accepted = false;
@@ -865,9 +870,9 @@ export default function Home() {
       }
       return;
     }
-    const game = transition(old.game, a, old.game.current, revision);
+    const game = transition(old.game, actionToExecute, old.game.current, revision);
     if (game === old.game) return;
-    commit({ game, save: { ...old.save, actions: [...old.save.actions, a] } });
+    commit({ game, save: { ...old.save, actions: [...old.save.actions, actionToExecute] } });
     setSelected(game.players[game.current].position);
   }
   function follow() {
@@ -1399,15 +1404,19 @@ export default function Home() {
                   const isSelectedDest = isTravelSelection && targetTravelSpace === x.index;
                   const isLandmark = Boolean(p && p.level >= 3);
                   const hasBubble = tokenSpeechBubble && (displayPositions[tokenSpeechBubble.player] ?? g?.players[tokenSpeechBubble.player]?.position) === x.index;
+                  const activeTurnPlayer = g?.current ?? 0;
+                  const activeTurnSpace = displayPositions[activeTurnPlayer] ?? g?.players[activeTurnPlayer]?.position;
+                  const isActiveTurnSpace = Boolean(g && g.phase !== 'finished' && activeTurnSpace === x.index);
                   return (
                     <button
                       key={x.index}
                       data-space={x.index}
                       data-kind={x.kind ?? x.type}
                       data-my-position={String(myPosition === x.index)}
+                      data-active-turn={String(isActiveTurnSpace)}
                       data-owner={p?.owner ?? ''}
                       data-level={p?.level ?? ''}
-                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner} building-tier-${p.level} ${isLandmark ? 'has-landmark' : ''}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''} ${isTravelSelection ? 'is-travel-target' : ''} ${isSelectedDest ? 'is-selected-destination' : ''} ${hasBubble ? 'has-speech-bubble' : ''}`}
+                      className={`tile ${x.country ?? 'special'} ${x.type !== 'city' ? 'event' : ''} ${x.kind === 'tourist' ? 'tourist-tile' : ''} ${p ? `owned-tile owned-by-${p.owner} building-tier-${p.level} ${isLandmark ? 'has-landmark' : ''}` : ''} ${myPosition === x.index ? 'my-position' : ''} ${isActiveTurnSpace ? `is-active-turn-tile active-turn-p${activeTurnPlayer}` : ''} ${selected === x.index ? 'selected' : ''} ${constructingSpace?.space === x.index ? 'is-constructing' : ''} ${isTravelSelection ? 'is-travel-target' : ''} ${isSelectedDest ? 'is-selected-destination' : ''} ${hasBubble ? 'has-speech-bubble' : ''}`}
                       style={{ gridRow: x.row, gridColumn: x.col }}
                       aria-label={`${x.index + 1}. ${x.name[lang]}${p ? ` · ${g!.players[p.owner].name} · ${t.level} ${p.level}` : ''}`}
                       aria-pressed={selected === x.index}
@@ -1476,6 +1485,17 @@ export default function Home() {
                           aria-label={special.youHere}
                         >
                           ▼
+                        </span>
+                      )}
+                      {isActiveTurnSpace && (
+                        <span
+                          className={`active-turn-indicator actor-turn-${activeTurnPlayer}`}
+                          aria-label={copy('Active Turn', '현재 턴', 'Turno activo')}
+                        >
+                          <span className="active-turn-pulse-ring" />
+                          <span className="active-turn-text">
+                            {activeTurnPlayer === 0 ? '● P1' : '◆ P2'}
+                          </span>
                         </span>
                       )}
                       {p ? (
@@ -1913,8 +1933,16 @@ export default function Home() {
                                   )
                                 }
                               >
-                                {copy('Buy', '구매', 'Comprar')}{' '}
-                                {landed.name[lang]} · {landed.price} Dubi
+                                {canBuy(g) ? (
+                                  <>
+                                    {copy('Buy', '구매', 'Comprar')}{' '}
+                                    {landed.name[lang]} · {landed.price} Dubi
+                                  </>
+                                ) : (
+                                  <>
+                                    ⚠️ {copy('Cannot Buy', '구매 불가', 'No disponible')} ({landed.price} Dubi · {copy(`Short ${(landed.price ?? 0) - (active?.cash ?? 0)}`, `${(landed.price ?? 0) - (active?.cash ?? 0)} 부족`, `Faltan ${(landed.price ?? 0) - (active?.cash ?? 0)}`)})
+                                  </>
+                                )}
                               </Button>
                             ) : (
                               !tourist && (
@@ -1927,13 +1955,39 @@ export default function Home() {
                                     )
                                   }
                                 >
-                                  {landed.name[lang]} · {t.upgrade} ·{' '}
-                                  {landed.upgrade} Dubi
+                                  {canUpgrade(g) ? (
+                                    <>
+                                      {landed.name[lang]} · {t.upgrade} ·{' '}
+                                      {landed.upgrade} Dubi
+                                    </>
+                                  ) : (
+                                    <>
+                                      ⚠️ {copy('Cannot Upgrade', '증축 불가', 'Sin fondos')} Lv.{(owned.level ?? 0) + 1} ({landed.upgrade} Dubi · {copy(`Short ${(landed.upgrade ?? 0) - (active?.cash ?? 0)}`, `${(landed.upgrade ?? 0) - (active?.cash ?? 0)} 부족`, `Faltan ${(landed.upgrade ?? 0) - (active?.cash ?? 0)}`)})
+                                    </>
+                                  )}
                                 </Button>
                               )
                             )}
                             {!hasPropertyAction && (
-                              <p>{owned && owned.level >= 3 ? t.max : t.low}</p>
+                              <p className="text-xs text-rose-600 font-bold mt-1">
+                                {!canBuy(g) && !owned && landed.price && active ? (
+                                  `⚠️ ${copy(
+                                    `Short by ${landed.price - active.cash} Dubi to buy ${landed.name[lang]} (${landed.price} Dubi)`,
+                                    `${landed.name[lang]} 매입가 ${landed.price} Dubi 중 ${landed.price - active.cash} Dubi 부족`,
+                                    `Faltan ${landed.price - active.cash} Dubi (${landed.price} Dubi)`,
+                                  )}`
+                                ) : !canUpgrade(g) && owned && (owned.level ?? 0) < 3 && landed.upgrade && active ? (
+                                  `⚠️ ${copy(
+                                    `Short by ${landed.upgrade - active.cash} Dubi to upgrade (Lv.${owned.level + 1}: ${landed.upgrade} Dubi)`,
+                                    `Lv.${owned.level + 1} 증축비 ${landed.upgrade} Dubi 중 ${landed.upgrade - active.cash} Dubi 부족`,
+                                    `Faltan ${landed.upgrade - active.cash} Dubi (Nv.${owned.level + 1}: ${landed.upgrade} Dubi)`,
+                                  )}`
+                                ) : owned && owned.level >= 3 ? (
+                                  t.max
+                                ) : (
+                                  t.low
+                                )}
+                              </p>
                             )}
                           </>
                         )}
@@ -2097,6 +2151,59 @@ export default function Home() {
                                 }
                               >
                                 {special.skipSail}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                        {g.phase === 'debt' && (
+                          <div className="w-full my-2 rounded-2xl border-2 border-rose-300 bg-rose-50/95 p-3 text-center shadow-sm">
+                            <div className="flex items-center justify-between text-xs font-black text-rose-900 border-b border-rose-200 pb-1.5 mb-2">
+                              <span>🚨 {copy('Debt Settlement', '긴급 채무 변제', 'Liquidación')}</span>
+                              <span className="text-rose-600 font-bold">
+                                {copy('Shortfall', '부족액', 'Falta')}: {Math.max(0, (g.pendingDebt?.amount ?? 0) - (active?.cash ?? 0)).toLocaleString()} Dubi
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-rose-800 mb-1.5 font-semibold">
+                              {copy('Sell property to raise cash (50% refund):', '매각할 자산 선택 (건설비 50% 환급):', 'Vender propiedad (50%):')}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5 justify-center max-h-32 overflow-y-auto p-1 bg-white/60 rounded-xl border border-rose-200/60">
+                              {Object.keys(g.properties)
+                                .map(Number)
+                                .filter((idx) => g.properties[idx]?.owner === g.current)
+                                .map((idx) => {
+                                  const sp = board[idx];
+                                  const prop = g.properties[idx];
+                                  const val = sellValue(idx, prop?.level ?? 0);
+                                  return (
+                                    <Button
+                                      key={idx}
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-xs border-rose-300 hover:bg-rose-100 text-rose-800 font-bold py-1 px-2 h-auto"
+                                      disabled={actionsBlocked}
+                                      onClick={() => void roomWork(() => act({ type: 'sell', space: idx }, g.revision))}
+                                    >
+                                      {sp.name[lang]} <span className="text-emerald-700 font-extrabold ml-1">+{val}</span>
+                                    </Button>
+                                  );
+                                })}
+                            </div>
+                            <div className="mt-2.5 flex justify-center gap-2">
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black"
+                                disabled={actionsBlocked || (active?.cash ?? 0) < (g.pendingDebt?.amount ?? 0)}
+                                onClick={() => void roomWork(() => act({ type: 'payDebt' }, g.revision))}
+                              >
+                                💸 {copy('Pay & Continue', '채무 변제 완료', 'Pagar y Continuar')} ({(g.pendingDebt?.amount ?? 0).toLocaleString()})
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={actionsBlocked}
+                                onClick={() => void roomWork(() => act({ type: 'bankrupt' }, g.revision))}
+                              >
+                                🏳️ {copy('Bankrupt', '파산 선언', 'Bancarrota')}
                               </Button>
                             </div>
                           </div>
