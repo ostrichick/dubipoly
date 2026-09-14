@@ -1,5 +1,12 @@
 # Progress
 
+## Dynamic Cash Delta Floating Badges (+/- Dubi animations) — 2026-09-14
+- Added automatic tracking of player cash changes across all game actions (rent, buy, upgrade, sell, salary, events, flights, sails, bail fees).
+- Implemented floating badge animations (`@keyframes cash-delta-float`) positioned on each player's cash balance card:
+  - Positive gain: emerald badge with upward float (`+XX Dubi 💰`).
+  - Negative loss: red badge with floating descent (`-XX Dubi 💸`).
+- Added mobile responsive sizing and multi-delta queue cleanup after 1.8s.
+
 ## Standalone Web Service & GitHub Actions CI/CD deployment — 2026-09-14
 - Transitioned project from ChatGPT Sites sandbox to standalone public web service on Cloudflare Workers.
 - Registered Cloudflare Workers subdomain `ostrichick.workers.dev` via API.

@@ -33,6 +33,7 @@ import { TravelAnimation, type TravelMode } from '../components/game/TravelAnima
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
+type CashDelta = { id: number; amount: number; text: string };
 type Session = { game: Game; save: Save; matchId?: string };
 type RoomSnapshot = {
   matchId: string;
@@ -104,7 +105,10 @@ export default function Home() {
       toSpace: number;
       toName: string;
     } | null>(null),
-    [targetTravelSpace, setTargetTravelSpace] = useState<number>(0);
+    [targetTravelSpace, setTargetTravelSpace] = useState<number>(0),
+    [cashDeltas, setCashDeltas] = useState<[CashDelta[], CashDelta[]]>([[], []]);
+  const prevCashRef = useRef<[number | null, number | null]>([null, null]),
+    nextDeltaId = useRef(1);
   const mutation = useRef(false),
     epoch = useRef(0),
     lastProcessedReactionAt = useRef(0),
@@ -336,6 +340,54 @@ export default function Home() {
       }
     }
   }, [g?.logs?.length, g, roomToken, myPlayerIndex, lang]);
+
+  useEffect(() => {
+    if (!g || g.revision === 0) {
+      prevCashRef.current = g ? [g.players[0].cash, g.players[1].cash] : [null, null];
+      setCashDeltas([[], []]);
+      return;
+    }
+
+    const p0Cash = g.players[0]?.cash;
+    const p1Cash = g.players[1]?.cash;
+
+    if (prevCashRef.current[0] === null || prevCashRef.current[1] === null) {
+      prevCashRef.current = [p0Cash, p1Cash];
+      return;
+    }
+
+    const [old0, old1] = prevCashRef.current;
+    const d0 = p0Cash - old0;
+    const d1 = p1Cash - old1;
+    prevCashRef.current = [p0Cash, p1Cash];
+
+    if (d0 !== 0 || d1 !== 0) {
+      const newDeltas: [CashDelta[], CashDelta[]] = [[], []];
+
+      if (d0 !== 0) {
+        const id = nextDeltaId.current++;
+        const text = d0 > 0 ? `+${d0.toLocaleString()} Dubi 💰` : `${d0.toLocaleString()} Dubi 💸`;
+        newDeltas[0].push({ id, amount: d0, text });
+        setTimeout(() => {
+          setCashDeltas((prev) => [prev[0].filter((item) => item.id !== id), prev[1]]);
+        }, 1800);
+      }
+
+      if (d1 !== 0) {
+        const id = nextDeltaId.current++;
+        const text = d1 > 0 ? `+${d1.toLocaleString()} Dubi 💰` : `${d1.toLocaleString()} Dubi 💸`;
+        newDeltas[1].push({ id, amount: d1, text });
+        setTimeout(() => {
+          setCashDeltas((prev) => [prev[0], prev[1].filter((item) => item.id !== id)]);
+        }, 1800);
+      }
+
+      setCashDeltas((prev) => [
+        [...prev[0], ...newDeltas[0]],
+        [...prev[1], ...newDeltas[1]],
+      ]);
+    }
+  }, [g?.players[0]?.cash, g?.players[1]?.cash, g?.revision]);
 
   function commit(next: Session) {
     if (next.game.phase === 'finished' && current.current?.game.phase !== 'finished') {
@@ -1367,9 +1419,19 @@ export default function Home() {
                                 : ''}
                             </span>
                           )}
-                          <strong>
+                          <strong className="player-cash-display">
                             <span className="coin">🐾</span>{' '}
                             {p.cash.toLocaleString()} <small>Dubi</small>
+                            <span className="cash-delta-container">
+                              {cashDeltas[i]?.map((delta) => (
+                                <span
+                                  key={delta.id}
+                                  className={`cash-delta-badge ${delta.amount > 0 ? 'is-gain' : 'is-loss'}`}
+                                >
+                                  {delta.text}
+                                </span>
+                              ))}
+                            </span>
                           </strong>
                           <p>
                             {t.assets}:{' '}

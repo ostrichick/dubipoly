@@ -881,6 +881,14 @@ footer {
   .player strong small {
     font-size: 11px;
   }
+  .cash-delta-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+  .cash-delta-container {
+    top: -12px;
+    right: -4px;
+  }
   .coin {
     display: none;
   }
@@ -1045,5 +1053,74 @@ footer {
   0% { transform: translateY(0) rotate(-4deg); }
   50% { transform: translateY(-12px) rotate(4deg); }
   100% { transform: translateY(0) rotate(-4deg); }
+}
+
+/* Player Dubi Balance Change Delta Animations */
+.player-cash-display {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cash-delta-container {
+  position: absolute;
+  top: -14px;
+  right: -8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  pointer-events: none;
+  z-index: 30;
+}
+
+.cash-delta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+  animation: cash-delta-float 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.cash-delta-badge.is-gain {
+  background: linear-gradient(135deg, #10b981, #047857);
+  color: #ffffff;
+  border: 1.5px solid #a7f3d0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.cash-delta-badge.is-loss {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #ffffff;
+  border: 1.5px solid #fecaca;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+@keyframes cash-delta-float {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.65);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.12);
+  }
+  35% {
+    transform: translateY(-6px) scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: translateY(-16px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.85);
+  }
 }
 
