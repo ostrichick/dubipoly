@@ -507,6 +507,7 @@ nav button,
   max-width: 380px;
   width: 92%;
   margin: 2px auto 0;
+  position: relative;
 }
 
 /* Hub Player Cards (P0 & P1) - Clean & Compact */
@@ -988,139 +989,461 @@ nav button,
   100% { transform: translate(-50%, 3px); }
 }
 
-/* Money Transfer Flying FX Layer */
+/* Money Transfer Flow Banner in Header */
+.hub-flow-banner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1.5px solid #f59e0b;
+  border-radius: 9999px;
+  padding: 1.5px 7px;
+  box-shadow: 0 2px 10px rgba(245, 158, 11, 0.35);
+  animation: flow-banner-pop 0.3s ease-out;
+  line-height: 1.15;
+}
+@keyframes flow-banner-pop {
+  0% { transform: scale(0.92); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.flow-actor-pill {
+  font-size: 7.5px;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 9999px;
+  color: white;
+  white-space: nowrap;
+}
+.flow-actor-pill.pill-p0 {
+  background: #2563eb;
+  border: 1px solid #60a5fa;
+}
+.flow-actor-pill.pill-p1 {
+  background: #dc2626;
+  border: 1px solid #f87171;
+}
+.flow-actor-pill.pill-bank {
+  background: #d97706;
+  border: 1px solid #fde68a;
+}
+.flow-badge-middle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+.flow-arrow-beam {
+  font-size: 9px;
+  letter-spacing: -1px;
+}
+.flow-badge-amount {
+  color: #fbbf24;
+  font-weight: 950;
+  font-size: clamp(8.5px, 1.05vw, 11px);
+}
+.flow-badge-reason {
+  color: #94a3b8;
+  font-size: 7.5px;
+  font-weight: 700;
+}
+
+/* Money Transfer Flying FX Layer - Directly inside .hub-main-arena */
 .hub-transfer-layer {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 25;
-  overflow: hidden;
+  z-index: 40;
+  overflow: visible;
 }
-.hub-transfer-burst {
+
+/* SVG Flow Canvas & Dash Animated Path */
+.transfer-svg-canvas {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 1;
 }
-.flying-coin {
-  position: absolute;
-  font-size: clamp(16px, 2.2vw, 24px);
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
-  opacity: 0;
+.svg-flow-path {
+  fill: none;
+  stroke: url(#flowGoldGrad);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-dasharray: 6 4;
+  animation: flow-dash 0.45s linear infinite;
+  filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.85));
+}
+.svg-flow-path.svg-flow-reverse {
+  animation: flow-dash-reverse 0.45s linear infinite;
+}
+@keyframes flow-dash {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes flow-dash-reverse {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: 20; }
 }
 
-/* Staggered Coin Delay */
-.coin-1 { animation-delay: 0s !important; }
-.coin-2 { animation-delay: 0.12s !important; }
-.coin-3 { animation-delay: 0.24s !important; }
-.coin-4 { animation-delay: 0.36s !important; }
+/* 8 Staggered Flying Coins & Cash Stream */
+.hub-coins-flight-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.flying-money {
+  position: absolute;
+  display: inline-block;
+  font-size: clamp(18px, 2.4vw, 26px);
+  opacity: 0;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45));
+  will-change: transform, left, top, opacity;
+}
+.money-1 { animation-delay: 0s !important; }
+.money-2 { animation-delay: 0.08s !important; }
+.money-3 { animation-delay: 0.16s !important; }
+.money-4 { animation-delay: 0.24s !important; }
+.money-5 { animation-delay: 0.32s !important; }
+.money-6 { animation-delay: 0.40s !important; }
+.money-7 { animation-delay: 0.48s !important; }
+.money-8 { animation-delay: 0.56s !important; }
 
 /* Flight Path 1: P0 to P1 (Rent to Player 2) */
-.burst-p0-to-p1 .flying-coin {
-  animation: coin-p0-to-p1 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.burst-p0-to-p1 .flying-money {
+  animation: coin-fly-p0-to-p1 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-@keyframes coin-p0-to-p1 {
-  0% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.6) rotate(0deg); }
-  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(60deg); }
-  50% { top: 25%; left: 50%; transform: translate(-50%, -50%) scale(1.3) rotate(180deg); }
-  85% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(300deg); }
-  100% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(360deg); }
+@keyframes coin-fly-p0-to-p1 {
+  0% {
+    left: 18.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.3) rotate(60deg);
+  }
+  50% {
+    left: 50%;
+    top: 8%;
+    transform: translate(-50%, -50%) scale(1.45) rotate(180deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.2) rotate(300deg);
+  }
+  100% {
+    left: 81.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(360deg);
+  }
 }
 
 /* Flight Path 2: P1 to P0 (Rent to Player 1) */
-.burst-p1-to-p0 .flying-coin {
-  animation: coin-p1-to-p0 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.burst-p1-to-p0 .flying-money {
+  animation: coin-fly-p1-to-p0 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-@keyframes coin-p1-to-p0 {
-  0% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.6) rotate(0deg); }
-  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(-60deg); }
-  50% { top: 25%; left: 50%; transform: translate(-50%, -50%) scale(1.3) rotate(-180deg); }
-  85% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(-300deg); }
-  100% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-360deg); }
+@keyframes coin-fly-p1-to-p0 {
+  0% {
+    left: 81.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5) rotate(0deg);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.3) rotate(-60deg);
+  }
+  50% {
+    left: 50%;
+    top: 8%;
+    transform: translate(-50%, -50%) scale(1.45) rotate(-180deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.2) rotate(-300deg);
+  }
+  100% {
+    left: 18.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(-360deg);
+  }
 }
 
 /* Flight Path 3: Bank to P0 (Salary, Sale, Prize) */
-.burst-bank-to-p0 .flying-coin {
-  animation: coin-bank-to-p0 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.burst-bank-to-p0 .flying-money {
+  animation: coin-fly-bank-to-p0 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-@keyframes coin-bank-to-p0 {
-  0% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(-45deg); }
-  50% { top: 32%; left: 35%; transform: translate(-50%, -50%) scale(1.2) rotate(-120deg); }
-  100% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-240deg); }
+@keyframes coin-fly-bank-to-p0 {
+  0% {
+    left: 50%;
+    top: 45%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.35) rotate(-45deg);
+  }
+  50% {
+    left: 32%;
+    top: 20%;
+    transform: translate(-50%, -50%) scale(1.3) rotate(-120deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1) rotate(-220deg);
+  }
+  100% {
+    left: 18.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(-300deg);
+  }
 }
 
 /* Flight Path 4: Bank to P1 (Salary, Sale, Prize) */
-.burst-bank-to-p1 .flying-coin {
-  animation: coin-bank-to-p1 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.burst-bank-to-p1 .flying-money {
+  animation: coin-fly-bank-to-p1 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-@keyframes coin-bank-to-p1 {
-  0% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(45deg); }
-  50% { top: 32%; left: 65%; transform: translate(-50%, -50%) scale(1.2) rotate(120deg); }
-  100% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(240deg); }
+@keyframes coin-fly-bank-to-p1 {
+  0% {
+    left: 50%;
+    top: 45%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.35) rotate(45deg);
+  }
+  50% {
+    left: 68%;
+    top: 20%;
+    transform: translate(-50%, -50%) scale(1.3) rotate(120deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1) rotate(220deg);
+  }
+  100% {
+    left: 81.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4) rotate(300deg);
+  }
 }
 
 /* Flight Path 5: P0 to Bank (Buy City, Upgrade, Travel, Bail, Fine) */
-.burst-p0-to-bank .flying-coin {
-  animation: coin-p0-to-bank 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.burst-p0-to-bank .flying-money {
+  animation: coin-fly-p0-to-bank 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-@keyframes coin-p0-to-bank {
-  0% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(45deg); }
-  50% { top: 34%; left: 35%; transform: translate(-50%, -50%) scale(1.2) rotate(120deg); }
-  100% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(240deg); }
+@keyframes coin-fly-p0-to-bank {
+  0% {
+    left: 18.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.35) rotate(45deg);
+  }
+  50% {
+    left: 32%;
+    top: 22%;
+    transform: translate(-50%, -50%) scale(1.3) rotate(120deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1) rotate(220deg);
+  }
+  100% {
+    left: 50%;
+    top: 45%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(300deg);
+  }
 }
 
 /* Flight Path 6: P1 to Bank (Buy City, Upgrade, Travel, Bail, Fine) */
-.burst-p1-to-bank .flying-coin {
-  animation: coin-p1-to-bank 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+.burst-p1-to-bank .flying-money {
+  animation: coin-fly-p1-to-bank 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
-@keyframes coin-p1-to-bank {
-  0% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(-45deg); }
-  50% { top: 34%; left: 65%; transform: translate(-50%, -50%) scale(1.2) rotate(-120deg); }
-  100% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-240deg); }
+@keyframes coin-fly-p1-to-bank {
+  0% {
+    left: 81.5%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.35) rotate(-45deg);
+  }
+  50% {
+    left: 68%;
+    top: 22%;
+    transform: translate(-50%, -50%) scale(1.3) rotate(-120deg);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1) rotate(-220deg);
+  }
+  100% {
+    left: 50%;
+    top: 45%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(-300deg);
+  }
 }
 
-/* Central Transfer Notification Pill */
-.hub-transfer-pill {
+/* Impact Sparkle Burst at Destination */
+.hub-impact-burst {
   position: absolute;
-  top: 60%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background: rgba(15, 23, 42, 0.92);
-  color: white;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  border: 1.5px solid #fbbf24;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  display: inline-flex;
+  pointer-events: none;
+  z-index: 6;
+  display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+.impact-target-p0 { left: 18.5%; top: 50%; }
+.impact-target-p1 { left: 81.5%; top: 50%; }
+.impact-target-bank { left: 50%; top: 46%; }
+
+.impact-star {
+  position: absolute;
+  font-size: 16px;
+  opacity: 0;
+  animation: impact-star-burst 0.65s ease-out 0.65s forwards;
+}
+.star-1 { transform: translate(-14px, -12px); }
+.star-2 { transform: translate(14px, -10px); font-size: 18px; }
+.star-3 { transform: translate(-10px, 14px); }
+.star-4 { transform: translate(12px, 12px); }
+@keyframes impact-star-burst {
+  0% { opacity: 0; transform: scale(0.2); }
+  40% { opacity: 1; transform: scale(1.3); filter: drop-shadow(0 0 6px #fbbf24); }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+/* Floating Delta Badges on Cards */
+.flow-floating-delta {
+  position: absolute;
+  font-size: 10.5px;
+  font-weight: 900;
+  border-radius: 9999px;
+  padding: 2px 7px;
+  transform: translate(-50%, -50%);
+  z-index: 7;
+  pointer-events: none;
   white-space: nowrap;
-  font-size: clamp(9px, 1.1vw, 12px);
-  animation: pill-float-up 1.4s ease-out forwards;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
 }
-.transfer-pill-icon {
-  font-size: clamp(11px, 1.3vw, 14px);
+.delta-from-p0 {
+  left: 18.5%;
+  top: 38%;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1.5px solid #f87171;
+  animation: float-delta-up 1.3s ease-out forwards;
 }
-.transfer-pill-names {
-  font-weight: 750;
-  color: #cbd5e1;
+.delta-from-p1 {
+  left: 81.5%;
+  top: 38%;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1.5px solid #f87171;
+  animation: float-delta-up 1.3s ease-out forwards;
 }
-.transfer-pill-amount {
-  color: #fbbf24;
-  font-weight: 950;
+.delta-from-bank {
+  left: 50%;
+  top: 35%;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1.5px solid #f59e0b;
+  animation: float-delta-up 1.3s ease-out forwards;
 }
-.transfer-pill-reason {
-  color: #94a3b8;
-  font-size: 85%;
+.delta-to-p0 {
+  left: 18.5%;
+  top: 38%;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1.5px solid #4ade80;
+  animation: float-delta-up 1.3s ease-out 0.65s forwards;
+  opacity: 0;
 }
-@keyframes pill-float-up {
-  0% { opacity: 0; transform: translate(-50%, -35%) scale(0.85); }
-  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
-  30% { transform: translate(-50%, -50%) scale(1); }
-  80% { opacity: 1; transform: translate(-50%, -56%) scale(1); }
-  100% { opacity: 0; transform: translate(-50%, -75%) scale(0.9); }
+.delta-to-p1 {
+  left: 81.5%;
+  top: 38%;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1.5px solid #4ade80;
+  animation: float-delta-up 1.3s ease-out 0.65s forwards;
+  opacity: 0;
+}
+.delta-to-bank {
+  left: 50%;
+  top: 35%;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1.5px solid #4ade80;
+  animation: float-delta-up 1.3s ease-out 0.65s forwards;
+  opacity: 0;
+}
+@keyframes float-delta-up {
+  0% { opacity: 0; transform: translate(-50%, -20%) scale(0.85); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  80% { opacity: 1; transform: translate(-50%, -65%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -85%) scale(0.9); }
+}
+
+/* Card Active Sending & Receiving Animations */
+.is-sending-cash {
+  animation: card-recoil 0.4s ease-out infinite alternate !important;
+  border-color: #f97316 !important;
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.55) !important;
+}
+@keyframes card-recoil {
+  0% { transform: scale(1); }
+  100% { transform: scale(0.96) translateY(2px); }
+}
+.is-receiving-cash {
+  animation: card-receive-bounce 0.5s ease-out infinite alternate !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.65) !important;
+}
+@keyframes card-receive-bounce {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05) translateY(-2px); }
+}
+.bank-is-sending {
+  animation: bank-vault-send 0.6s ease-out infinite alternate !important;
+  border-color: #f59e0b !important;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.6) !important;
+}
+@keyframes bank-vault-send {
+  0% { transform: scale(1); filter: brightness(1.1); }
+  100% { transform: scale(1.04) rotate(-1.5deg); filter: brightness(1.3) drop-shadow(0 0 10px #fbbf24); }
+}
+.bank-is-receiving {
+  animation: bank-vault-receive 0.6s ease-out infinite alternate !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.7) !important;
+}
+@keyframes bank-vault-receive {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); filter: brightness(1.25) drop-shadow(0 0 10px #34d399); }
 }
 .tile {
   border: 1px solid #cddcce;

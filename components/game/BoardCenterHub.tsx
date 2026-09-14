@@ -5,7 +5,7 @@ import type { Game, PlayerId } from '../../lib/game';
 import { assets, rules } from '../../lib/game';
 import { events } from '../../lib/events';
 import type { Lang } from '../../lib/board';
-import { sound } from '../../lib/audio';
+import { sound, triggerHaptic } from '../../lib/audio';
 
 export type MoneyTransfer = {
   id: number;
@@ -35,13 +35,49 @@ export function BoardCenterHub({
   myPlayerIndex,
   lang,
 }: BoardCenterHubProps) {
-  const [transfers, setTransfers] = useState<MoneyTransfer[]>([]);
+  const [activeTransfer, setActiveTransfer] = useState<MoneyTransfer | null>(null);
   const [bankActive, setBankActive] = useState(false);
   const lastProcessedLog = useRef(game.logs.length);
   const nextTransferId = useRef(1);
+  const transferQueue = useRef<MoneyTransfer[]>([]);
+  const isProcessingQueue = useRef(false);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const copy = (en: string, ko: string, es: string) =>
     lang === 'ko' ? ko : lang === 'es' ? es : en;
+
+  const processQueue = () => {
+    if (transferQueue.current.length === 0) {
+      setActiveTransfer(null);
+      isProcessingQueue.current = false;
+      return;
+    }
+    isProcessingQueue.current = true;
+    const next = transferQueue.current.shift()!;
+    setActiveTransfer(next);
+    sound.playCoin();
+    triggerHaptic('medium');
+
+    if (next.from === 'bank' || next.to === 'bank') {
+      setBankActive(true);
+      setTimeout(() => {
+        if (isMounted.current) setBankActive(false);
+      }, 1500);
+    }
+
+    setTimeout(() => {
+      if (isMounted.current) {
+        processQueue();
+      }
+    }, 1800);
+  };
 
   // Process game logs to trigger money transfers
   useEffect(() => {
@@ -155,23 +191,9 @@ export function BoardCenterHub({
       }
 
       if (discoveredTransfers.length > 0) {
-        sound.playCoin();
-        setTransfers((prev) => [...prev, ...discoveredTransfers]);
-
-        // Check if bank was involved
-        const touchesBank = discoveredTransfers.some(
-          (t) => t.from === 'bank' || t.to === 'bank',
-        );
-        if (touchesBank) {
-          setBankActive(true);
-          setTimeout(() => setBankActive(false), 1400);
-        }
-
-        // Clean up each transfer after 1.5s
-        for (const t of discoveredTransfers) {
-          setTimeout(() => {
-            setTransfers((prev) => prev.filter((item) => item.id !== t.id));
-          }, 1500);
+        transferQueue.current.push(...discoveredTransfers);
+        if (!isProcessingQueue.current) {
+          processQueue();
         }
       }
     }
@@ -182,16 +204,23 @@ export function BoardCenterHub({
   const activeEvent = game.lastEvent !== null ? events[game.lastEvent] : null;
   const activeEffect = activeEvent?.effect;
 
+  const isP0Sending = activeTransfer?.from === 'p0';
+  const isP0Receiving = activeTransfer?.to === 'p0';
+  const isP1Sending = activeTransfer?.from === 'p1';
+  const isP1Receiving = activeTransfer?.to === 'p1';
+  const isBankSending = activeTransfer?.from === 'bank';
+  const isBankReceiving = activeTransfer?.to === 'bank';
+
   const getSenderName = (from: 'p0' | 'p1' | 'bank') => {
-    if (from === 'p0') return names[0] || 'Player 1';
-    if (from === 'p1') return names[1] || 'Player 2';
-    return copy('Bank', '두비은행', 'Banco');
+    if (from === 'p0') return names[0] || (lang === 'ko' ? '여행자 1' : lang === 'es' ? 'Viajero 1' : 'Player 1');
+    if (from === 'p1') return names[1] || (lang === 'ko' ? '여행자 2' : lang === 'es' ? 'Viajero 2' : 'Player 2');
+    return copy('Dubi Bank', '두비은행', 'Banco');
   };
 
   const getReceiverName = (to: 'p0' | 'p1' | 'bank') => {
-    if (to === 'p0') return names[0] || 'Player 1';
-    if (to === 'p1') return names[1] || 'Player 2';
-    return copy('Bank', '두비은행', 'Banco');
+    if (to === 'p0') return names[0] || (lang === 'ko' ? '여행자 1' : lang === 'es' ? 'Viajero 1' : 'Player 1');
+    if (to === 'p1') return names[1] || (lang === 'ko' ? '여행자 2' : lang === 'es' ? 'Viajero 2' : 'Player 2');
+    return copy('Dubi Bank', '두비은행', 'Banco');
   };
 
   return (
@@ -206,7 +235,25 @@ export function BoardCenterHub({
             {copy('Round', '라운드', 'Ronda')} {game.round}/{rules.rounds}
           </span>
         </div>
-        <div className="hub-route-subtitle">🇰🇷 SEOUL ↔ LIMA 🇵🇪</div>
+        {activeTransfer ? (
+          <div className="hub-flow-banner" role="status" aria-live="polite">
+            <span className={`flow-actor-pill pill-${activeTransfer.from}`}>
+              {activeTransfer.from === 'p0' ? '● P1' : activeTransfer.from === 'p1' ? '◆ P2' : '🏛️ BANK'}
+            </span>
+            <span className="flow-badge-middle">
+              <span className="flow-arrow-beam">🪙➔</span>
+              <strong className="flow-badge-amount">
+                {activeTransfer.amount.toLocaleString()} Dubi
+              </strong>
+              <small className="flow-badge-reason">({activeTransfer.reason})</small>
+            </span>
+            <span className={`flow-actor-pill pill-${activeTransfer.to}`}>
+              {activeTransfer.to === 'p0' ? '● P1' : activeTransfer.to === 'p1' ? '◆ P2' : '🏛️ BANK'}
+            </span>
+          </div>
+        ) : (
+          <div className="hub-route-subtitle">🇰🇷 SEOUL ↔ LIMA 🇵🇪</div>
+        )}
       </div>
 
       {/* Main 3-Hub Arena */}
@@ -215,7 +262,9 @@ export function BoardCenterHub({
         <div
           className={`hub-player-card hub-card-0 ${
             game.current === 0 && game.phase !== 'finished' ? 'hub-active-turn' : ''
-          } ${roomToken && myPlayerIndex === 0 ? 'hub-is-me' : ''}`}
+          } ${roomToken && myPlayerIndex === 0 ? 'hub-is-me' : ''} ${
+            isP0Sending ? 'is-sending-cash' : ''
+          } ${isP0Receiving ? 'is-receiving-cash' : ''}`}
         >
           <div className="hub-card-header">
             <div className="hub-avatar-box avatar-box-0">
@@ -299,7 +348,9 @@ export function BoardCenterHub({
 
         {/* Central Dubi Bank */}
         <div
-          className={`hub-bank-card ${bankActive ? 'bank-flash-active' : ''}`}
+          className={`hub-bank-card ${bankActive ? 'bank-flash-active' : ''} ${
+            isBankSending ? 'bank-is-sending' : ''
+          } ${isBankReceiving ? 'bank-is-receiving' : ''}`}
           role="region"
           aria-label="Dubi Central Bank"
         >
@@ -328,7 +379,9 @@ export function BoardCenterHub({
         <div
           className={`hub-player-card hub-card-1 ${
             game.current === 1 && game.phase !== 'finished' ? 'hub-active-turn' : ''
-          } ${roomToken && myPlayerIndex === 1 ? 'hub-is-me' : ''}`}
+          } ${roomToken && myPlayerIndex === 1 ? 'hub-is-me' : ''} ${
+            isP1Sending ? 'is-sending-cash' : ''
+          } ${isP1Receiving ? 'is-receiving-cash' : ''}`}
         >
           <div className="hub-card-header">
             <div className="hub-avatar-box avatar-box-1">
@@ -409,6 +462,113 @@ export function BoardCenterHub({
             ) : null}
           </div>
         </div>
+
+        {/* Active Money Transfer Flow Layer (Overlaid perfectly on top of the 3 cards!) */}
+        {activeTransfer && (
+          <div
+            key={activeTransfer.id}
+            className={`hub-transfer-layer burst-${activeTransfer.from}-to-${activeTransfer.to}`}
+            aria-hidden="true"
+          >
+            {/* SVG Directional Flow Arc & Glowing Dash */}
+            <svg
+              className="transfer-svg-canvas"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+            >
+              <defs>
+                <linearGradient id="flowGoldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="50%" stopColor="#fbbf24" />
+                  <stop offset="100%" stopColor="#10b981" />
+                </linearGradient>
+                <marker
+                  id="flowArrowhead"
+                  viewBox="0 0 10 10"
+                  refX="6"
+                  refY="5"
+                  markerWidth="6"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="#f59e0b" />
+                </marker>
+              </defs>
+
+              {/* Arcs tailored to exact card centers */}
+              {activeTransfer.from === 'p0' && activeTransfer.to === 'p1' && (
+                <path
+                  d="M 18.5 50 Q 50 -2 81.5 50"
+                  className="svg-flow-path"
+                  markerEnd="url(#flowArrowhead)"
+                />
+              )}
+              {activeTransfer.from === 'p1' && activeTransfer.to === 'p0' && (
+                <path
+                  d="M 81.5 50 Q 50 -2 18.5 50"
+                  className="svg-flow-path svg-flow-reverse"
+                  markerEnd="url(#flowArrowhead)"
+                />
+              )}
+              {activeTransfer.from === 'bank' && activeTransfer.to === 'p0' && (
+                <path
+                  d="M 50 45 Q 30 16 18.5 50"
+                  className="svg-flow-path"
+                  markerEnd="url(#flowArrowhead)"
+                />
+              )}
+              {activeTransfer.from === 'bank' && activeTransfer.to === 'p1' && (
+                <path
+                  d="M 50 45 Q 70 16 81.5 50"
+                  className="svg-flow-path"
+                  markerEnd="url(#flowArrowhead)"
+                />
+              )}
+              {activeTransfer.from === 'p0' && activeTransfer.to === 'bank' && (
+                <path
+                  d="M 18.5 50 Q 30 18 50 45"
+                  className="svg-flow-path"
+                  markerEnd="url(#flowArrowhead)"
+                />
+              )}
+              {activeTransfer.from === 'p1' && activeTransfer.to === 'bank' && (
+                <path
+                  d="M 81.5 50 Q 70 18 50 45"
+                  className="svg-flow-path"
+                  markerEnd="url(#flowArrowhead)"
+                />
+              )}
+            </svg>
+
+            {/* 8 Staggered Flying Coins & Cash Stream */}
+            <div className="hub-coins-flight-container">
+              <span className="flying-money money-1">🪙</span>
+              <span className="flying-money money-2">💵</span>
+              <span className="flying-money money-3">🪙</span>
+              <span className="flying-money money-4">💰</span>
+              <span className="flying-money money-5">✨</span>
+              <span className="flying-money money-6">🪙</span>
+              <span className="flying-money money-7">💵</span>
+              <span className="flying-money money-8">⭐</span>
+            </div>
+
+            {/* Impact Sparkle Burst at Destination */}
+            <div className={`hub-impact-burst impact-target-${activeTransfer.to}`}>
+              <span className="impact-star star-1">✨</span>
+              <span className="impact-star star-2">💥</span>
+              <span className="impact-star star-3">⭐</span>
+              <span className="impact-star star-4">✨</span>
+            </div>
+
+            {/* Floating Delta Badges on Cards */}
+            <div className={`flow-floating-delta delta-from-${activeTransfer.from}`}>
+              -{activeTransfer.amount.toLocaleString()} 💸
+            </div>
+            <div className={`flow-floating-delta delta-to-${activeTransfer.to}`}>
+              +{activeTransfer.amount.toLocaleString()} 💰
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Travel Event Display (Directly on the Board Center!) */}
@@ -455,31 +615,6 @@ export function BoardCenterHub({
           </div>
         </div>
       )}
-
-      {/* Money Transfer Flying FX Layer */}
-      <div className="hub-transfer-layer">
-        {transfers.map((tf) => (
-          <div key={tf.id} className={`hub-transfer-burst burst-${tf.from}-to-${tf.to}`}>
-            {/* 4 Staggered Flying Coins */}
-            <div className="flying-coin coin-1">🪙</div>
-            <div className="flying-coin coin-2">🪙</div>
-            <div className="flying-coin coin-3">🪙</div>
-            <div className="flying-coin coin-4">💵</div>
-
-            {/* Central Transfer Notification Pill */}
-            <div className="hub-transfer-pill">
-              <span className="transfer-pill-icon">{tf.icon}</span>
-              <span className="transfer-pill-names">
-                {getSenderName(tf.from)} ➔ {getReceiverName(tf.to)}
-              </span>
-              <strong className="transfer-pill-amount">
-                {tf.amount.toLocaleString()} Dubi
-              </strong>
-              <span className="transfer-pill-reason">({tf.reason})</span>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
