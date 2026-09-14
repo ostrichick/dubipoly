@@ -1,5 +1,14 @@
 # Progress
 
+## Stage 10–12 special rules, resilience hardening & presence isolation — 2026-09-14
+- Added dice doubles mechanic: rolling doubles grants an extra roll; rolling doubles three consecutive times sends player directly to rest (space 20) without salary.
+- Added rest & travel delay system: space 30 delays travel and sends player to rest; escape via doubles roll or paying 50 Dubi fee; 3rd failure forces fee payment.
+- Added tourist destinations (Gyeongju, Jeju, Cusco, Piura): non-upgradable, rent scales exponentially with holdings count (25 × 2^(count-1)).
+- Added regional monopoly bonus: owning all cities in a region doubles base rent for unimproved properties.
+- Isolated player heartbeats into `dubipoly_presence` table (`0001_room_presence.sql`) to prevent lock contention with game state snapshots.
+- Added comprehensive test suites (`tests/special-rules.test.ts`, `tests/rooms-flow.test.ts`), bringing total passing tests to 29.
+- Updated project documentation and created `COLLABORATION.md`.
+
 ## English default and language options — 2026-09-09
 - Added English alongside Korean and Spanish for all board cells, 12 events, game rules, logs, and room messages.
 - First visits default to English. The header language selector saves the device's choice and updates the document language; existing saved preferences are preserved.

@@ -36,5 +36,6 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/package-stage*/
 *.tsbuildinfo
 /stage*-*.png

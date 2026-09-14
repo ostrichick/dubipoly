@@ -29,6 +29,7 @@
     "build/**",
     "dist/**",
     "coverage/**",
+    "package-stage*/**",
     "next-env.d.ts"
   ],
   "rules": {
