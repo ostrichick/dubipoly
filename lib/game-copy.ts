@@ -33,7 +33,7 @@ export const ui = {
     tie: 'Joint winners',
     bankrupt: 'The trip ended because a required payment could not be covered.',
     score:
-      '20 rounds complete: cash, purchase costs and upgrades make up your total assets.',
+      `${rules.rounds} rounds complete: cash, purchase costs and upgrades make up your total assets.`,
     new: 'New game',
     confirm: 'End this trip and start a new one?',
     yes: 'Start again',
@@ -51,7 +51,7 @@ export const ui = {
     follow: 'Show current position',
     rules: 'How to play',
     rulesText:
-      'Each traveler starts with 1,500 Dubi. Passing Start earns 200 Dubi. Buy or upgrade only the city you land on. Upgrades have 3 levels; the visit fee is the base fee × (level + 1). Movement cards apply destination city rules but never trigger another event. Two turns make a round. After 20 rounds, the most total assets wins. A required payment exceeding your cash causes bankruptcy. Passing Start backwards earns no bonus.',
+      `Each traveler starts with 1,500 Dubi. Passing Start earns 200 Dubi. Buy or upgrade only the city you land on. Upgrades have 3 levels; the visit fee is the base fee × (level + 1). Movement cards apply destination city rules but never trigger another event. Two turns make a round. After ${rules.rounds} rounds, the most total assets wins. A required payment exceeding your cash causes bankruptcy. Passing Start backwards earns no bonus.`,
     rest: 'A free place to rest. You can end your turn.',
     event: 'Landing here triggers a travel event.',
     loading: 'Preparing your trip…',
@@ -92,7 +92,7 @@ export const ui = {
     win: '우승',
     tie: '공동 우승',
     bankrupt: '필수 비용을 지불하지 못해 여행이 끝났어요.',
-    score: '20라운드 완료 · 현금과 구매·발전 비용을 합산했어요.',
+    score: `${rules.rounds}라운드 완료 · 현금과 구매·발전 비용을 합산했어요.`,
     new: '새 게임',
     confirm: '현재 여행을 끝내고 새로 시작할까요?',
     yes: '새로 시작',
@@ -110,7 +110,7 @@ export const ui = {
     follow: '현재 위치 보기',
     rules: '게임 방법',
     rulesText:
-      '각자 1,500 Dubi로 시작합니다. 출발을 지나면 200 Dubi! 주사위를 굴려 도착한 도시만 구매·발전할 수 있습니다. 발전은 최대 3단계, 방문료는 기본료 × (단계 + 1)입니다. 이벤트로 이동해도 도착 도시 규칙은 적용되지만 이벤트는 연속 발생하지 않습니다. 두 사람의 차례가 끝나면 1라운드, 20라운드 후 총자산으로 승리합니다. 필수 비용이 잔액을 초과하면 파산합니다. 뒤로 출발을 지나면 보너스는 없습니다.',
+      `각자 1,500 Dubi로 시작합니다. 출발을 지나면 200 Dubi! 주사위를 굴려 도착한 도시만 구매·발전할 수 있습니다. 발전은 최대 3단계, 방문료는 기본료 × (단계 + 1)입니다. 이벤트로 이동해도 도착 도시 규칙은 적용되지만 이벤트는 연속 발생하지 않습니다. 두 사람의 차례가 끝나면 1라운드, ${rules.rounds}라운드 후 총자산으로 승리합니다. 필수 비용이 잔액을 초과하면 파산합니다. 뒤로 출발을 지나면 보너스는 없습니다.`,
     rest: '잠깐 쉬어가는 곳이에요. 비용 없이 턴을 마칠 수 있습니다.',
     event: '여기에 도착하면 여행 이벤트가 발생해요.',
     loading: '여행 준비 중…',
@@ -151,7 +151,7 @@ export const ui = {
     win: 'Ganador',
     tie: '¡Empate!',
     bankrupt: 'El viaje terminó porque no se pudo cubrir un pago obligatorio.',
-    score: '20 rondas completas: sumamos efectivo, compras y mejoras.',
+    score: `${rules.rounds} rondas completas: sumamos efectivo, compras y mejoras.`,
     new: 'Nueva partida',
     confirm: '¿Terminar este viaje y empezar uno nuevo?',
     yes: 'Empezar de nuevo',
@@ -170,7 +170,7 @@ export const ui = {
     follow: 'Ver posición actual',
     rules: 'Cómo jugar',
     rulesText:
-      'Cada viajero empieza con 1,500 Dubi. Recibe 200 al pasar por Salida. Solo puedes comprar o mejorar la ciudad donde aterrizas. Hay 3 niveles de mejora; la tarifa es la base × (nivel + 1). Las cartas de movimiento aplican las reglas de la ciudad de destino, pero no activan otra carta. Una ronda son dos turnos; gana el mayor patrimonio tras 20 rondas. Si no puedes pagar un costo obligatorio, pierdes por bancarrota. Retroceder por Salida no da un bono.',
+      `Cada viajero empieza con 1,500 Dubi. Recibe 200 al pasar por Salida. Solo puedes comprar o mejorar la ciudad donde aterrizas. Hay 3 niveles de mejora; la tarifa es la base × (nivel + 1). Las cartas de movimiento aplican las reglas de la ciudad de destino, pero no activan otra carta. Una ronda son dos turnos; gana el mayor patrimonio tras ${rules.rounds} rondas. Si no puedes pagar un costo obligatorio, pierdes por bancarrota. Retroceder por Salida no da un bono.`,
     rest: 'Un lugar para descansar. Termina tu turno sin costo.',
     event: 'Al llegar aquí se activa un evento de viaje.',
     loading: 'Preparando el viaje…',

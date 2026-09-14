@@ -992,19 +992,19 @@ export default function Home() {
           <span className="flex-1">{opponentToast}</span>
         </aside>
       )}
-      {g && g.round >= 15 && g.phase !== 'finished' && (
+      {g && g.round >= rules.rounds - 5 && g.phase !== 'finished' && (
         <aside
           aria-label="Fever time announcement"
           className="fever-shimmer mx-auto mb-3 flex w-full max-w-lg items-center justify-between rounded-2xl px-4 py-1.5 text-xs font-extrabold text-amber-950 shadow-md border border-amber-300"
         >
           <span>
             {g.round === rules.rounds
-              ? `🏁 ${copy('FINAL ROUND! Match concludes after this round.', '마지막 20라운드! 이번 라운드 종료 시 최종 승자가 결정됩니다.', '¡ÚLTIMA RONDA! La partida finaliza tras esta ronda.')}`
+              ? `🏁 ${copy('FINAL ROUND! Match concludes after this round.', `마지막 ${rules.rounds}라운드! 이번 라운드 종료 시 최종 승자가 결정됩니다.`, '¡ÚLTIMA RONDA! La partida finaliza tras esta ronda.')}`
               : `✨ ${copy('Golden Travel Fever Time!', '골든 트래블 피버 타임!', '¡Viaje Dorado!')}`}
           </span>
           <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px]">
             {g.round === rules.rounds
-              ? copy('Final 20/20', '마지막 20/20', 'Final 20/20')
+              ? copy(`Final ${rules.rounds}/${rules.rounds}`, `마지막 ${rules.rounds}/${rules.rounds}`, `Final ${rules.rounds}/${rules.rounds}`)
               : copy(`${rules.rounds - g.round + 1} rounds left`, `남은 ${rules.rounds - g.round + 1}라운드`, `Quedan ${rules.rounds - g.round + 1} rondas`)}
           </span>
         </aside>

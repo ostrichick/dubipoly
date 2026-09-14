@@ -3,6 +3,7 @@ import test from 'node:test';
 import { board } from '../lib/board.ts';
 import {
   createGame,
+  rules,
   transition,
   rentAt,
   canUpgrade,
@@ -173,11 +174,11 @@ test('region monopoly doubles unimproved rent only, with rent collected while re
 });
 test('last-round doubles resolve before winner; v1 saves retain original no-doubles rules', () => {
   let g = fresh();
-  g.round = 20;
+  g.round = rules.rounds;
   g.current = 1;
   g = resolve(transition(g, roll(1, 1)));
   assert.notEqual(g.phase, 'finished');
-  assert.equal(g.round, 20);
+  assert.equal(g.round, rules.rounds);
   g = resolve(transition(g, roll(1, 2)));
   assert.equal(g.phase, 'finished');
   const names: [string, string] = ['A', 'B'];
@@ -215,7 +216,7 @@ test('30 seeded modern games terminate and every action replays with doubles/res
       assert.notEqual(next, g);
       g = next;
       actions.push(a);
-      assert.ok(actions.length <= 400);
+      assert.ok(actions.length <= 800);
       assert.ok(
         g.players.every((p) => p.cash >= 0 && Number.isInteger(p.cash)),
       );

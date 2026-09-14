@@ -3,7 +3,7 @@ import { events } from './events.ts';
 export const rules = {
   startingCash: 1500,
   startBonus: 200,
-  rounds: 20,
+  rounds: 40,
   maxLevel: 3,
   restFee: 50,
   restSpace: 20,
@@ -642,7 +642,7 @@ export function restore(raw: string): { save: Save; game: Game } | null {
           typeof n === 'string' && n.trim().length > 0 && n.length <= 24,
       ) ||
       !Array.isArray(v.actions) ||
-      v.actions.length > (v.version === 2 ? 500 : 150)
+      v.actions.length > (v.version === 2 ? 1000 : 300)
     )
       return null;
     let game = createGame(v.names, v.version);

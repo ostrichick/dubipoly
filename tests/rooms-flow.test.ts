@@ -11,7 +11,7 @@ import {
   roomSnapshot,
 } from '../lib/server-rooms.ts';
 import { board } from '../lib/board.ts';
-import { assets, restore, type Game } from '../lib/game.ts';
+import { assets, restore, rules, type Game } from '../lib/game.ts';
 
 type Snapshot = ReturnType<typeof roomSnapshot> & {
   token: string;
@@ -234,11 +234,11 @@ test('complete online game and rematch: every action matches both players and re
       restore(JSON.stringify(snapshot.save))!.game,
       snapshot.game,
     );
-    assert.ok(++checked <= 400, 'bounded complete game including doubles');
+    assert.ok(++checked <= 800, 'bounded complete game including doubles');
   }
   const g = snapshot.game!;
   assert.equal(g.reason, 'rounds');
-  assert.equal(g.round, 20);
+  assert.equal(g.round, rules.rounds);
   const totals = [assets(g, 0), assets(g, 1)];
   assert.equal(
     g.winner,

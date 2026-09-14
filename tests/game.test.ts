@@ -178,9 +178,9 @@ test('negative cash event can bankrupt, exact amount can be paid', () => {
   assert.equal(exact.phase, 'end');
   assert.equal(exact.players[0].cash, 0);
 });
-test('20 complete rounds end with tie or correct asset winner', () => {
+test('40 complete rounds end with tie or correct asset winner', () => {
   let g = fresh();
-  for (let turn = 0; turn < 40; turn++) {
+  for (let turn = 0; turn < rules.rounds * 2; turn++) {
     assert.equal(g.round, Math.floor(turn / 2) + 1);
     g = transition(g, roll);
     g = transition(g, { type: 'end' });
@@ -190,7 +190,7 @@ test('20 complete rounds end with tie or correct asset winner', () => {
   assert.equal(g.winner, 'tie');
   const ahead = fresh();
   ahead.current = 1;
-  ahead.round = 20;
+  ahead.round = rules.rounds;
   ahead.phase = 'end';
   ahead.properties[1] = { owner: 0, level: 3 };
   const n = transition(ahead, { type: 'end' });
@@ -271,7 +271,7 @@ test('100 deterministic complete games preserve invariants and every checkpoint 
       assert.notEqual(next, g);
       g = next;
       actions.push(a);
-      assert.ok(actions.length <= 120);
+      assert.ok(actions.length <= 250);
       g.players.forEach((p) =>
         assert.ok(
           p.cash >= 0 &&
