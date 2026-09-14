@@ -428,6 +428,38 @@ function land(g: Game, allowEvent: boolean, event: number) {
       } else if (effect.kind === 'move') {
         move(g, effect.steps);
         land(g, false, event);
+      } else if (effect.kind === 'warpTourist') {
+        const currentPos = g.players[g.current].position;
+        const touristIndexes = [6, 16, 25, 36];
+        const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
+        const stepsToTourist = (nextTourist - currentPos + 40) % 40;
+        move(g, stepsToTourist);
+        land(g, false, event);
+      } else if (effect.kind === 'startBonus') {
+        g.players[g.current].startBonusBonus = (g.players[g.current].startBonusBonus ?? 0) + effect.amount;
+      } else if (effect.kind === 'singleDie') {
+        g.players[g.current].nextRollModifier = 'single';
+      } else if (effect.kind === 'guaranteedDoubles') {
+        g.players[g.current].nextRollModifier = 'doubles';
+      } else if (effect.kind === 'freePass') {
+        g.players[g.current].freePasses = (g.players[g.current].freePasses ?? 0) + 1;
+      } else if (effect.kind === 'freeUpgrade') {
+        const ownedCityIndexes = Object.keys(g.properties)
+          .map(Number)
+          .filter((sp) => {
+            const prop = g.properties[sp];
+            const tile = board[sp];
+            return prop?.owner === g.current && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
+          })
+          .sort((a, b) => g.properties[a].level - g.properties[b].level);
+
+        if (ownedCityIndexes.length > 0) {
+          const target = ownedCityIndexes[0];
+          g.properties[target].level++;
+          log(g, { kind: 'upgrade', player: g.current, space: target, detail: 'free-upgrade' });
+        } else {
+          g.players[g.current].cash += 100;
+        }
       }
       return;
     }
