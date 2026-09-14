@@ -12,15 +12,19 @@ const { d1, r2 } = hostingConfig;
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
 
+const d1DatabaseId = process.env.CLOUDFLARE_D1_DATABASE_ID;
+const hasRealD1 = Boolean(d1DatabaseId && d1DatabaseId !== SITE_CREATOR_PLACEHOLDER_DATABASE_ID);
+const isDeployBuild = Boolean(process.env.NODE_ENV === 'production' || process.env.CI || process.env.CLOUDFLARE_API_TOKEN);
+
 const localBindingConfig = {
   main: './worker.ts',
   compatibility_flags: ['nodejs_compat'],
-  d1_databases: d1
+  d1_databases: d1 && (hasRealD1 || !isDeployBuild)
     ? [
         {
           binding: d1,
           database_name: 'site-creator-d1',
-          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+          database_id: d1DatabaseId || SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
         },
       ]
     : [],

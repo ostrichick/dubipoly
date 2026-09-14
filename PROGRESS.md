@@ -1,5 +1,13 @@
 # Progress
 
+## Standalone Web Service & GitHub Actions CI/CD deployment — 2026-09-14
+- Transitioned project from ChatGPT Sites sandbox to standalone public web service on Cloudflare Workers.
+- Registered Cloudflare Workers subdomain `ostrichick.workers.dev` via API.
+- Renamed package to `dubipoly` in `package.json` for custom domain routing.
+- Configured conditional D1 database binding in `vite.config.ts` to allow zero-config production deployment without breaking on dummy database IDs.
+- Added GitHub Actions workflow (`.github/workflows/deploy.yml`) for automated CI/CD: runs `npm test` and deploys to Cloudflare Workers on every `git push main`.
+- Deployed initial production release to `https://dubipoly.ostrichick.workers.dev`.
+
 ## Special spaces overhaul & visual animations: Airport/Harbor swap & rules, tourist theme, construction & cash VFX — 2026-09-14
 - Swapped positions of Airport (now space 30) and Harbor (now space 10) in `lib/board.ts`.
 - Implemented space 30 (Airport) special rule: pay 50 Dubi to fly immediately to any chosen board space (`fly` action); crossing or landing on Start awards the +200 Dubi salary bonus.
