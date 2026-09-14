@@ -930,3 +930,31 @@ footer {
 .animate-bonus-float {
   animation: bonus-float 1.8s ease-out forwards;
 }
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(50vh) rotate(360deg) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(105vh) rotate(720deg) scale(0.6);
+  }
+}
+.animate-confetti-fall {
+  animation: confetti-fall 3s ease-in forwards;
+}
+
+@keyframes gold-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.fever-shimmer {
+  background: linear-gradient(90deg, #f59e0b 0%, #fef3c7 50%, #f59e0b 100%);
+  background-size: 200% 100%;
+  animation: gold-shimmer 2.5s infinite linear;
+}

@@ -33,6 +33,10 @@ class SoundEngine {
     return this.enabled;
   }
 
+  public unlock() {
+    this.init();
+  }
+
   public setEnabled(on: boolean) {
     this.enabled = on;
     try {

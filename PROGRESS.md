@@ -1,5 +1,15 @@
 # Progress
 
+## Polish & Mobile optimizations: visibility sync, audio unlock, salary float, confetti, event ticket & fever time — 2026-09-14
+- Added mobile `visibilitychange` immediate resync to eliminate delay when waking the phone or switching back to the browser.
+- Added global audio unlock on first user interaction to guarantee instant sound playback on mobile web.
+- Added animated Start salary bonus (`+200 Dubi 💸`) floating popup upon passing Start.
+- Added victory celebration confetti particle animation (`components/game/Confetti.tsx`).
+- Added boarding-pass style travel event ticket modal (`components/game/EventCardModal.tsx`).
+- Added real-time opponent action notification toast during online rooms.
+- Added Golden Travel Fever Time banner notification starting from round 15.
+- Extracted Next.js viewport configuration into `export const viewport: Viewport` in `app/layout.tsx`.
+
 ## Polish and UX enhancements: animations, audio SFX, quick reactions, property sale, QR code & minimap — 2026-09-14
 - Added Web Audio API synthesized SFX engine (`lib/audio.ts`) with sounds for dice roll, coins, building upgrades, fanfares, defeat, pops, and token steps, with haptics and sound mute toggle.
 - Added dice shake rolling animation and hop-by-hop animated token movement across board spaces.

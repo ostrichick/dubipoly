@@ -25,6 +25,8 @@ import { sound, triggerHaptic } from '../lib/audio';
 import { QuickReaction, type ReactionEvent } from '../components/game/QuickReaction';
 import { BoardMiniMap } from '../components/game/BoardMiniMap';
 import { RoomQrCode } from '../components/game/RoomQrCode';
+import { Confetti } from '../components/game/Confetti';
+import { EventCardModal } from '../components/game/EventCardModal';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
@@ -84,10 +86,14 @@ export default function Home() {
     [isRolling, setIsRolling] = useState(false),
     [rollingDice, setRollingDice] = useState<[number, number] | null>(null),
     [activeReaction, setActiveReaction] = useState<ReactionEvent | null>(null),
-    [displayPositions, setDisplayPositions] = useState<[number, number]>([0, 0]);
+    [displayPositions, setDisplayPositions] = useState<[number, number]>([0, 0]),
+    [activeEventModal, setActiveEventModal] = useState<number | null>(null),
+    [bonusPopup, setBonusPopup] = useState<{ active: boolean; at: number }>({ active: false, at: 0 }),
+    [opponentToast, setOpponentToast] = useState<string | null>(null);
   const mutation = useRef(false),
     epoch = useRef(0),
     lastProcessedReactionAt = useRef(0),
+    lastLogCount = useRef(0),
     retiredMatches = useRef(new Set<string>());
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
@@ -96,7 +102,8 @@ export default function Home() {
   const t = ui[lang],
     g = session?.game,
     s = board[selected],
-    property = g?.properties[selected];
+    property = g?.properties[selected],
+    myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1;
   useEffect(() => {
     setOnline(navigator.onLine);
     const handleOnline = () => {
@@ -104,8 +111,20 @@ export default function Home() {
       setRoomRefresh((value) => value + 1);
     };
     const handleOffline = () => setOnline(false);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        sound.unlock();
+        setRoomRefresh((value) => value + 1);
+      }
+    };
+    const handleGlobalUnlock = () => {
+      sound.unlock();
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pointerdown', handleGlobalUnlock, { once: true });
+    window.addEventListener('touchstart', handleGlobalUnlock, { once: true });
     if ('serviceWorker' in navigator)
       void navigator.serviceWorker.register('/sw.js');
     const initialRoom = roomFromLocation();
@@ -137,6 +156,9 @@ export default function Home() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pointerdown', handleGlobalUnlock);
+      window.removeEventListener('touchstart', handleGlobalUnlock);
     };
   }, []);
   useEffect(() => {
@@ -265,6 +287,40 @@ export default function Home() {
 
     return () => clearInterval(timer);
   }, [g?.players[0]?.position, g?.players[1]?.position]);
+
+  useEffect(() => {
+    if (!g || g.logs.length === 0) return;
+    const count = g.logs.length;
+    if (count > lastLogCount.current) {
+      lastLogCount.current = count;
+      const latest = g.logs[count - 1];
+
+      if (latest.kind === 'bonus') {
+        sound.playCoin();
+        setBonusPopup({ active: true, at: Date.now() });
+        setTimeout(() => {
+          setBonusPopup({ active: false, at: 0 });
+        }, 2200);
+      }
+
+      if (latest.kind === 'event' && latest.event !== undefined) {
+        sound.playFanfare();
+        setActiveEventModal(latest.event);
+      }
+
+      if (latest.kind === 'rest' && latest.detail === 'rest-release') {
+        sound.playFanfare();
+      }
+
+      if (roomToken && latest.player !== myPlayerIndex) {
+        const desc = describe(latest, g, lang);
+        setOpponentToast(desc);
+        setTimeout(() => {
+          setOpponentToast(null);
+        }, 3500);
+      }
+    }
+  }, [g?.logs?.length, g, roomToken, myPlayerIndex, lang]);
 
   function commit(next: Session) {
     if (next.game.phase === 'finished' && current.current?.game.phase !== 'finished') {
@@ -692,7 +748,6 @@ export default function Home() {
     });
   }
   const active = g?.players[g.current],
-    myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1,
     isMyTurn = myPlayerIndex >= 0 && g?.current === myPlayerIndex,
     landed = active ? board[active.position] : null,
     owned = g && active ? g.properties[active.position] : undefined;
@@ -822,6 +877,35 @@ export default function Home() {
           )}
         </div>
       </div>
+      {opponentToast && (
+        <aside
+          aria-label="Opponent action notification"
+          className="mx-auto mb-2 flex w-full max-w-lg items-center gap-2 rounded-2xl border border-teal-200 bg-white/95 px-4 py-2 text-xs font-bold text-teal-900 shadow-lg backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200"
+        >
+          <span className="text-base">📢</span>
+          <span className="flex-1">{opponentToast}</span>
+        </aside>
+      )}
+      {g && g.round >= 15 && g.phase !== 'finished' && (
+        <aside
+          aria-label="Fever time announcement"
+          className="fever-shimmer mx-auto mb-3 flex w-full max-w-lg items-center justify-between rounded-2xl px-4 py-1.5 text-xs font-extrabold text-amber-950 shadow-md border border-amber-300"
+        >
+          <span>✨ {copy('Golden Travel Fever Time!', '골든 트래블 피버 타임!', '¡Viaje Dorado!')}</span>
+          <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px]">
+            {copy(`${rules.rounds - g.round + 1} rounds left`, `남은 ${rules.rounds - g.round + 1}라운드`, `Quedan ${rules.rounds - g.round + 1} rondas`)}
+          </span>
+        </aside>
+      )}
+      {bonusPopup.active && (
+        <aside
+          aria-label="Salary bonus notification"
+          className="animate-bonus-float fixed top-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border-2 border-amber-300 bg-gradient-to-r from-amber-400 to-yellow-300 px-5 py-2.5 text-sm font-black text-amber-950 shadow-2xl"
+        >
+          <span className="text-xl">💰</span>
+          <span>{copy('+200 Dubi Start Salary!', '출발점 통과! +200 Dubi 월급 지급!', '¡+200 Dubi por pasar por Salida!')}</span>
+        </aside>
+      )}
       {roomNotice && (
         <p className="room-notice" role="status">
           {roomNotice}
@@ -1632,6 +1716,14 @@ export default function Home() {
           activeReaction={activeReaction}
         />
       )}
+      {g && g.phase === 'finished' && g.winner !== null && g.winner !== 'tie' && (
+        <Confetti />
+      )}
+      <EventCardModal
+        eventIndex={activeEventModal}
+        lang={lang}
+        onClose={() => setActiveEventModal(null)}
+      />
     </main>
   );
 }

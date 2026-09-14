@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -12,12 +12,15 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
+export const viewport: Viewport = {
+  themeColor: '#167f82',
+};
+
 export const metadata: Metadata = {
   title: 'Dubipoly · Travel with Dubu',
   description: 'A board game for two, traveling through Korea and Peru.',
   manifest: '/manifest.webmanifest',
   icons: { icon: '/favicon.svg' },
-  themeColor: '#167f82',
 };
 
 export default function RootLayout({
