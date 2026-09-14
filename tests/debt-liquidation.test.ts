@@ -25,20 +25,25 @@ test('insufficient cash with owned properties enters debt phase instead of bankr
   const rolled = transition(g, roll(1, 1));
 
   assert.equal(rolled.players[0].position, 2);
-  assert.equal(rolled.phase, 'debt');
-  assert.notEqual(rolled.pendingDebt, null);
-  assert.equal(rolled.pendingDebt?.amount, 48);
-  assert.equal(rolled.pendingDebt?.to, 1);
-  assert.equal(rolled.pendingDebt?.reason, 'rent');
-  assert.equal(rolled.winner, null);
-  assert.equal(rolled.reason, null);
+  assert.equal(rolled.phase, 'choice');
+  assert.equal(rolled.pendingPayment?.type, 'rent');
+  assert.equal(rolled.pendingPayment?.amount, 48);
 
-  assert.equal(transition(rolled, roll(1, 2)), rolled);
-  assert.equal(transition(rolled, { type: 'end' }), rolled);
-  assert.equal(transition(rolled, { type: 'payDebt' }), rolled);
+  const inDebt = transition(rolled, { type: 'payRent' });
+  assert.equal(inDebt.phase, 'debt');
+  assert.notEqual(inDebt.pendingDebt, null);
+  assert.equal(inDebt.pendingDebt?.amount, 48);
+  assert.equal(inDebt.pendingDebt?.to, 1);
+  assert.equal(inDebt.pendingDebt?.reason, 'rent');
+  assert.equal(inDebt.winner, null);
+  assert.equal(inDebt.reason, null);
 
-  assert.equal(canSell(rolled, 5), true);
-  const sold = transition(rolled, { type: 'sell', space: 5 });
+  assert.equal(transition(inDebt, roll(1, 2)), inDebt);
+  assert.equal(transition(inDebt, { type: 'end' }), inDebt);
+  assert.equal(transition(inDebt, { type: 'payDebt' }), inDebt);
+
+  assert.equal(canSell(inDebt, 5), true);
+  const sold = transition(inDebt, { type: 'sell', space: 5 });
 
   assert.equal(sold.properties[5], undefined);
   assert.equal(sold.players[0].cash, 20 + sellValue(5, 0)); // 20 + 70 = 90
@@ -81,6 +86,9 @@ test('natural gameplay flow with emergency property liquidation and replay resto
   // Rent is 51. P0 only has 10 cash, but owns space 4 (price 140, sell value = 70). Total = 80 >= 51!
   g = transition(g, roll(1, 1));
   assert.equal(g.players[0].position, 5);
+  assert.equal(g.phase, 'choice');
+  assert.equal(g.pendingPayment?.type, 'rent');
+  g = transition(g, { type: 'payRent' });
   assert.equal(g.phase, 'debt');
   assert.equal(g.pendingDebt?.amount, 51);
 
@@ -104,6 +112,9 @@ test('voluntary bankruptcy in debt phase transfers remaining cash and ends game'
   g.properties[2] = { owner: 1, level: 3 };
 
   g = transition(g, roll(1, 1));
+  assert.equal(g.phase, 'choice');
+  assert.equal(g.pendingPayment?.type, 'rent');
+  g = transition(g, { type: 'payRent' });
   assert.equal(g.phase, 'debt');
 
   // Player chooses to surrender / declare bankruptcy
@@ -121,6 +132,9 @@ test('player with zero properties immediately goes bankrupt without debt phase',
   g.properties[2] = { owner: 1, level: 3 };
 
   g = transition(g, roll(1, 1));
+  assert.equal(g.phase, 'choice');
+  assert.equal(g.pendingPayment?.type, 'rent');
+  g = transition(g, { type: 'payRent' });
   assert.equal(g.phase, 'finished');
   assert.equal(g.winner, 1);
   assert.equal(g.reason, 'bankruptcy');

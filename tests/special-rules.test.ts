@@ -54,14 +54,18 @@ test('double skip and third double go to rest without movement or Start salary',
 test('double rent resolves payment and extra roll, but bankruptcy cancels it', () => {
   let g = fresh();
   g.properties[2] = { owner: 1, level: 0 };
-  const n = transition(g, roll(1, 1));
+  let n = transition(g, roll(1, 1));
+  assert.equal(n.phase, 'choice');
+  assert.equal(n.pendingPayment?.type, 'rent');
+  n = transition(n, { type: 'payRent' });
   assert.equal(n.players[0].cash, 1488);
   assert.equal(n.players[1].cash, 1512);
   assert.equal(n.phase, 'roll');
   g.players[0].cash = 1;
   const poor = transition(g, roll(1, 1));
-  assert.equal(poor.phase, 'finished');
-  assert.equal(poor.winner, 1);
+  const poorPaid = transition(poor, { type: 'payRent' });
+  assert.equal(poorPaid.phase, 'finished');
+  assert.equal(poorPaid.winner, 1);
 });
 test('airport flight with bonus, harbor rest and sail, ordinary rest visit', () => {
   let g = fresh();
@@ -127,9 +131,10 @@ test('third failed rest roll pays fee, uses that roll; inability to pay causes b
   assert.equal(waited.players[0].position, 20);
   assert.equal(waited.restTurns![0], 1);
   g.restTurns![0] = 2;
-  const n = transition(g, roll(1, 2));
+  let n = transition(g, roll(1, 2));
   assert.equal(n.players[0].position, 23);
   assert.equal(n.restTurns![0], null);
+  n = transition(n, { type: 'claimEvent' });
   assert.equal(n.players[0].cash, 1570); // 50 fee then +120 festival event
   g.players[0].cash = 49;
   assert.equal(transition(g, roll(1, 2)).reason, 'bankruptcy');
@@ -153,7 +158,8 @@ test('exactly four tourist destinations, holdings scale visit fees, no upgrades'
   g.current = 1;
   g.phase = 'roll';
   g.players[1].position = tourists[0].index - 3;
-  const n = transition(g, roll(1, 2));
+  let n = transition(g, roll(1, 2));
+  n = transition(n, { type: 'payRent' });
   assert.equal(n.players[1].cash, 1300);
   assert.equal(n.players[0].cash, 1700);
 });
@@ -169,7 +175,8 @@ test('region monopoly doubles unimproved rent only, with rent collected while re
   g.restTurns![0] = 0;
   g.current = 1;
   g.players[1].position = 39;
-  const n = transition(g, roll(1, 1));
+  let n = transition(g, roll(1, 1));
+  n = transition(n, { type: 'payRent' });
   assert.equal(n.players[0].cash, 1536);
 });
 test('last-round doubles resolve before winner; v1 saves retain original no-doubles rules', () => {

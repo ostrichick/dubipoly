@@ -35,7 +35,7 @@ export async function POST(
     if (
       !body ||
       typeof body.type !== 'string' ||
-      !['roll', 'buy', 'upgrade', 'end', 'bail', 'sell', 'reaction', 'fly', 'skipFly', 'sail', 'skipSail', 'payDebt', 'bankrupt'].includes(
+      !['roll', 'buy', 'upgrade', 'end', 'bail', 'sell', 'reaction', 'fly', 'skipFly', 'sail', 'skipSail', 'payDebt', 'bankrupt', 'payRent', 'claimEvent'].includes(
         body.type,
       )
     )

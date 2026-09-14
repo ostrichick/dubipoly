@@ -314,14 +314,37 @@ export function BoardCenterHub({
     onAction({ type: 'payDebt' });
   };
 
+  const handlePayRent = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'payRent' });
+  };
+
+  const handleClaimEvent = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'claimEvent' });
+  };
+
   const handleBankrupt = () => {
     if (!onAction || actionsBlocked) return;
     onAction({ type: 'bankrupt' });
   };
 
+  const pendingPayment = game.pendingPayment;
+  const isPendingRent = pendingPayment?.type === 'rent';
+  const isPendingEvent = pendingPayment?.type === 'event';
+
   // Status message
   let statusHintText = '';
-  if (game.phase === 'roll') {
+  if (isPendingRent && pendingPayment) {
+    const oppName = names[pendingPayment.to as number] || (pendingPayment.to === 0 ? 'P1' : 'P2');
+    statusHintText = copy(
+      `Arrived at ${oppName}'s ${landedSpace?.name[lang]} · Pay ${pendingPayment.amount.toLocaleString()} Dubi rent`,
+      `📍 ${oppName}의 ${landedSpace?.name[lang]} 도착 · 방문료 ${pendingPayment.amount.toLocaleString()} Dubi를 지불하세요`,
+      `Llegada a ${landedSpace?.name[lang]} de ${oppName} · Paga ${pendingPayment.amount.toLocaleString()} Dubi`,
+    );
+  } else if (isPendingEvent && pendingPayment) {
+    statusHintText = activeEvent ? `${activeEvent.icon ?? '🎒'} ${activeEvent.text[lang]}` : copy('Event', '여행 이벤트', 'Evento');
+  } else if (game.phase === 'roll') {
     if (isRolling || pendingAction === 'roll') {
       statusHintText = copy('Rolling dice...', '주사위를 굴리고 있습니다...', 'Tirando dados...');
     } else if (extraRoll) {
@@ -485,7 +508,49 @@ export function BoardCenterHub({
 
               {game.phase === 'choice' && (
                 <>
-                  {landedSpace?.type === 'city' && !ownedProperty && (
+                  {isPendingRent && pendingPayment && (
+                    <button
+                      type="button"
+                      className="hub-btn hub-btn-pay-rent"
+                      disabled={actionsBlocked}
+                      onClick={handlePayRent}
+                    >
+                      <span className="hub-btn-icon">💸</span>
+                      <span className="hub-btn-text">
+                        {copy(
+                          `Pay ${pendingPayment.amount.toLocaleString()} Dubi to ${names[pendingPayment.to as number] || 'Opponent'}`,
+                          `${names[pendingPayment.to as number] || '상대방'}에게 ${pendingPayment.amount.toLocaleString()} Dubi 주기`,
+                          `Pagar ${pendingPayment.amount.toLocaleString()} Dubi a ${names[pendingPayment.to as number] || 'Rival'}`,
+                        )}
+                      </span>
+                    </button>
+                  )}
+
+                  {isPendingEvent && pendingPayment && (
+                    <button
+                      type="button"
+                      className={`hub-btn ${pendingPayment.isGain ? 'hub-btn-claim-event' : 'hub-btn-pay-event'}`}
+                      disabled={actionsBlocked}
+                      onClick={handleClaimEvent}
+                    >
+                      <span className="hub-btn-icon">{pendingPayment.isGain ? '💰' : '💸'}</span>
+                      <span className="hub-btn-text">
+                        {pendingPayment.isGain
+                          ? copy(
+                              `Collect ${pendingPayment.amount.toLocaleString()} Dubi`,
+                              `${pendingPayment.amount.toLocaleString()} Dubi 받기`,
+                              `Cobrar ${pendingPayment.amount.toLocaleString()} Dubi`,
+                            )
+                          : copy(
+                              `Pay ${pendingPayment.amount.toLocaleString()} Dubi`,
+                              `${pendingPayment.amount.toLocaleString()} Dubi 납부하기`,
+                              `Pagar ${pendingPayment.amount.toLocaleString()} Dubi`,
+                            )}
+                      </span>
+                    </button>
+                  )}
+
+                  {!pendingPayment && landedSpace?.type === 'city' && !ownedProperty && (
                     <button
                       type="button"
                       className="hub-btn hub-btn-buy"
@@ -499,7 +564,7 @@ export function BoardCenterHub({
                     </button>
                   )}
 
-                  {landedSpace?.type === 'city' && ownedProperty && !isTourist && (
+                  {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && !isTourist && (
                     <button
                       type="button"
                       className="hub-btn hub-btn-upgrade"
@@ -513,13 +578,13 @@ export function BoardCenterHub({
                     </button>
                   )}
 
-                  {landedSpace?.type === 'city' && ownedProperty && (ownedProperty.level ?? 0) >= 3 && !isTourist && (
+                  {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && (ownedProperty.level ?? 0) >= 3 && !isTourist && (
                     <span className="hub-landmark-chip">
                       👑 {copy('Landmark Max', '최고 등급', 'Monumento Máx')}
                     </span>
                   )}
 
-                  {isAirportActive && (
+                  {!pendingPayment && isAirportActive && (
                     <button
                       type="button"
                       className="hub-btn hub-btn-fly"
@@ -533,7 +598,7 @@ export function BoardCenterHub({
                     </button>
                   )}
 
-                  {isHarborActive && (
+                  {!pendingPayment && isHarborActive && (
                     <button
                       type="button"
                       className="hub-btn hub-btn-sail"
@@ -547,21 +612,23 @@ export function BoardCenterHub({
                     </button>
                   )}
 
-                  <button
-                    type="button"
-                    className={`hub-btn hub-btn-end ${endEmphasized ? 'hub-btn-end-primary' : 'hub-btn-end-outline'}`}
-                    disabled={actionsBlocked}
-                    onClick={handleEndTurn}
-                  >
-                    <span className="hub-btn-text">
-                      {extraRoll
-                        ? copy('Skip Roll', '더블 포기', 'Pasar')
-                        : hasPropertyAction
-                          ? copy('Skip', '건너뛰기', 'Pasar')
-                          : copy('End Turn', '턴 종료', 'Fin de turno')}
-                    </span>
-                    <span className="hub-btn-arrow">➔</span>
-                  </button>
+                  {!pendingPayment && (
+                    <button
+                      type="button"
+                      className={`hub-btn hub-btn-end ${endEmphasized ? 'hub-btn-end-primary' : 'hub-btn-end-outline'}`}
+                      disabled={actionsBlocked}
+                      onClick={handleEndTurn}
+                    >
+                      <span className="hub-btn-text">
+                        {extraRoll
+                          ? copy('Skip Roll', '더블 포기', 'Pasar')
+                          : hasPropertyAction
+                            ? copy('Skip', '건너뛰기', 'Pasar')
+                            : copy('End Turn', '턴 종료', 'Fin de turno')}
+                      </span>
+                      <span className="hub-btn-arrow">➔</span>
+                    </button>
+                  )}
                 </>
               )}
 

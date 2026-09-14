@@ -802,7 +802,7 @@ export default function Home() {
       tokenBubbleTimerRef.current = setTimeout(() => {
         setTokenSpeechBubble(null);
       }, 5000);
-    } else if (a.type === 'sell' || a.type === 'bail' || a.type === 'payDebt') {
+    } else if (a.type === 'sell' || a.type === 'bail' || a.type === 'payDebt' || a.type === 'payRent' || a.type === 'claimEvent') {
       sound.playCoin();
       triggerHaptic('medium');
     } else if (a.type === 'bankrupt') {
@@ -1854,7 +1854,54 @@ export default function Home() {
                             {special.payRest} · {rules.restFee} Dubi
                           </Button>
                         )}
-                        {g.phase === 'choice' && landed?.type === 'city' && (
+                        {g.pendingPayment?.type === 'rent' && (
+                          <Button
+                            data-action="pay-rent"
+                            className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold shadow-md"
+                            disabled={actionsBlocked}
+                            onClick={() =>
+                              void roomWork(() =>
+                                act({ type: 'payRent' }, g.revision),
+                              )
+                            }
+                          >
+                            💸 {copy(
+                              `Pay ${g.pendingPayment.amount} Dubi to ${names[g.pendingPayment.to as number] || 'Opponent'}`,
+                              `${names[g.pendingPayment.to as number] || '상대방'}에게 ${g.pendingPayment.amount} Dubi 주기`,
+                              `Pagar ${g.pendingPayment.amount} Dubi a ${names[g.pendingPayment.to as number] || 'Rival'}`,
+                            )}
+                          </Button>
+                        )}
+                        {g.pendingPayment?.type === 'event' && (
+                          <Button
+                            data-action="claim-event"
+                            className={
+                              g.pendingPayment.isGain
+                                ? 'bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-md'
+                                : 'bg-rose-600 hover:bg-rose-700 text-white font-extrabold shadow-md'
+                            }
+                            disabled={actionsBlocked}
+                            onClick={() =>
+                              void roomWork(() =>
+                                act({ type: 'claimEvent' }, g.revision),
+                              )
+                            }
+                          >
+                            {g.pendingPayment.isGain ? '💰' : '💸'}{' '}
+                            {g.pendingPayment.isGain
+                              ? copy(
+                                  `Collect ${g.pendingPayment.amount} Dubi`,
+                                  `${g.pendingPayment.amount} Dubi 받기`,
+                                  `Cobrar ${g.pendingPayment.amount} Dubi`,
+                                )
+                              : copy(
+                                  `Pay ${g.pendingPayment.amount} Dubi`,
+                                  `${g.pendingPayment.amount} Dubi 납부하기`,
+                                  `Pagar ${g.pendingPayment.amount} Dubi`,
+                                )}
+                          </Button>
+                        )}
+                        {!g.pendingPayment && g.phase === 'choice' && landed?.type === 'city' && (
                           <>
                             {!owned ? (
                               <Button
@@ -2054,7 +2101,7 @@ export default function Home() {
                             </div>
                           </div>
                         )}
-                        {(g.phase === 'choice' || g.phase === 'end') && (
+                        {!g.pendingPayment && (g.phase === 'choice' || g.phase === 'end') && (
                           <Button
                             data-action="end"
                             className={endEmphasized ? 'end-turn-primary' : ''}

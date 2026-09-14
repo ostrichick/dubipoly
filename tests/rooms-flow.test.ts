@@ -212,15 +212,29 @@ test('complete online game and rematch: every action matches both players and re
       city = board[player.position],
       prop = g.properties[player.position];
     const type =
-      g.phase === 'roll'
-        ? 'roll'
-        : g.phase === 'choice' &&
-            player.cash > 500 + (prop ? city.upgrade! : city.price!) &&
-            (!prop || prop.level < 3)
-          ? prop
-            ? 'upgrade'
-            : 'buy'
-          : 'end';
+      g.pendingPayment?.type === 'rent'
+        ? 'payRent'
+        : g.pendingPayment?.type === 'event'
+          ? 'claimEvent'
+          : g.phase === 'debt'
+            ? (g.pendingDebt && player.cash >= g.pendingDebt.amount)
+              ? 'payDebt'
+              : 'bankrupt'
+            : g.phase === 'roll'
+              ? 'roll'
+              : g.phase === 'choice' &&
+                  !prop &&
+                  city.price != null &&
+                  player.cash > 500 + city.price
+                ? 'buy'
+                : g.phase === 'choice' &&
+                    prop &&
+                    prop.owner === g.current &&
+                    prop.level < 3 &&
+                    city.upgrade != null &&
+                    player.cash > 500 + city.upgrade
+                  ? 'upgrade'
+                  : 'end';
     snapshot = await action(code, {
       token: tokens[g.current],
       matchId: snapshot.matchId,

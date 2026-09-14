@@ -26,7 +26,9 @@ export type Action =
         | 'skipFly'
         | 'skipSail'
         | 'payDebt'
-        | 'bankrupt';
+        | 'bankrupt'
+        | 'payRent'
+        | 'claimEvent';
     }
   | { type: 'sell'; space: number }
   | { type: 'fly'; space: number; event?: number }
@@ -76,6 +78,15 @@ export type PendingDebt = {
   reason: 'rent' | 'event' | 'rest';
   space?: number;
 };
+export type PendingPayment = {
+  type: 'rent' | 'event';
+  amount: number;
+  to?: PlayerId | 'bank';
+  from?: PlayerId | 'bank';
+  space?: number;
+  event?: number;
+  isGain?: boolean;
+};
 export type Game = {
   rulesVersion?: 1 | 2;
   doubles?: number;
@@ -88,6 +99,7 @@ export type Game = {
   round: number;
   phase: Phase;
   pendingDebt?: PendingDebt | null;
+  pendingPayment?: PendingPayment | null;
   dice: [number, number] | null;
   lastEvent: number | null;
   logs: Entry[];
@@ -121,6 +133,7 @@ export function createGame(
     round: 1,
     phase: 'roll',
     pendingDebt: null,
+    pendingPayment: null,
     dice: null,
     lastEvent: null,
     logs: [],
@@ -183,6 +196,7 @@ export function canBuy(g: Game) {
     s = board[p.position];
   return (
     g.phase === 'choice' &&
+    !g.pendingPayment &&
     s.type === 'city' &&
     !g.properties[p.position] &&
     p.cash >= s.price!
@@ -194,6 +208,7 @@ export function canUpgrade(g: Game) {
     prop = g.properties[p.position];
   return (
     g.phase === 'choice' &&
+    !g.pendingPayment &&
     s.type === 'city' &&
     !(g.rulesVersion === 2 && s.kind === 'tourist') &&
     !!prop &&
@@ -343,22 +358,50 @@ function land(g: Game, allowEvent: boolean, event: number) {
     if (g.players[g.current].freePasses && g.players[g.current].freePasses! > 0) {
       g.players[g.current].freePasses!--;
       log(g, { kind: 'rent', player: g.current, amount: 0, space: index, detail: 'freepass' });
+      g.phase = 'end';
       return;
     }
-    pay(g, amount, property.owner, 'rent', index);
-    if ((g.phase as Phase) !== 'debt') {
-      log(g, { kind: 'rent', player: g.current, amount, space: index });
+    if (g.rulesVersion === 1) {
+      pay(g, amount, property.owner, 'rent', index);
+      if ((g.phase as Phase) !== 'debt') {
+        log(g, { kind: 'rent', player: g.current, amount, space: index });
+      }
+      return;
     }
+    g.phase = 'choice';
+    g.pendingPayment = {
+      type: 'rent',
+      amount,
+      to: property.owner,
+      from: g.current,
+      space: index,
+      isGain: false,
+    };
     return;
   }
   if (s.type === 'event' && allowEvent) {
     g.lastEvent = event;
-    log(g, { kind: 'event', player: g.current, event });
     const effect = events[event].effect;
     if (effect.kind === 'cash') {
-      if (effect.amount < 0) pay(g, -effect.amount);
-      else g.players[g.current].cash += effect.amount;
-    } else if (effect.kind === 'move') {
+      if (g.rulesVersion === 1) {
+        log(g, { kind: 'event', player: g.current, event });
+        if (effect.amount < 0) pay(g, -effect.amount);
+        else g.players[g.current].cash += effect.amount;
+        return;
+      }
+      g.phase = 'choice';
+      g.pendingPayment = {
+        type: 'event',
+        amount: Math.abs(effect.amount),
+        to: effect.amount < 0 ? 'bank' : g.current,
+        from: effect.amount < 0 ? g.current : 'bank',
+        event,
+        isGain: effect.amount > 0,
+      };
+      return;
+    }
+    log(g, { kind: 'event', player: g.current, event });
+    if (effect.kind === 'move') {
       move(g, effect.steps);
       land(g, false, event);
     } else if (effect.kind === 'startBonus') {
@@ -511,6 +554,16 @@ export function transition(
   )
     return state;
   if (
+    action.type === 'payRent' &&
+    (state.phase !== 'choice' || state.pendingPayment?.type !== 'rent')
+  )
+    return state;
+  if (
+    action.type === 'claimEvent' &&
+    (state.phase !== 'choice' || state.pendingPayment?.type !== 'event')
+  )
+    return state;
+  if (
     ![
       'roll',
       'buy',
@@ -524,6 +577,8 @@ export function transition(
       'skipSail',
       'payDebt',
       'bankrupt',
+      'payRent',
+      'claimEvent',
     ].includes(action.type)
   )
     return state;
@@ -694,10 +749,65 @@ export function transition(
     land(g, false, action.event ?? 0);
     finishLanding(g);
   }
+  if (action.type === 'payRent') {
+    if (g.pendingPayment && g.pendingPayment.type === 'rent') {
+      const { amount, to, space } = g.pendingPayment;
+      g.pendingPayment = null;
+      pay(g, amount, to as PlayerId, 'rent', space);
+      if ((g.phase as Phase) !== 'debt' && (g.phase as Phase) !== 'finished') {
+        log(g, { kind: 'rent', player: actor, amount, space });
+        g.phase = 'end';
+        finishLanding(g);
+      }
+      return g;
+    }
+  }
+  if (action.type === 'claimEvent') {
+    if (g.pendingPayment && g.pendingPayment.type === 'event') {
+      const { amount, isGain, event } = g.pendingPayment;
+      g.pendingPayment = null;
+      log(g, { kind: 'event', player: actor, event });
+      if (isGain) {
+        g.players[actor].cash += amount;
+        g.phase = 'end';
+        finishLanding(g);
+      } else {
+        pay(g, amount, undefined, 'event');
+        if ((g.phase as Phase) !== 'debt' && (g.phase as Phase) !== 'finished') {
+          g.phase = 'end';
+          finishLanding(g);
+        }
+      }
+      return g;
+    }
+  }
   if (action.type === 'skipSail') {
     g.harborTurns![actor] = null;
   }
   if (action.type === 'end') {
+    if (g.pendingPayment) {
+      if (g.pendingPayment.type === 'rent') {
+        const { amount, to, space } = g.pendingPayment;
+        g.pendingPayment = null;
+        pay(g, amount, to as PlayerId, 'rent', space);
+        if ((g.phase as Phase) === 'debt' || (g.phase as Phase) === 'finished') {
+          return g;
+        }
+        log(g, { kind: 'rent', player: actor, amount, space });
+      } else if (g.pendingPayment.type === 'event') {
+        const { amount, isGain, event } = g.pendingPayment;
+        g.pendingPayment = null;
+        log(g, { kind: 'event', player: actor, event });
+        if (isGain) {
+          g.players[actor].cash += amount;
+        } else {
+          pay(g, amount, undefined, 'event');
+          if ((g.phase as Phase) === 'debt' || (g.phase as Phase) === 'finished') {
+            return g;
+          }
+        }
+      }
+    }
     if (g.rulesVersion === 2 && g.extraRoll) {
       g.phase = 'roll';
       return g;
