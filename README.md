@@ -1,6 +1,7 @@
 # Dubipoly
 
-Stage 8: hosted two-player mobile web game. Each player joins the same room from a separate phone. The owner-private test deployment is available at `https://dubipoly.nukapig.chatgpt.site`.
+Stage 8: hosted two-player mobile web game. Each player joins the same room from a separate phone. 
+The official web deployment is available at `https://dubipoly.ostrichick.workers.dev`.
 
 Node >=22.13. `npm ci`, then `npm run dev -- --host 0.0.0.0`. Use the printed localhost URL. On the same Wi-Fi use the computer LAN IPv4 in place of localhost and preserve the port; allow the process on Windows private-network firewall if needed. Keep computer/server running. No port forwarding needed. This does not yet synchronize gameplay.
 
