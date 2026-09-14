@@ -31,6 +31,7 @@ import { RoomQrCode } from '../components/game/RoomQrCode';
 import { Confetti } from '../components/game/Confetti';
 import { EventCardModal } from '../components/game/EventCardModal';
 import { TravelAnimation, type TravelMode } from '../components/game/TravelAnimation';
+import { BoardCenterHub } from '../components/game/BoardCenterHub';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
@@ -1299,23 +1300,36 @@ export default function Home() {
             >
               <div ref={boardRef} className={`board ${zoom ? 'zoom' : ''}`}>
                 <div className="board-center">
-                  <div className="postmark">
-                    SEOUL ↔ LIMA <span>40 STOPS · 2 TRAVELERS</span>
-                  </div>
-                  <h2>
-                    Dubi<span>poly</span>
-                  </h2>
-                  <p className="center-route">🇰🇷 ··· ✈ ··· 🇵🇪</p>
-                  <img
-                    className="dubu"
-                    src="/dubu-mascot.png"
-                    alt="Dubu the cat mascot"
-                  />
-                  <p className="photo-caption">Dubu ♥</p>
-                  <div className="legend">
-                    <span>● {t.korea}</span>
-                    <span>● {t.peru}</span>
-                  </div>
+                  {g ? (
+                    <BoardCenterHub
+                      game={g}
+                      names={names}
+                      cashDeltas={cashDeltas}
+                      roomToken={roomToken}
+                      myPlayerIndex={myPlayerIndex}
+                      lang={lang}
+                    />
+                  ) : (
+                    <>
+                      <div className="postmark">
+                        SEOUL ↔ LIMA <span>40 STOPS · 2 TRAVELERS</span>
+                      </div>
+                      <h2>
+                        Dubi<span>poly</span>
+                      </h2>
+                      <p className="center-route">🇰🇷 ··· ✈ ··· 🇵🇪</p>
+                      <img
+                        className="dubu"
+                        src="/dubu-mascot.png"
+                        alt="Dubu the cat mascot"
+                      />
+                      <p className="photo-caption">Dubu ♥</p>
+                      <div className="legend">
+                        <span>● {t.korea}</span>
+                        <span>● {t.peru}</span>
+                      </div>
+                    </>
+                  )}
                   {travelAnim && (
                     <TravelAnimation
                       mode={travelAnim.mode}

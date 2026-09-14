@@ -430,67 +430,528 @@ nav button,
 .board-center {
   position: relative;
   grid-area: 2/2/11/11;
-  background: radial-gradient(ellipse at center, #fff8e6 10%, #d7f4ec 75%);
+  background: radial-gradient(ellipse at center, #fffdf7 10%, #d8f5ec 85%);
   border-radius: 20px;
   display: flex;
-  align-items: center;
-  flex-direction: column;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   overflow: hidden;
-  padding: 18px;
+  padding: 8px;
   border: 2px solid #fff9;
+  box-shadow: inset 0 2px 8px rgba(22, 127, 130, 0.1);
 }
-.postmark {
-  font-size: 12px;
-  letter-spacing: 2px;
-  font-weight: 800;
-  color: #426d72;
-  text-align: center;
+
+/* Board Center Hub Container */
+.board-center-hub {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  gap: 4px;
 }
-.postmark span {
-  display: block;
-  letter-spacing: 1px;
-  margin-top: 4px;
+
+/* Top Header Bar */
+.hub-header-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding-bottom: 2px;
 }
-.board-center h2 {
-  font-size: clamp(38px, 5vw, 74px);
+.hub-brand-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.hub-brand-title {
+  font-size: clamp(16px, 2.3vw, 24px);
   line-height: 1.1;
   font-weight: 950;
-  letter-spacing: -4px;
-  margin: 16px 0 0;
-  text-shadow: 2px 3px #fff;
+  letter-spacing: -1px;
+  color: #173d50;
+  text-shadow: 1px 1px 0 #fff;
 }
-.board-center h2 span {
-  color: #e69a28;
+.hub-brand-title span {
+  color: #e38727;
 }
-.center-route {
-  font-size: 24px;
-  margin: 6px 0 12px;
-  color: #2d9bba;
+.hub-round-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #fef3c7;
+  color: #78350f;
+  font-size: clamp(9px, 1.1vw, 11px);
+  font-weight: 850;
+  padding: 1.5px 8px;
+  border-radius: 9999px;
+  border: 1px solid #fcd34d;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
-.dubu {
-  width: 65%;
-  height: 43%;
-  object-fit: cover;
-  object-position: 42% 60%;
-  border: 8px solid #fff;
-  border-radius: 38% 38% 30% 30%;
-  box-shadow: 0 8px 24px #1a535324;
-  transform: rotate(-3deg);
+.hub-route-subtitle {
+  font-size: clamp(8px, 1vw, 10px);
+  font-weight: 800;
+  color: #2d8299;
+  letter-spacing: 1.5px;
 }
-.photo-caption {
-  margin: 15px 0 10px;
-  font-weight: 750;
-  font-size: 16px;
+
+/* 3-Hub Main Arena */
+.hub-main-arena {
+  display: grid;
+  grid-template-columns: minmax(0, 1.22fr) minmax(0, 0.95fr) minmax(0, 1.22fr);
+  gap: 6px;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  margin-top: 2px;
 }
-.legend {
+
+/* Hub Player Cards (P0 & P1) */
+.hub-player-card {
+  border-radius: 13px;
+  padding: 6px 7px;
   display: flex;
-  gap: 20px;
-  font-size: 13px;
-  color: #167f82;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 3px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
 }
-.legend span + span {
-  color: #c9674d;
+.hub-card-0 {
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
+  border: 2px solid #93c5fd;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
+}
+.hub-card-1 {
+  background: linear-gradient(180deg, #ffffff 0%, #fef2f2 100%);
+  border: 2px solid #fca5a5;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.12);
+}
+.hub-card-0.hub-active-turn {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px #60a5fa, 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+  animation: hub-turn-pulse-blue 1.8s ease-in-out infinite;
+}
+.hub-card-1.hub-active-turn {
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 0 2px #f87171, 0 4px 12px rgba(220, 38, 38, 0.35) !important;
+  animation: hub-turn-pulse-red 1.8s ease-in-out infinite;
+}
+@keyframes hub-turn-pulse-blue {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #60a5fa, 0 3px 8px rgba(37, 99, 235, 0.25);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #3b82f6, 0 6px 16px rgba(37, 99, 235, 0.45);
+    transform: translateY(-1.5px);
+  }
+}
+@keyframes hub-turn-pulse-red {
+  0%, 100% {
+    box-shadow: 0 0 0 2px #f87171, 0 3px 8px rgba(220, 38, 38, 0.25);
+    transform: translateY(0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px #ef4444, 0 6px 16px rgba(220, 38, 38, 0.45);
+    transform: translateY(-1.5px);
+  }
+}
+
+/* Hub Card Header */
+.hub-card-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.hub-avatar-box {
+  width: clamp(28px, 3.2vw, 36px);
+  height: clamp(28px, 3.2vw, 36px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.avatar-box-0 {
+  background: #dbeafe;
+  border: 2px solid #3b82f6;
+}
+.avatar-box-1 {
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+}
+.hub-avatar-icon {
+  font-size: clamp(14px, 1.8vw, 19px);
+  line-height: 1;
+}
+.hub-avatar-accessory {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: clamp(9px, 1.2vw, 12px);
+  line-height: 1;
+}
+.hub-player-meta {
+  flex: 1;
+  min-width: 0;
+}
+.hub-name-row {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.hub-pbadge {
+  font-size: 8px;
+  font-weight: 900;
+  border-radius: 3px;
+  padding: 0.5px 3px;
+  line-height: 1.1;
+  color: white;
+}
+.pbadge-0 {
+  background: #2563eb;
+}
+.pbadge-1 {
+  background: #dc2626;
+}
+.hub-you-chip {
+  font-size: 7.5px;
+  font-weight: 900;
+  background: #10b981;
+  color: white;
+  padding: 0.5px 3px;
+  border-radius: 3px;
+}
+.hub-player-name {
+  display: block;
+  font-size: clamp(10px, 1.2vw, 13px);
+  font-weight: 850;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* Hub Cash Panel */
+.hub-cash-panel {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 3px 5px;
+  border: 1px solid #e2e8f0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.hub-cash-line {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  line-height: 1;
+}
+.hub-cash-icon {
+  font-size: clamp(10px, 1.2vw, 13px);
+}
+.hub-cash-num {
+  font-size: clamp(11px, 1.4vw, 15px);
+  font-weight: 900;
+  color: #0f172a;
+}
+.hub-cash-unit {
+  font-size: 8px;
+  font-weight: 700;
+  color: #64748b;
+}
+.hub-deltas-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 1px;
+}
+.hub-delta-tag {
+  font-size: 8px;
+  font-weight: 900;
+  border-radius: 4px;
+  padding: 0.5px 3px;
+  line-height: 1.1;
+  animation: hub-delta-bounce 0.25s ease-out;
+}
+.hub-delta-tag.is-gain {
+  background: #dcfce7;
+  color: #15803d;
+}
+.hub-delta-tag.is-loss {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+@keyframes hub-delta-bounce {
+  0% { transform: scale(0.85); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Hub Assets Line */
+.hub-assets-line {
+  font-size: clamp(8px, 0.95vw, 10px);
+  color: #475569;
+  display: flex;
+  justify-content: space-between;
+  line-height: 1.1;
+  padding: 0 1px;
+}
+
+/* Hub Buffs List */
+.hub-buffs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  min-height: 14px;
+}
+.hub-buff-badge {
+  font-size: 7.5px;
+  font-weight: 850;
+  padding: 0.5px 3px;
+  border-radius: 3px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* Central Dubi Bank */
+.hub-bank-card {
+  background: radial-gradient(circle at 50% 25%, #fef3c7 0%, #ecfdf5 100%);
+  border: 2px solid #f59e0b;
+  border-radius: 13px;
+  padding: 5px 3px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+  transition: transform 0.2s ease, filter 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+.hub-bank-card.bank-flash-active {
+  animation: bank-vault-flash 1.2s ease-in-out;
+}
+@keyframes bank-vault-flash {
+  0% { transform: scale(1); filter: brightness(1); }
+  25% { transform: scale(1.06) rotate(-2deg); filter: brightness(1.2) drop-shadow(0 0 10px #fbbf24); }
+  50% { transform: scale(1.06) rotate(2deg); filter: brightness(1.25) drop-shadow(0 0 14px #f59e0b); }
+  75% { transform: scale(1.03); filter: brightness(1.1); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.bank-pediment {
+  font-size: clamp(14px, 1.8vw, 20px);
+  line-height: 1;
+}
+.bank-vault-visual {
+  position: relative;
+  width: clamp(34px, 4.2vw, 48px);
+  height: clamp(34px, 4.2vw, 48px);
+}
+.vault-glow-ring {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fde68a, transparent 70%);
+  animation: vault-glow 2s ease-in-out infinite alternate;
+}
+@keyframes vault-glow {
+  0% { opacity: 0.4; transform: scale(0.95); }
+  100% { opacity: 0.9; transform: scale(1.08); }
+}
+.bank-mascot-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #f59e0b;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  position: relative;
+  z-index: 2;
+}
+.bank-teller-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: clamp(8px, 1vw, 11px);
+  line-height: 1;
+  z-index: 3;
+}
+.bank-name-plate {
+  line-height: 1.1;
+  display: flex;
+  flex-direction: column;
+}
+.bank-name-plate strong {
+  font-size: clamp(9px, 1.15vw, 12px);
+  font-weight: 950;
+  color: #78350f;
+  letter-spacing: 0.5px;
+}
+.bank-name-plate small {
+  font-size: clamp(7.5px, 0.9vw, 9.5px);
+  font-weight: 750;
+  color: #059669;
+}
+.bank-treasury-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid #fde68a;
+  border-radius: 9999px;
+  padding: 0.5px 5px;
+  font-size: clamp(7px, 0.85vw, 8.5px);
+  font-weight: 800;
+  color: #92400e;
+}
+.bank-sparkle {
+  font-size: 7px;
+}
+
+/* Money Transfer Flying FX Layer */
+.hub-transfer-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+  overflow: hidden;
+}
+.hub-transfer-burst {
+  position: absolute;
+  inset: 0;
+}
+.flying-coin {
+  position: absolute;
+  font-size: clamp(16px, 2.2vw, 24px);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  opacity: 0;
+}
+
+/* Staggered Coin Delay */
+.coin-1 { animation-delay: 0s !important; }
+.coin-2 { animation-delay: 0.12s !important; }
+.coin-3 { animation-delay: 0.24s !important; }
+.coin-4 { animation-delay: 0.36s !important; }
+
+/* Flight Path 1: P0 to P1 (Rent to Player 2) */
+.burst-p0-to-p1 .flying-coin {
+  animation: coin-p0-to-p1 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+@keyframes coin-p0-to-p1 {
+  0% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.6) rotate(0deg); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(60deg); }
+  50% { top: 25%; left: 50%; transform: translate(-50%, -50%) scale(1.3) rotate(180deg); }
+  85% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(300deg); }
+  100% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(360deg); }
+}
+
+/* Flight Path 2: P1 to P0 (Rent to Player 1) */
+.burst-p1-to-p0 .flying-coin {
+  animation: coin-p1-to-p0 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+@keyframes coin-p1-to-p0 {
+  0% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.6) rotate(0deg); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(-60deg); }
+  50% { top: 25%; left: 50%; transform: translate(-50%, -50%) scale(1.3) rotate(-180deg); }
+  85% { opacity: 1; transform: translate(-50%, -50%) scale(1.1) rotate(-300deg); }
+  100% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(-360deg); }
+}
+
+/* Flight Path 3: Bank to P0 (Salary, Sale, Prize) */
+.burst-bank-to-p0 .flying-coin {
+  animation: coin-bank-to-p0 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+@keyframes coin-bank-to-p0 {
+  0% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(-45deg); }
+  50% { top: 32%; left: 35%; transform: translate(-50%, -50%) scale(1.2) rotate(-120deg); }
+  100% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-240deg); }
+}
+
+/* Flight Path 4: Bank to P1 (Salary, Sale, Prize) */
+.burst-bank-to-p1 .flying-coin {
+  animation: coin-bank-to-p1 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+@keyframes coin-bank-to-p1 {
+  0% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(45deg); }
+  50% { top: 32%; left: 65%; transform: translate(-50%, -50%) scale(1.2) rotate(120deg); }
+  100% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(240deg); }
+}
+
+/* Flight Path 5: P0 to Bank (Buy City, Upgrade, Travel, Bail, Fine) */
+.burst-p0-to-bank .flying-coin {
+  animation: coin-p0-to-bank 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+@keyframes coin-p0-to-bank {
+  0% { top: 52%; left: 20%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(45deg); }
+  50% { top: 34%; left: 35%; transform: translate(-50%, -50%) scale(1.2) rotate(120deg); }
+  100% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(240deg); }
+}
+
+/* Flight Path 6: P1 to Bank (Buy City, Upgrade, Travel, Bail, Fine) */
+.burst-p1-to-bank .flying-coin {
+  animation: coin-p1-to-bank 1.25s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+@keyframes coin-p1-to-bank {
+  0% { top: 52%; left: 80%; opacity: 0; transform: translate(-50%, -50%) scale(0.5) rotate(0deg); }
+  20% { opacity: 1; transform: translate(-50%, -50%) scale(1.25) rotate(-45deg); }
+  50% { top: 34%; left: 65%; transform: translate(-50%, -50%) scale(1.2) rotate(-120deg); }
+  100% { top: 52%; left: 50%; opacity: 0; transform: translate(-50%, -50%) scale(0.4) rotate(-240deg); }
+}
+
+/* Central Transfer Notification Pill */
+.hub-transfer-pill {
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(15, 23, 42, 0.92);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  border: 1.5px solid #fbbf24;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: clamp(9px, 1.1vw, 12px);
+  animation: pill-float-up 1.4s ease-out forwards;
+}
+.transfer-pill-icon {
+  font-size: clamp(11px, 1.3vw, 14px);
+}
+.transfer-pill-names {
+  font-weight: 750;
+  color: #cbd5e1;
+}
+.transfer-pill-amount {
+  color: #fbbf24;
+  font-weight: 950;
+}
+.transfer-pill-reason {
+  color: #94a3b8;
+  font-size: 85%;
+}
+@keyframes pill-float-up {
+  0% { opacity: 0; transform: translate(-50%, -35%) scale(0.85); }
+  15% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -56%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -75%) scale(0.9); }
 }
 .tile {
   border: 1px solid #cddcce;
