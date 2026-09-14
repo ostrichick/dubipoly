@@ -269,6 +269,7 @@ export const specialCopy = {
       freepass: 'VIP pass used! Rent completely waived.',
       'free-upgrade': 'Urban renewal! Free building upgrade.',
       'debt-pending': 'Cash shortfall! Liquidate properties to settle debt.',
+      'travel-cooldown': 'Travel cooldown active: Airport/Harbor cannot be used consecutively.',
     },
   },
   ko: {
@@ -325,6 +326,7 @@ export const specialCopy = {
       freepass: 'VIP 여행자 패스 사용! 통행료를 전액 면제받았습니다.',
       'free-upgrade': '도시 재생 지원! 건물을 무료로 1단계 증축했습니다.',
       'debt-pending': '자금 부족! 소유 부동산을 매각하여 채무를 변제하세요.',
+      'travel-cooldown': '여행 쿨다운 적용 중: 공항/항구를 연속으로 이용할 수 없어 일반 주사위로 이동합니다.',
     },
   },
   es: {
@@ -382,6 +384,7 @@ export const specialCopy = {
       freepass: '¡Pase VIP usado! Alquiler totalmente exento.',
       'free-upgrade': '¡Renovación urbana! Mejora gratuita de edificio.',
       'debt-pending': '¡Fondos insuficientes! Vende propiedades para saldar deuda.',
+      'travel-cooldown': 'Enfriamiento activo: el aeropuerto/puerto no se puede usar consecutivamente.',
     },
   },
 };

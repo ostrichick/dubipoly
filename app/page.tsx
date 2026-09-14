@@ -1761,30 +1761,32 @@ export default function Home() {
                       <p className="landed">
                         📍 {board[active!.position].name[lang]}
                       </p>
-                      <div
-                        className={`dice ${isRolling || pendingAction === 'roll' ? 'rolling dice-rolling' : ''}`}
-                        aria-label={
-                          isRolling || pendingAction === 'roll'
-                            ? special.rolling
-                            : (rollingDice ?? g.dice)?.filter((d) => d > 0).join(' + ')
-                        }
-                      >
-                        {(rollingDice ?? g.dice) ? (
-                          (rollingDice ?? g.dice)!
-                            .filter((d) => d > 0)
-                            .map((d, i) => (
-                              <span key={i}>
-                                {['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][d - 1]}
-                              </span>
-                            ))
-                        ) : (
-                          <span>🎲</span>
-                        )}
-                      </div>
-                      {g.lastEvent !== null && (
-                        <p className="event-card">
-                          🎒 {events[g.lastEvent].text[lang]}
-                        </p>
+                      {!isTravelSelection && (
+                        <div
+                          className={`dice ${isRolling || pendingAction === 'roll' ? 'rolling dice-rolling' : ''}`}
+                          aria-label={
+                            isRolling || pendingAction === 'roll'
+                              ? special.rolling
+                              : (rollingDice ?? g.dice)?.filter((d) => d > 0).join(' + ')
+                          }
+                        >
+                          {(rollingDice ?? g.dice) ? (
+                            (rollingDice ?? g.dice)!
+                              .filter((d) => d > 0)
+                              .map((d, i) => (
+                                <span key={i}>
+                                  {['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][d - 1]}
+                                </span>
+                              ))
+                          ) : (
+                            <span>🎲</span>
+                          )}
+                        </div>
+                      )}
+                      {g.travelBlocked && (
+                        <div className="w-full my-1 rounded-xl border border-amber-300 bg-amber-50 p-2 text-center text-xs font-bold text-amber-800">
+                          🚨 {copy('Cooldown 1 turn! Airport/Harbor used too recently. Roll dice normally.', '🚨 쿨다운 1턴 적용 중! 공항/항구를 너무 자주 이용하여 이번에는 이용할 수 없습니다. 일반 주사위를 굴리세요.', '🚨 ¡Enfriamiento! Tira los dados normalmente.')}
+                        </div>
                       )}
                       <p>
                         {roomToken && !isMyTurn
@@ -1821,7 +1823,7 @@ export default function Home() {
                         </p>
                       )}
                       <div className="actions">
-                        {g.phase === 'roll' && (
+                        {g.phase === 'roll' && !isHarborActive && (
                           <Button
                             data-action="roll"
                             disabled={actionsBlocked}
@@ -1892,13 +1894,13 @@ export default function Home() {
                             )}
                           </Button>
                         )}
-                        {g.pendingPayment?.type === 'event' && (
+                        {(g.pendingPayment?.type === 'event' || g.pendingEvent) && (
                           <Button
                             data-action="claim-event"
                             className={
-                              g.pendingPayment.isGain
-                                ? 'bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-md'
-                                : 'bg-rose-600 hover:bg-rose-700 text-white font-extrabold shadow-md'
+                              (g.pendingEvent?.effect.kind === 'cash' && g.pendingEvent.effect.amount < 0) || (g.pendingPayment?.type === 'event' && !g.pendingPayment.isGain)
+                                ? 'bg-rose-600 hover:bg-rose-700 text-white font-extrabold shadow-md'
+                                : 'bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-md'
                             }
                             disabled={actionsBlocked}
                             onClick={() =>
@@ -1907,21 +1909,26 @@ export default function Home() {
                               )
                             }
                           >
-                            {g.pendingPayment.isGain ? '💰' : '💸'}{' '}
-                            {g.pendingPayment.isGain
-                              ? copy(
-                                  `Collect ${g.pendingPayment.amount} Dubi`,
-                                  `${g.pendingPayment.amount} Dubi 받기`,
-                                  `Cobrar ${g.pendingPayment.amount} Dubi`,
-                                )
-                              : copy(
-                                  `Pay ${g.pendingPayment.amount} Dubi`,
-                                  `${g.pendingPayment.amount} Dubi 납부하기`,
-                                  `Pagar ${g.pendingPayment.amount} Dubi`,
-                                )}
+                            {g.pendingEvent?.effect.kind === 'move'
+                              ? `🚂 ${g.pendingEvent.effect.steps > 0 ? copy(`Move forward ${g.pendingEvent.effect.steps} spaces`, `${g.pendingEvent.effect.steps}칸 전진하기`, `Avanzar ${g.pendingEvent.effect.steps} casillas`) : copy(`Move back ${Math.abs(g.pendingEvent.effect.steps)} spaces`, `${Math.abs(g.pendingEvent.effect.steps)}칸 후진하기`, `Retroceder ${Math.abs(g.pendingEvent.effect.steps)} casillas`)}`
+                              : g.pendingPayment?.type === 'event'
+                                ? `${g.pendingPayment.isGain ? '💰' : '💸'} ${
+                                    g.pendingPayment.isGain
+                                      ? copy(
+                                          `Collect ${g.pendingPayment.amount} Dubi`,
+                                          `${g.pendingPayment.amount} Dubi 받기`,
+                                          `Cobrar ${g.pendingPayment.amount} Dubi`,
+                                        )
+                                      : copy(
+                                          `Pay ${g.pendingPayment.amount} Dubi`,
+                                          `${g.pendingPayment.amount} Dubi 납부하기`,
+                                          `Pagar ${g.pendingPayment.amount} Dubi`,
+                                        )
+                                  }`
+                                : `✨ ${copy('Confirm Event', '이벤트 확인', 'Confirmar evento')}`}
                           </Button>
                         )}
-                        {!g.pendingPayment && g.phase === 'choice' && landed?.type === 'city' && (
+                        {!g.pendingPayment && !g.pendingEvent && g.phase === 'choice' && landed?.type === 'city' && (
                           <>
                             {!owned ? (
                               <Button

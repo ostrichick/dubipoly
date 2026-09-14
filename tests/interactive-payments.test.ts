@@ -175,3 +175,49 @@ test('sailing to event space triggers event and pendingPayment', () => {
   assert.equal(g.phase, 'end');
 });
 
+test('train movement event pauses on event tile and advances 3 spaces on claimEvent', () => {
+  let g = createGame(['Dubu', 'Dubi'], 2);
+  g.players[0].position = 4; // space 4
+  // Roll 2+2=4 -> lands on space 8 (travel event), event 9 is train (+3 spaces)
+  g = transition(g, { type: 'roll', dice: [2, 2], event: 9 });
+
+  // Player must be paused on space 8 (event space), NOT already at space 11
+  assert.equal(g.players[0].position, 8);
+  assert.equal(g.phase, 'choice');
+  assert.notEqual(g.pendingEvent, null);
+  assert.equal(g.pendingEvent?.effect.kind, 'move');
+  assert.equal(g.pendingEvent?.effect.steps, 3);
+  // Cannot buy land on event space
+  assert.equal(canBuy(g), false);
+
+  // User confirms/clicks the event button
+  g = transition(g, { type: 'claimEvent' });
+
+  // Now player has moved 3 spaces forward to space 11 (Jeju)
+  assert.equal(g.players[0].position, 11);
+  assert.equal(g.pendingEvent, null);
+  assert.equal(g.phase, 'choice');
+  // On space 11 (Jeju city), can buy is now available
+  assert.equal(canBuy(g), true);
+});
+
+test('warpTourist event pauses on event tile and warps to nearest tourist spot on claimEvent', () => {
+  let g = createGame(['Dubu', 'Dubi'], 2);
+  g.players[0].position = 0;
+  // Roll 1+2=3 -> lands on space 3 (travel event), event 17 is warpTourist
+  g = transition(g, { type: 'roll', dice: [1, 2], event: 17 });
+
+  assert.equal(g.players[0].position, 3);
+  assert.equal(g.phase, 'choice');
+  assert.notEqual(g.pendingEvent, null);
+  assert.equal(g.pendingEvent?.effect.kind, 'warpTourist');
+
+  // User confirms
+  g = transition(g, { type: 'claimEvent' });
+
+  // Nearest tourist destination after space 3 is Gyeongju (space 6)
+  assert.equal(g.players[0].position, 6);
+  assert.equal(g.pendingEvent, null);
+  assert.equal(g.phase, 'choice');
+});
+

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type { Game, PlayerId, Action } from '../../lib/game';
-import { assets, rules, canBuy, canUpgrade, canFly, canSail, sellValue } from '../../lib/game';
+import { assets, rules, canBuy, canUpgrade, canFly, canSail, sellValue, playerStartBonus } from '../../lib/game';
 import { board } from '../../lib/board';
 import { events } from '../../lib/events';
 import type { Lang } from '../../lib/board';
@@ -236,6 +236,28 @@ export function BoardCenterHub({
   const inRest = Boolean(game.rulesVersion === 2 && game.restTurns?.[game.current] != null);
   const isAirportActive = Boolean(game && canFly(game, activeActor));
   const isHarborActive = Boolean(game && canSail(game, activeActor));
+  const isHarborAtWait = Boolean(
+    game.rulesVersion === 2 &&
+    activePos === rules.harborSpace &&
+    game.harborTurns?.[activeActor] === 1
+  );
+  const hasEnoughSailCash = activePlayer.cash >= rules.sailFee;
+  const isHarborBlocked = Boolean(
+    game.travelBlocked?.space === rules.harborSpace ||
+    ((game.travelCooldown?.[activeActor] ?? 0) > 0 && activePos === rules.harborSpace)
+  );
+
+  const isAirportAtSpace = Boolean(
+    game.rulesVersion === 2 &&
+    activePos === rules.airportSpace
+  );
+  const hasEnoughFlyCash = activePlayer.cash >= rules.flightFee;
+  const isAirportBlocked = Boolean(
+    game.travelBlocked?.space === rules.airportSpace ||
+    ((game.travelCooldown?.[activeActor] ?? 0) > 0 && activePos === rules.airportSpace)
+  );
+  const isTravelActive = isAirportActive || isHarborActive;
+
   const hasPropertyAction = canBuy(game) || canUpgrade(game);
   const endEmphasized =
     (game.phase === 'choice' || game.phase === 'end') && !extraRoll && !hasPropertyAction;
@@ -299,9 +321,19 @@ export function BoardCenterHub({
     onAction({ type: 'fly', space: targetTravelSpace });
   };
 
+  const handleSkipFly = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'skipFly' });
+  };
+
   const handleSail = () => {
     if (!onAction || actionsBlocked || targetTravelSpace === undefined) return;
     onAction({ type: 'sail', space: targetTravelSpace });
+  };
+
+  const handleSkipSail = () => {
+    if (!onAction || actionsBlocked) return;
+    onAction({ type: 'skipSail' });
   };
 
   const handleSell = (space: number) => {
@@ -331,7 +363,11 @@ export function BoardCenterHub({
 
   const pendingPayment = game.pendingPayment;
   const isPendingRent = pendingPayment?.type === 'rent';
-  const isPendingEvent = pendingPayment?.type === 'event';
+  const pendingEvent = game.pendingEvent;
+  const isPendingEventActive = Boolean(pendingEvent || (pendingPayment?.type === 'event'));
+  const currentEventIdx = pendingEvent?.event ?? (pendingPayment?.type === 'event' ? pendingPayment.event : (isPendingEventActive ? game.lastEvent : null));
+  const modalEvent = currentEventIdx !== null && currentEventIdx !== undefined ? events[currentEventIdx] : null;
+  const modalEffect = modalEvent?.effect;
 
   // Status message
   let statusHintText = '';
@@ -342,8 +378,40 @@ export function BoardCenterHub({
       `📍 ${oppName}의 ${landedSpace?.name[lang]} 도착 · 방문료 ${pendingPayment.amount.toLocaleString()} Dubi를 지불하세요`,
       `Llegada a ${landedSpace?.name[lang]} de ${oppName} · Paga ${pendingPayment.amount.toLocaleString()} Dubi`,
     );
-  } else if (isPendingEvent && pendingPayment) {
-    statusHintText = activeEvent ? `${activeEvent.icon ?? '🎒'} ${activeEvent.text[lang]}` : copy('Event', '여행 이벤트', 'Evento');
+  } else if (isPendingEventActive && modalEvent) {
+    statusHintText = `${modalEvent.icon ?? '🎒'} ${modalEvent.text[lang]}`;
+  } else if (isHarborBlocked || isAirportBlocked) {
+    statusHintText = copy(
+      '🚨 Travel cooldown active! Used Airport/Harbor too recently. Roll dice normally.',
+      '🚨 쿨다운 1턴 적용 중! 공항/항구를 너무 자주 이용하여 이번에는 이용할 수 없습니다. 일반 주사위로 진행하세요.',
+      '🚨 ¡Enfriamiento activo! Aeropuerto/puerto usado recientemente. Tira los dados normalmente.',
+    );
+  } else if (isHarborActive) {
+    statusHintText = copy(
+      `🚢 Harbor Sail (${rules.sailFee} Dubi) · Tap any tile on the board to choose destination!`,
+      `🚢 항구 출항 (${rules.sailFee} Dubi) · 보드판에서 이동할 목적지 타일을 터치하세요!`,
+      `🚢 Puerto (${rules.sailFee} Dubi) · ¡Toca una casilla en el tablero para zarpar!`,
+    );
+  } else if (isAirportActive) {
+    statusHintText = copy(
+      `🛫 Airport Flight (${rules.flightFee} Dubi) · Tap any tile on the board to choose destination!`,
+      `🛫 공항 비행 (${rules.flightFee} Dubi) · 보드판에서 이동할 목적지 타일을 터치하세요!`,
+      `🛫 Vuelo (${rules.flightFee} Dubi) · ¡Toca una casilla en el tablero para volar!`,
+    );
+  } else if (isHarborAtWait && !hasEnoughSailCash) {
+    const missing = rules.sailFee - activePlayer.cash;
+    statusHintText = copy(
+      `Short by ${missing} Dubi for Harbor sail (Need ${rules.sailFee} Dubi) · Roll dice to move`,
+      `항구 출항 요금 ${rules.sailFee} Dubi 중 ${missing} Dubi 부족 · 주사위를 굴려 이동하세요`,
+      `Faltan ${missing} Dubi para zarpar · Tira dados`,
+    );
+  } else if (isAirportAtSpace && !hasEnoughFlyCash) {
+    const missing = rules.flightFee - activePlayer.cash;
+    statusHintText = copy(
+      `Short by ${missing} Dubi for Airport flight (Need ${rules.flightFee} Dubi)`,
+      `비행 요금 ${rules.flightFee} Dubi 중 ${missing} Dubi 부족`,
+      `Faltan ${missing} Dubi para volar`,
+    );
   } else if (game.phase === 'roll') {
     if (isRolling || pendingAction === 'roll') {
       statusHintText = copy('Rolling dice...', '주사위를 굴리고 있습니다...', 'Tirando dados...');
@@ -546,6 +614,110 @@ export function BoardCenterHub({
                   </div>
                 </div>
               </div>
+            ) : isHarborActive ? (
+              /* Harbor Travel Selection Deck (Dice window hidden!) */
+              <div className="hub-travel-panel panel-harbor" role="region" aria-label="Harbor sail controls">
+                <div className="hub-travel-badge-row">
+                  <span className="hub-travel-tag tag-harbor">
+                    🚢 {copy('HARBOR SET SAIL', '항구 출항', 'SALIDA PUERTO')} · {rules.sailFee} Dubi
+                  </span>
+                  <span className="hub-travel-dest-number">
+                    #{String(targetTravelSpace + 1).padStart(2, '0')}
+                  </span>
+                </div>
+                <div className="hub-travel-prompt">
+                  👆 {copy('Tap any tile on board to choose destination!', '보드판에서 가고 싶은 칸을 터치하세요!', '¡Toca una casilla en el tablero!')}
+                </div>
+                <div className="hub-travel-dest-card">
+                  <span className="travel-dest-icon">{board[targetTravelSpace].icon}</span>
+                  <div className="travel-dest-info">
+                    <strong className="travel-dest-name">
+                      {board[targetTravelSpace].name[lang]}
+                      {board[targetTravelSpace].kind === 'tourist' && <span className="tourist-star">✦</span>}
+                    </strong>
+                    <span className="travel-dest-sub">
+                      {targetTravelSpace < rules.harborSpace
+                        ? copy(`Passing Start: +${playerStartBonus(game, activeActor)} Dubi 💰`, `출발선 통과 보너스: +${playerStartBonus(game, activeActor)} Dubi 💰`, `Cruza Salida: +${playerStartBonus(game, activeActor)} Dubi`)
+                        : copy(`Selected destination: Space #${targetTravelSpace + 1}`, `선택된 목적지: #${targetTravelSpace + 1} 칸`, `Destino: Casilla #${targetTravelSpace + 1}`)}
+                    </span>
+                  </div>
+                </div>
+                <div className="hub-travel-actions">
+                  <button
+                    type="button"
+                    className="hub-btn hub-btn-travel hub-btn-sail"
+                    disabled={actionsBlocked || activePlayer.cash < rules.sailFee}
+                    onClick={handleSail}
+                  >
+                    <span className="hub-btn-icon">🚢</span>
+                    <span className="hub-btn-text">
+                      #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Set Sail (20 Dubi)', '출항하기 (20 Dubi)', 'Zarpar (20 Dubi)')}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="hub-btn hub-btn-travel-skip"
+                    disabled={actionsBlocked}
+                    onClick={handleSkipSail}
+                  >
+                    <span className="hub-btn-text">
+                      {copy('Roll Dice Instead', '일반 주사위 굴리기', 'Tirar dados')}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            ) : isAirportActive ? (
+              /* Airport Travel Selection Deck (Dice window hidden!) */
+              <div className="hub-travel-panel panel-airport" role="region" aria-label="Airport flight controls">
+                <div className="hub-travel-badge-row">
+                  <span className="hub-travel-tag tag-airport">
+                    🛫 {copy('AIRPORT FLIGHT', '공항 비행', 'VUELO AEROPUERTO')} · {rules.flightFee} Dubi
+                  </span>
+                  <span className="hub-travel-dest-number">
+                    #{String(targetTravelSpace + 1).padStart(2, '0')}
+                  </span>
+                </div>
+                <div className="hub-travel-prompt">
+                  👆 {copy('Tap any tile on board to choose destination!', '보드판에서 가고 싶은 칸을 터치하세요!', '¡Toca una casilla en el tablero!')}
+                </div>
+                <div className="hub-travel-dest-card">
+                  <span className="travel-dest-icon">{board[targetTravelSpace].icon}</span>
+                  <div className="travel-dest-info">
+                    <strong className="travel-dest-name">
+                      {board[targetTravelSpace].name[lang]}
+                      {board[targetTravelSpace].kind === 'tourist' && <span className="tourist-star">✦</span>}
+                    </strong>
+                    <span className="travel-dest-sub">
+                      {targetTravelSpace <= rules.airportSpace
+                        ? copy(`Passing Start: +${playerStartBonus(game, activeActor)} Dubi 💰`, `출발선 통과 보너스: +${playerStartBonus(game, activeActor)} Dubi 💰`, `Cruza Salida: +${playerStartBonus(game, activeActor)} Dubi`)
+                        : copy(`Selected destination: Space #${targetTravelSpace + 1}`, `선택된 목적지: #${targetTravelSpace + 1} 칸`, `Destino: Casilla #${targetTravelSpace + 1}`)}
+                    </span>
+                  </div>
+                </div>
+                <div className="hub-travel-actions">
+                  <button
+                    type="button"
+                    className="hub-btn hub-btn-travel hub-btn-fly"
+                    disabled={actionsBlocked || activePlayer.cash < rules.flightFee}
+                    onClick={handleFly}
+                  >
+                    <span className="hub-btn-icon">🛫</span>
+                    <span className="hub-btn-text">
+                      #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Fly Now (50 Dubi)', '비행하기 (50 Dubi)', 'Volar (50 Dubi)')}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="hub-btn hub-btn-travel-skip"
+                    disabled={actionsBlocked}
+                    onClick={handleSkipFly}
+                  >
+                    <span className="hub-btn-text">
+                      {copy('Skip Flight', '비행 건너뛰기', 'Saltar vuelo')}
+                    </span>
+                  </button>
+                </div>
+              </div>
             ) : (
               <>
                 {/* Dice Visual Box */}
@@ -634,31 +806,29 @@ export function BoardCenterHub({
                         </button>
                       )}
 
-                      {isPendingEvent && pendingPayment && (
+                      {isPendingEventActive && (
                         <button
                           type="button"
-                          className={`hub-btn ${pendingPayment.isGain ? 'hub-btn-claim-event' : 'hub-btn-pay-event'}`}
+                          className={`hub-btn ${modalEffect?.kind === 'cash' && modalEffect.amount < 0 ? 'hub-btn-pay-event' : 'hub-btn-claim-event'}`}
                           disabled={actionsBlocked}
                           onClick={handleClaimEvent}
                         >
-                          <span className="hub-btn-icon">{pendingPayment.isGain ? '💰' : '💸'}</span>
+                          <span className="hub-btn-icon">{modalEffect?.kind === 'cash' && modalEffect.amount < 0 ? '💸' : '🎒'}</span>
                           <span className="hub-btn-text">
-                            {pendingPayment.isGain
-                              ? copy(
-                                  `Collect ${pendingPayment.amount.toLocaleString()} Dubi`,
-                                  `${pendingPayment.amount.toLocaleString()} Dubi 받기`,
-                                  `Cobrar ${pendingPayment.amount.toLocaleString()} Dubi`,
-                                )
-                              : copy(
-                                  `Pay ${pendingPayment.amount.toLocaleString()} Dubi`,
-                                  `${pendingPayment.amount.toLocaleString()} Dubi 납부하기`,
-                                  `Pagar ${pendingPayment.amount.toLocaleString()} Dubi`,
-                                )}
+                            {modalEffect?.kind === 'move'
+                              ? copy(`Move ${modalEffect.steps > 0 ? `+${modalEffect.steps}` : modalEffect.steps} Spaces`, `${modalEffect.steps > 0 ? `${modalEffect.steps}칸 전진` : `${Math.abs(modalEffect.steps)}칸 후진`}하기`, `Mover ${modalEffect.steps}`)
+                              : modalEffect?.kind === 'cash'
+                                ? (modalEffect.amount > 0
+                                    ? copy(`Collect ${modalEffect.amount} Dubi`, `${modalEffect.amount} Dubi 받기`, `Cobrar ${modalEffect.amount} Dubi`)
+                                    : copy(`Pay ${Math.abs(modalEffect.amount)} Dubi`, `${Math.abs(modalEffect.amount)} Dubi 납부하기`, `Pagar ${Math.abs(modalEffect.amount)} Dubi`))
+                                : modalEffect?.kind === 'warpTourist'
+                                  ? copy('Warp to Tourist Spot', '관광지로 이동', 'Ir a turismo')
+                                  : copy('Confirm Event', '이벤트 확인', 'Confirmar evento')}
                           </span>
                         </button>
                       )}
 
-                      {!pendingPayment && landedSpace?.type === 'city' && !ownedProperty && (
+                      {!pendingPayment && !pendingEvent && landedSpace?.type === 'city' && !ownedProperty && (
                         canBuy(game) ? (
                           <button
                             type="button"
@@ -688,7 +858,7 @@ export function BoardCenterHub({
                         )
                       )}
 
-                      {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && !isTourist && (
+                      {!pendingPayment && !pendingEvent && landedSpace?.type === 'city' && ownedProperty && !isTourist && (
                         (ownedProperty.level ?? 0) < 3 ? (
                           canUpgrade(game) ? (
                             <button
@@ -720,41 +890,13 @@ export function BoardCenterHub({
                         ) : null
                       )}
 
-                      {!pendingPayment && landedSpace?.type === 'city' && ownedProperty && (ownedProperty.level ?? 0) >= 3 && !isTourist && (
+                      {!pendingPayment && !pendingEvent && landedSpace?.type === 'city' && ownedProperty && (ownedProperty.level ?? 0) >= 3 && !isTourist && (
                         <span className="hub-landmark-chip">
                           👑 {copy('Landmark Max', '최고 등급', 'Monumento Máx')}
                         </span>
                       )}
 
-                      {!pendingPayment && isAirportActive && (
-                        <button
-                          type="button"
-                          className="hub-btn hub-btn-fly"
-                          disabled={actionsBlocked || activePlayer.cash < rules.flightFee}
-                          onClick={handleFly}
-                        >
-                          <span className="hub-btn-icon">✈️</span>
-                          <span className="hub-btn-text">
-                            #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Fly', '비행', 'Volar')}
-                          </span>
-                        </button>
-                      )}
-
-                      {!pendingPayment && isHarborActive && (
-                        <button
-                          type="button"
-                          className="hub-btn hub-btn-sail"
-                          disabled={actionsBlocked || activePlayer.cash < rules.sailFee}
-                          onClick={handleSail}
-                        >
-                          <span className="hub-btn-icon">🚢</span>
-                          <span className="hub-btn-text">
-                            #{targetTravelSpace + 1} {board[targetTravelSpace].name[lang]} {copy('Sail', '항해', 'Navegar')}
-                          </span>
-                        </button>
-                      )}
-
-                      {!pendingPayment && (
+                      {!pendingPayment && !pendingEvent && (
                         <button
                           type="button"
                           className={`hub-btn hub-btn-end ${endEmphasized ? 'hub-btn-end-primary' : 'hub-btn-end-outline'}`}
@@ -1110,8 +1252,152 @@ export function BoardCenterHub({
         )}
       </div>
 
+      {/* Travel Event Popup Modal inside Board */}
+      {isPendingEventActive && modalEvent && modalEffect && (
+        <div className="hub-event-popup-overlay" role="dialog" aria-modal="true" aria-label="Travel event announcement">
+          <div className="hub-event-popup-card">
+            <div className="hub-event-popup-header">
+              <span className="hub-event-popup-badge">
+                🎒 {copy('TRAVEL EVENT', '여행 이벤트', 'EVENTO DE VIAJE')} · #{(currentEventIdx ?? 0) + 1}
+              </span>
+              <span className="hub-event-hero-icon">{modalEvent.icon ?? '🎒'}</span>
+            </div>
+            <h3 className="hub-event-popup-title">{modalEvent.text[lang]}</h3>
+            <div className="hub-event-popup-details">
+              {modalEffect.kind === 'move' && (
+                <div className="hub-event-effect-badge badge-move">
+                  <span className="effect-icon">🚂</span>
+                  <span className="effect-text">
+                    {modalEffect.steps > 0
+                      ? copy(
+                          `Advance ${modalEffect.steps} spaces to [${board[((activePos + modalEffect.steps) % 40 + 40) % 40]?.name[lang]}]`,
+                          `앞으로 ${modalEffect.steps}칸 전진 ➔ [${board[((activePos + modalEffect.steps) % 40 + 40) % 40]?.name[lang]}] 도착`,
+                          `Avanza ${modalEffect.steps} casillas a [${board[((activePos + modalEffect.steps) % 40 + 40) % 40]?.name[lang]}]`,
+                        )
+                      : copy(
+                          `Move back ${Math.abs(modalEffect.steps)} spaces to [${board[((activePos + modalEffect.steps) % 40 + 40) % 40]?.name[lang]}]`,
+                          `뒤로 ${Math.abs(modalEffect.steps)}칸 후진 ➔ [${board[((activePos + modalEffect.steps) % 40 + 40) % 40]?.name[lang]}] 도착`,
+                          `Retrocede ${Math.abs(modalEffect.steps)} casillas`,
+                        )}
+                  </span>
+                </div>
+              )}
+              {modalEffect.kind === 'cash' && (
+                <div className={`hub-event-effect-badge ${modalEffect.amount > 0 ? 'badge-gain' : 'badge-loss'}`}>
+                  <span className="effect-icon">{modalEffect.amount > 0 ? '💰' : '💸'}</span>
+                  <span className="effect-text">
+                    {modalEffect.amount > 0
+                      ? `+${modalEffect.amount.toLocaleString()} Dubi ${copy('Bonus reward', '보너스 획득', 'Recompensa')}`
+                      : `${modalEffect.amount.toLocaleString()} Dubi ${copy('Penalty payment', '범칙금 납부', 'Multa')}`}
+                  </span>
+                </div>
+              )}
+              {modalEffect.kind === 'warpTourist' && (
+                <div className="hub-event-effect-badge badge-warp">
+                  <span className="effect-icon">📸</span>
+                  <span className="effect-text">
+                    {copy('Warp directly to nearest Tourist Destination!', '가장 가까운 명품 관광지로 즉시 직행!', '¡Viaje directo al destino turístico más cercano!')}
+                  </span>
+                </div>
+              )}
+              {modalEffect.kind === 'startBonus' && (
+                <div className="hub-event-effect-badge badge-buff">
+                  <span className="effect-icon">💼</span>
+                  <span className="effect-text">
+                    {copy(`Salary bonus permanently +${modalEffect.amount} Dubi per lap!`, `출발선 통과 월급 +${modalEffect.amount} Dubi 영구 인상!`, `¡Salario +${modalEffect.amount} Dubi por vuelta!`)}
+                  </span>
+                </div>
+              )}
+              {modalEffect.kind === 'guaranteedDoubles' && (
+                <div className="hub-event-effect-badge badge-buff">
+                  <span className="effect-icon">✨</span>
+                  <span className="effect-text">
+                    {copy('Guaranteed Doubles on next dice roll!', '다음 턴 확정 더블 찬스 획득!', '¡Dobles garantizados!')}
+                  </span>
+                </div>
+              )}
+              {modalEffect.kind === 'freePass' && (
+                <div className="hub-event-effect-badge badge-buff">
+                  <span className="effect-icon">🎫</span>
+                  <span className="effect-text">
+                    {copy('Free Pass x1 received! Next opponent toll is free.', '통행료 면제권 1장 획득! (다음 방문 시 무료)', '¡Pase de peaje gratis!')}
+                  </span>
+                </div>
+              )}
+              {modalEffect.kind === 'freeUpgrade' && (
+                <div className="hub-event-effect-badge badge-buff">
+                  <span className="effect-icon">🏗️</span>
+                  <span className="effect-text">
+                    {copy('Free 1-level building upgrade coupon!', '소유 도시 1단계 무료 증축 혜택 획득!', '¡Mejora de 1 nivel gratis!')}
+                  </span>
+                </div>
+              )}
+              {modalEffect.kind === 'singleDie' && (
+                <div className="hub-event-effect-badge badge-buff">
+                  <span className="effect-icon">🚶</span>
+                  <span className="effect-text">
+                    {copy('Single Die restriction on next turn (1~6 spaces)', '다음 턴 주사위 1개만 굴림 (1~6칸 이동)', 'Tirar solo 1 dado')}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="hub-event-popup-actions">
+              {isMyTurn ? (
+                <button
+                  type="button"
+                  className={`hub-event-confirm-btn btn-effect-${modalEffect.kind} ${modalEffect.kind === 'cash' && modalEffect.amount < 0 ? 'btn-cash-loss' : ''}`}
+                  disabled={actionsBlocked}
+                  onClick={handleClaimEvent}
+                >
+                  {modalEffect.kind === 'move' && (
+                    <>
+                      <span className="btn-icon">🚂</span>
+                      <span>
+                        {modalEffect.steps > 0
+                          ? copy(`Advance ${modalEffect.steps} Spaces ➔`, `${modalEffect.steps}칸 전진하기 ➔`, `Avanzar ${modalEffect.steps} casillas ➔`)
+                          : copy(`Move Back ${Math.abs(modalEffect.steps)} Spaces ➔`, `${Math.abs(modalEffect.steps)}칸 후진하기 ➔`, `Retroceder ${Math.abs(modalEffect.steps)} casillas ➔`)}
+                      </span>
+                    </>
+                  )}
+                  {modalEffect.kind === 'cash' && modalEffect.amount > 0 && (
+                    <>
+                      <span className="btn-icon">💰</span>
+                      <span>{copy(`Collect ${modalEffect.amount.toLocaleString()} Dubi`, `${modalEffect.amount.toLocaleString()} Dubi 받기`, `Cobrar ${modalEffect.amount.toLocaleString()} Dubi`)}</span>
+                    </>
+                  )}
+                  {modalEffect.kind === 'cash' && modalEffect.amount < 0 && (
+                    <>
+                      <span className="btn-icon">💸</span>
+                      <span>{copy(`Pay ${Math.abs(modalEffect.amount).toLocaleString()} Dubi`, `${Math.abs(modalEffect.amount).toLocaleString()} Dubi 납부하기`, `Pagar ${Math.abs(modalEffect.amount).toLocaleString()} Dubi`)}</span>
+                    </>
+                  )}
+                  {modalEffect.kind === 'warpTourist' && (
+                    <>
+                      <span className="btn-icon">📸</span>
+                      <span>{copy('Warp to Tourist Destination ➔', '관광지로 직행하기 ➔', 'Ir a turismo ➔')}</span>
+                    </>
+                  )}
+                  {!['move', 'cash', 'warpTourist'].includes(modalEffect.kind) && (
+                    <>
+                      <span className="btn-icon">✨</span>
+                      <span>{copy('Confirm & Continue ➔', '확인하고 계속하기 ➔', 'Confirmar y Continuar ➔')}</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div className="hub-event-waiting-badge">
+                  <span className="waiting-spinner">⏳</span>
+                  <span>{copy(`Waiting for ${names[game.current] || 'Opponent'} to confirm...`, `${names[game.current] || '상대방'} 플레이어가 확인 중입니다...`, `Esperando confirmación...`)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Travel Event Display */}
-      {activeEvent && activeEffect && (
+      {!isPendingEventActive && activeEvent && activeEffect && (
         <div className="hub-event-card" role="status" aria-label="Travel event announcement">
           <div className="hub-event-top">
             <span className="hub-event-tag">{activeEvent.icon ?? '🎒'} {copy('Travel Event', '여행 이벤트', 'Evento')}</span>

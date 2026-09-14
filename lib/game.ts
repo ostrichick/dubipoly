@@ -1,5 +1,5 @@
 import { board } from './board.ts';
-import { events } from './events.ts';
+import { events, type TravelEventEffect } from './events.ts';
 export const rules = {
   startingCash: 1500,
   startBonus: 200,
@@ -57,7 +57,8 @@ export type Entry = {
     | 'harbor-wait'
     | 'freepass'
     | 'free-upgrade'
-    | 'debt-pending';
+    | 'debt-pending'
+    | 'travel-cooldown';
   player: PlayerId;
   amount?: number;
   space?: number;
@@ -78,6 +79,11 @@ export type PendingDebt = {
   reason: 'rent' | 'event' | 'rest';
   space?: number;
 };
+export type PendingEvent = {
+  event: number;
+  effect: TravelEventEffect;
+  player: PlayerId;
+};
 export type PendingPayment = {
   type: 'rent' | 'event';
   amount: number;
@@ -93,6 +99,8 @@ export type Game = {
   extraRoll?: boolean;
   restTurns?: [number | null, number | null];
   harborTurns?: [number | null, number | null];
+  travelCooldown?: [number, number];
+  travelBlocked?: { player: PlayerId; space: number } | null;
   players: [Player, Player];
   properties: Record<number, { owner: PlayerId; level: number }>;
   current: PlayerId;
@@ -100,6 +108,7 @@ export type Game = {
   phase: Phase;
   pendingDebt?: PendingDebt | null;
   pendingPayment?: PendingPayment | null;
+  pendingEvent?: PendingEvent | null;
   dice: [number, number] | null;
   lastEvent: number | null;
   logs: Entry[];
@@ -120,6 +129,8 @@ export function createGame(
     extraRoll: false,
     restTurns: [null, null],
     harborTurns: [null, null],
+    travelCooldown: [0, 0],
+    travelBlocked: null,
     players: names.map((name) => ({
       name: name.trim().slice(0, 24),
       cash: rules.startingCash,
@@ -134,6 +145,7 @@ export function createGame(
     phase: 'roll',
     pendingDebt: null,
     pendingPayment: null,
+    pendingEvent: null,
     dice: null,
     lastEvent: null,
     logs: [],
@@ -197,6 +209,7 @@ export function canBuy(g: Game) {
   return (
     g.phase === 'choice' &&
     !g.pendingPayment &&
+    !g.pendingEvent &&
     s.type === 'city' &&
     !g.properties[p.position] &&
     p.cash >= s.price!
@@ -209,6 +222,7 @@ export function canUpgrade(g: Game) {
   return (
     g.phase === 'choice' &&
     !g.pendingPayment &&
+    !g.pendingEvent &&
     s.type === 'city' &&
     !(g.rulesVersion === 2 && s.kind === 'tourist') &&
     !!prop &&
@@ -233,7 +247,8 @@ export function canSell(g: Game, index: number, actor: PlayerId = g.current) {
 export function canFly(g: Game, actor: PlayerId = g.current) {
   if (g.rulesVersion !== 2) return false;
   if (actor !== g.current) return false;
-  if (g.phase !== 'choice') return false;
+  if (g.phase !== 'choice' && g.phase !== 'roll') return false;
+  if ((g.travelCooldown?.[actor] ?? 0) > 0) return false;
   const p = g.players[actor];
   return p.position === rules.airportSpace && p.cash >= rules.flightFee;
 }
@@ -241,6 +256,7 @@ export function canSail(g: Game, actor: PlayerId = g.current) {
   if (g.rulesVersion !== 2) return false;
   if (actor !== g.current) return false;
   if (g.phase !== 'roll') return false;
+  if ((g.travelCooldown?.[actor] ?? 0) > 0) return false;
   const p = g.players[actor];
   return (
     p.position === rules.harborSpace &&
@@ -318,12 +334,34 @@ function land(g: Game, allowEvent: boolean, event: number) {
     s = board[index];
   g.phase = 'end';
   if (g.rulesVersion === 2 && index === rules.airportSpace) {
+    if ((g.travelCooldown?.[g.current] ?? 0) > 0) {
+      g.travelBlocked = { player: g.current, space: rules.airportSpace };
+      log(g, {
+        kind: 'flight',
+        player: g.current,
+        space: rules.airportSpace,
+        detail: 'travel-cooldown',
+      });
+      g.phase = 'end';
+      return;
+    }
     if (g.players[g.current].cash >= rules.flightFee) {
       g.phase = 'choice';
     }
     return;
   }
   if (g.rulesVersion === 2 && index === rules.harborSpace) {
+    if ((g.travelCooldown?.[g.current] ?? 0) > 0) {
+      g.travelBlocked = { player: g.current, space: rules.harborSpace };
+      log(g, {
+        kind: 'sail',
+        player: g.current,
+        space: rules.harborSpace,
+        detail: 'travel-cooldown',
+      });
+      g.phase = 'end';
+      return;
+    }
     g.harborTurns![g.current] = 1;
     g.doubles = 0;
     g.extraRoll = false;
@@ -382,14 +420,24 @@ function land(g: Game, allowEvent: boolean, event: number) {
   if (s.type === 'event' && allowEvent) {
     g.lastEvent = event;
     const effect = events[event].effect;
-    if (effect.kind === 'cash') {
-      if (g.rulesVersion === 1) {
-        log(g, { kind: 'event', player: g.current, event });
+    if (g.rulesVersion === 1) {
+      log(g, { kind: 'event', player: g.current, event });
+      if (effect.kind === 'cash') {
         if (effect.amount < 0) pay(g, -effect.amount);
         else g.players[g.current].cash += effect.amount;
-        return;
+      } else if (effect.kind === 'move') {
+        move(g, effect.steps);
+        land(g, false, event);
       }
-      g.phase = 'choice';
+      return;
+    }
+    g.phase = 'choice';
+    g.pendingEvent = {
+      event,
+      effect,
+      player: g.current,
+    };
+    if (effect.kind === 'cash') {
       g.pendingPayment = {
         type: 'event',
         amount: Math.abs(effect.amount),
@@ -398,44 +446,6 @@ function land(g: Game, allowEvent: boolean, event: number) {
         event,
         isGain: effect.amount > 0,
       };
-      return;
-    }
-    log(g, { kind: 'event', player: g.current, event });
-    if (effect.kind === 'move') {
-      move(g, effect.steps);
-      land(g, false, event);
-    } else if (effect.kind === 'startBonus') {
-      g.players[g.current].startBonusBonus = (g.players[g.current].startBonusBonus ?? 0) + effect.amount;
-    } else if (effect.kind === 'singleDie') {
-      g.players[g.current].nextRollModifier = 'single';
-    } else if (effect.kind === 'guaranteedDoubles') {
-      g.players[g.current].nextRollModifier = 'doubles';
-    } else if (effect.kind === 'freePass') {
-      g.players[g.current].freePasses = (g.players[g.current].freePasses ?? 0) + 1;
-    } else if (effect.kind === 'freeUpgrade') {
-      const ownedCityIndexes = Object.keys(g.properties)
-        .map(Number)
-        .filter((sp) => {
-          const prop = g.properties[sp];
-          const tile = board[sp];
-          return prop?.owner === g.current && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
-        })
-        .sort((a, b) => g.properties[a].level - g.properties[b].level);
-
-      if (ownedCityIndexes.length > 0) {
-        const target = ownedCityIndexes[0];
-        g.properties[target].level++;
-        log(g, { kind: 'upgrade', player: g.current, space: target, detail: 'free-upgrade' });
-      } else {
-        g.players[g.current].cash += 100;
-      }
-    } else if (effect.kind === 'warpTourist') {
-      const currentPos = g.players[g.current].position;
-      const touristIndexes = [6, 16, 25, 36];
-      const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
-      const stepsToTourist = (nextTourist - currentPos + 40) % 40;
-      move(g, stepsToTourist);
-      land(g, false, event);
     }
     return;
   }
@@ -560,7 +570,7 @@ export function transition(
     return state;
   if (
     action.type === 'claimEvent' &&
-    (state.phase !== 'choice' || state.pendingPayment?.type !== 'event')
+    (state.phase !== 'choice' || (!state.pendingPayment && !state.pendingEvent))
   )
     return state;
   if (
@@ -585,6 +595,7 @@ export function transition(
   const g = structuredClone(state);
   g.revision++;
   if (action.type === 'roll') {
+    g.travelBlocked = null;
     if (g.harborTurns?.[actor] === 1) {
       g.harborTurns[actor] = null;
     }
@@ -709,6 +720,9 @@ export function transition(
   if (action.type === 'fly') {
     pay(g, rules.flightFee);
     if (g.phase === 'finished') return g;
+    g.travelCooldown = g.travelCooldown ?? [0, 0];
+    g.travelCooldown[actor] = 2;
+    g.travelBlocked = null;
     const dest = action.space;
     if (dest <= rules.airportSpace) {
       const bonus = playerStartBonus(g, actor);
@@ -733,6 +747,9 @@ export function transition(
     pay(g, rules.sailFee);
     g.harborTurns![actor] = null;
     if (g.phase === 'finished') return g;
+    g.travelCooldown = g.travelCooldown ?? [0, 0];
+    g.travelCooldown[actor] = 2;
+    g.travelBlocked = null;
     const dest = action.space;
     if (dest < rules.harborSpace) {
       const bonus = playerStartBonus(g, actor);
@@ -763,28 +780,134 @@ export function transition(
     }
   }
   if (action.type === 'claimEvent') {
-    if (g.pendingPayment && g.pendingPayment.type === 'event') {
-      const { amount, isGain, event } = g.pendingPayment;
-      g.pendingPayment = null;
-      log(g, { kind: 'event', player: actor, event });
-      if (isGain) {
-        g.players[actor].cash += amount;
-        g.phase = 'end';
-        finishLanding(g);
-      } else {
-        pay(g, amount, undefined, 'event');
-        if ((g.phase as Phase) !== 'debt' && (g.phase as Phase) !== 'finished') {
+    const eventIdx = g.pendingEvent?.event ?? g.pendingPayment?.event ?? g.lastEvent ?? 0;
+    const effect = events[eventIdx]?.effect;
+    g.pendingEvent = null;
+    g.pendingPayment = null;
+    log(g, { kind: 'event', player: actor, event: eventIdx });
+
+    if (effect) {
+      if (effect.kind === 'cash') {
+        if (effect.amount > 0) {
+          g.players[actor].cash += effect.amount;
           g.phase = 'end';
           finishLanding(g);
+        } else {
+          pay(g, -effect.amount, undefined, 'event');
+          if ((g.phase as Phase) !== 'debt' && (g.phase as Phase) !== 'finished') {
+            g.phase = 'end';
+            finishLanding(g);
+          }
         }
+      } else if (effect.kind === 'move') {
+        move(g, effect.steps);
+        land(g, false, eventIdx);
+        finishLanding(g);
+      } else if (effect.kind === 'warpTourist') {
+        const currentPos = g.players[actor].position;
+        const touristIndexes = [6, 16, 25, 36];
+        const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
+        const stepsToTourist = (nextTourist - currentPos + 40) % 40;
+        move(g, stepsToTourist);
+        land(g, false, eventIdx);
+        finishLanding(g);
+      } else if (effect.kind === 'startBonus') {
+        g.players[actor].startBonusBonus = (g.players[actor].startBonusBonus ?? 0) + effect.amount;
+        g.phase = 'end';
+        finishLanding(g);
+      } else if (effect.kind === 'singleDie') {
+        g.players[actor].nextRollModifier = 'single';
+        g.phase = 'end';
+        finishLanding(g);
+      } else if (effect.kind === 'guaranteedDoubles') {
+        g.players[actor].nextRollModifier = 'doubles';
+        g.phase = 'end';
+        finishLanding(g);
+      } else if (effect.kind === 'freePass') {
+        g.players[actor].freePasses = (g.players[actor].freePasses ?? 0) + 1;
+        g.phase = 'end';
+        finishLanding(g);
+      } else if (effect.kind === 'freeUpgrade') {
+        const ownedCityIndexes = Object.keys(g.properties)
+          .map(Number)
+          .filter((sp) => {
+            const prop = g.properties[sp];
+            const tile = board[sp];
+            return prop?.owner === actor && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
+          })
+          .sort((a, b) => g.properties[a].level - g.properties[b].level);
+
+        if (ownedCityIndexes.length > 0) {
+          const target = ownedCityIndexes[0];
+          g.properties[target].level++;
+          log(g, { kind: 'upgrade', player: actor, space: target, detail: 'free-upgrade' });
+        } else {
+          g.players[actor].cash += 100;
+        }
+        g.phase = 'end';
+        finishLanding(g);
       }
-      return g;
     }
+    return g;
   }
   if (action.type === 'skipSail') {
     g.harborTurns![actor] = null;
   }
   if (action.type === 'end') {
+    if (g.pendingEvent) {
+      const eventIdx = g.pendingEvent.event;
+      const effect = events[eventIdx]?.effect;
+      g.pendingEvent = null;
+      g.pendingPayment = null;
+      log(g, { kind: 'event', player: actor, event: eventIdx });
+      if (effect) {
+        if (effect.kind === 'cash') {
+          if (effect.amount > 0) {
+            g.players[actor].cash += effect.amount;
+          } else {
+            pay(g, -effect.amount, undefined, 'event');
+            if ((g.phase as Phase) === 'debt' || (g.phase as Phase) === 'finished') {
+              return g;
+            }
+          }
+        } else if (effect.kind === 'move') {
+          move(g, effect.steps);
+          land(g, false, eventIdx);
+        } else if (effect.kind === 'warpTourist') {
+          const currentPos = g.players[actor].position;
+          const touristIndexes = [6, 16, 25, 36];
+          const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
+          const stepsToTourist = (nextTourist - currentPos + 40) % 40;
+          move(g, stepsToTourist);
+          land(g, false, eventIdx);
+        } else if (effect.kind === 'startBonus') {
+          g.players[actor].startBonusBonus = (g.players[actor].startBonusBonus ?? 0) + effect.amount;
+        } else if (effect.kind === 'singleDie') {
+          g.players[actor].nextRollModifier = 'single';
+        } else if (effect.kind === 'guaranteedDoubles') {
+          g.players[actor].nextRollModifier = 'doubles';
+        } else if (effect.kind === 'freePass') {
+          g.players[actor].freePasses = (g.players[actor].freePasses ?? 0) + 1;
+        } else if (effect.kind === 'freeUpgrade') {
+          const ownedCityIndexes = Object.keys(g.properties)
+            .map(Number)
+            .filter((sp) => {
+              const prop = g.properties[sp];
+              const tile = board[sp];
+              return prop?.owner === actor && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
+            })
+            .sort((a, b) => g.properties[a].level - g.properties[b].level);
+
+          if (ownedCityIndexes.length > 0) {
+            const target = ownedCityIndexes[0];
+            g.properties[target].level++;
+            log(g, { kind: 'upgrade', player: actor, space: target, detail: 'free-upgrade' });
+          } else {
+            g.players[actor].cash += 100;
+          }
+        }
+      }
+    }
     if (g.pendingPayment) {
       if (g.pendingPayment.type === 'rent') {
         const { amount, to, space } = g.pendingPayment;
@@ -814,6 +937,10 @@ export function transition(
     }
     g.doubles = 0;
     g.extraRoll = false;
+    g.travelBlocked = null;
+    if (g.travelCooldown && g.travelCooldown[actor] > 0) {
+      g.travelCooldown[actor]--;
+    }
     if (g.current === 1 && g.round === rules.rounds) {
       g.phase = 'finished';
       g.reason = 'rounds';
