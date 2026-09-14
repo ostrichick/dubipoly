@@ -114,11 +114,19 @@ MobilePoly/
 │   ├── globals.css                  # Tailwind v4 글로벌 스타일 및 반응형 레이아웃
 │   ├── layout.tsx                   # 메타데이터, 뷰포트, PWA 매니페스트 링크
 │   └── page.tsx                     # 메인 단일 페이지 (보드, 컨트롤, 방 모달, PWA/오프라인)
+├── components/
+│   ├── game/
+│   │   ├── BoardMiniMap.tsx         # 40칸 보드 전체 조감도 팝업 미니맵
+│   │   ├── QuickReaction.tsx        # 두부 퀵 리액션 이모티콘 런처 & 플로팅 버블
+│   │   └── RoomQrCode.tsx           # 대기실 방 참여용 1초 스캔 QR 코드
+│   └── ui/                          # shadcn UI 컴포넌트 풀세트
 ├── lib/
+│   ├── audio.ts                     # Web Audio API 무설치 신디사이저 SFX & 햅틱 엔진
 │   ├── board.ts                     # 40개 칸 상세 정보(도시명, 지역, 국기, 가격, 렌트비)
 │   ├── events.ts                    # 12종 이벤트 카드 정의
-│   ├── game.ts                      # 순수 함수형 게임 룰/엔진 (주사위, 자산, 이동, 파산, 리플레이)
+│   ├── game.ts                      # 순수 함수형 게임 룰/엔진 (주사위, 자산, 이동, 파산, 매각, 리플레이)
 │   ├── game-copy.ts                 # 3개 국어(KO, EN, ES) UI 텍스트 및 로그 메시지
+│   ├── qr.ts                        # 방 링크 QR 코드 생성기
 │   ├── room.ts                      # URL 기반 룸 파라미터 파싱 및 공유 URL 생성
 │   └── server-rooms.ts              # D1/메모리 방 저장소, CAS 동시성 제어, 하트비트
 ├── db/
@@ -131,7 +139,7 @@ MobilePoly/
 │   ├── game.test.ts                 # 단일 기기 룰 엔진 및 100회 시뮬레이션
 │   ├── server-rooms.test.ts         # 방 스토리지 및 CAS 락 테스트
 │   ├── rooms-flow.test.ts           # 2인 온라인 플로우 및 장애 주입 통합 테스트
-│   └── special-rules.test.ts        # 더블, 휴식처, 관광지, 독점 룰 검증
+│   └── special-rules.test.ts        # 더블, 휴식처, 관광지, 독점, 긴급 매각 룰 검증
 └── public/
     ├── sw.js                        # PWA 서비스 워커 (앱 셸 캐싱)
     ├── dubu.png                     # 마스코트 두부 캐릭터 에셋

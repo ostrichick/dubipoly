@@ -35,9 +35,28 @@ export async function POST(
     if (
       !body ||
       typeof body.type !== 'string' ||
-      !['roll', 'buy', 'upgrade', 'end', 'bail'].includes(body.type)
+      !['roll', 'buy', 'upgrade', 'end', 'bail', 'sell', 'reaction'].includes(
+        body.type,
+      )
     )
       return json({ error: 'INVALID_ACTION' }, 400);
+
+    if (body.type === 'reaction') {
+      const room = await loadRoom(roomCode);
+      if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
+      const playerIndex = room.players.findIndex(
+        (player) => player.token === body.token,
+      );
+      if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
+      room.reaction = {
+        player: playerIndex,
+        emoji: String(body.emoji ?? '🐾').slice(0, 10),
+        at: Date.now(),
+      };
+      await persistRoom(roomCode, room);
+      return json(roomSnapshot(roomCode, room));
+    }
+
     if (
       typeof body.requestId !== 'string' ||
       !body.requestId ||
@@ -51,7 +70,9 @@ export async function POST(
             dice: [randomInt(6) + 1, randomInt(6) + 1],
             event: randomInt(events.length),
           }
-        : { type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' };
+        : body.type === 'sell'
+          ? { type: 'sell', space: Number(body.space) }
+          : { type: body.type as 'buy' | 'upgrade' | 'end' | 'bail' };
     for (let attempt = 0; attempt < 4; attempt++) {
       const room = await loadRoom(roomCode);
       if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);

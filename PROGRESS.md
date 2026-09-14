@@ -1,5 +1,14 @@
 # Progress
 
+## Polish and UX enhancements: animations, audio SFX, quick reactions, property sale, QR code & minimap — 2026-09-14
+- Added Web Audio API synthesized SFX engine (`lib/audio.ts`) with sounds for dice roll, coins, building upgrades, fanfares, defeat, pops, and token steps, with haptics and sound mute toggle.
+- Added dice shake rolling animation and hop-by-hop animated token movement across board spaces.
+- Added Dubu mascot quick reaction floating emoji system (😍, 😭, 😱, 💪) with room action synchronization (`components/game/QuickReaction.tsx`).
+- Added property emergency sale rule: players can sell owned properties to the bank for 50% total invested value to avoid bankruptcy or gain liquidity (`sell` action).
+- Added room entry QR code generator (`lib/qr.ts`, `components/game/RoomQrCode.tsx`) for 1-second camera join on mobile.
+- Added 40-space board overview mini-map modal (`components/game/BoardMiniMap.tsx`).
+- Expanded test suite to 30 tests covering property emergency sale and journal replay.
+
 ## Stage 10–12 special rules, resilience hardening & presence isolation — 2026-09-14
 - Added dice doubles mechanic: rolling doubles grants an extra roll; rolling doubles three consecutive times sends player directly to rest (space 20) without salary.
 - Added rest & travel delay system: space 30 delays travel and sends player to rest; escape via doubles roll or paying 50 Dubi fee; 3rd failure forces fee payment.

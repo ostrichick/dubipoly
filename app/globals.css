@@ -889,3 +889,44 @@ footer {
     font-size: 11px;
   }
 }
+
+@keyframes dice-shake {
+  0% { transform: rotate(0deg) scale(1); }
+  20% { transform: rotate(-15deg) scale(1.15); }
+  40% { transform: rotate(15deg) scale(1.2); }
+  60% { transform: rotate(-10deg) scale(1.15); }
+  80% { transform: rotate(10deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+.dice-rolling {
+  animation: dice-shake 0.4s ease-in-out infinite;
+}
+
+@keyframes token-hop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-10px) scale(1.25); }
+}
+.token-hopping {
+  animation: token-hop 0.22s ease-out;
+}
+
+@keyframes reaction-float {
+  0% { opacity: 0; transform: translate(-50%, 20px) scale(0.6); }
+  20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  35% { transform: translate(-50%, -8px) scale(1); }
+  80% { opacity: 1; transform: translate(-50%, -45px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -80px) scale(0.85); }
+}
+.animate-reaction-float {
+  animation: reaction-float 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes bonus-float {
+  0% { opacity: 0; transform: translateY(10px) scale(0.8); }
+  20% { opacity: 1; transform: translateY(0) scale(1.1); }
+  80% { opacity: 1; transform: translateY(-15px) scale(1); }
+  100% { opacity: 0; transform: translateY(-35px) scale(0.9); }
+}
+.animate-bonus-float {
+  animation: bonus-float 1.8s ease-out forwards;
+}

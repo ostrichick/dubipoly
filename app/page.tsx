@@ -6,6 +6,8 @@ import {
   assets,
   canBuy,
   canUpgrade,
+  canSell,
+  sellValue,
   ownsRegion,
   createGame,
   rentAt,
@@ -19,6 +21,10 @@ import {
 } from '../lib/game';
 import { ui, describe, specialCopy } from '../lib/game-copy';
 import { roomFromLocation, roomUrl } from '../lib/room';
+import { sound, triggerHaptic } from '../lib/audio';
+import { QuickReaction, type ReactionEvent } from '../components/game/QuickReaction';
+import { BoardMiniMap } from '../components/game/BoardMiniMap';
+import { RoomQrCode } from '../components/game/RoomQrCode';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 const KEY = 'dubipoly.game.v1';
@@ -36,6 +42,7 @@ type RoomSnapshot = {
   token?: string;
   playerIndex?: number;
   presence?: Array<{ connected: boolean }>;
+  reaction?: { player: number; emoji: string; at: number } | null;
 };
 function randomInt(max: number) {
   const limit = 0x100000000 - (0x100000000 % max),
@@ -71,9 +78,16 @@ export default function Home() {
     [online, setOnline] = useState(true),
     [pendingAction, setPendingAction] = useState<Action['type'] | null>(null),
     [roomRefresh, setRoomRefresh] = useState(0),
-    [roomConnected, setRoomConnected] = useState(false);
+    [roomConnected, setRoomConnected] = useState(false),
+    [soundEnabled, setSoundEnabled] = useState(true),
+    [showMiniMap, setShowMiniMap] = useState(false),
+    [isRolling, setIsRolling] = useState(false),
+    [rollingDice, setRollingDice] = useState<[number, number] | null>(null),
+    [activeReaction, setActiveReaction] = useState<ReactionEvent | null>(null),
+    [displayPositions, setDisplayPositions] = useState<[number, number]>([0, 0]);
   const mutation = useRef(false),
     epoch = useRef(0),
+    lastProcessedReactionAt = useRef(0),
     retiredMatches = useRef(new Set<string>());
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
@@ -218,7 +232,45 @@ export default function Home() {
       setSaveError(true);
     }
   }
+
+  useEffect(() => {
+    if (!g) return;
+    const target0 = g.players[0].position;
+    const target1 = g.players[1].position;
+    if (displayPositions[0] === target0 && displayPositions[1] === target1) return;
+
+    const timer = setInterval(() => {
+      setDisplayPositions(([p0, p1]) => {
+        let next0 = p0;
+        let next1 = p1;
+        let moved = false;
+        if (next0 !== target0) {
+          next0 = (next0 + 1) % 40;
+          moved = true;
+        }
+        if (next1 !== target1) {
+          next1 = (next1 + 1) % 40;
+          moved = true;
+        }
+        if (moved) {
+          sound.playStep();
+          triggerHaptic('light');
+        }
+        if (next0 === target0 && next1 === target1) {
+          clearInterval(timer);
+        }
+        return [next0, next1];
+      });
+    }, 75);
+
+    return () => clearInterval(timer);
+  }, [g?.players[0]?.position, g?.players[1]?.position]);
+
   function commit(next: Session) {
+    if (next.game.phase === 'finished' && current.current?.game.phase !== 'finished') {
+      if (next.game.winner !== null) sound.playFanfare();
+      else sound.playSad();
+    }
     current.current = next;
     setSession(next);
     try {
@@ -417,9 +469,52 @@ export default function Home() {
       retiredMatches.current.add(previous.matchId);
       setReset(false);
     }
+    if (snapshot.game.phase === 'finished' && previous?.game.phase !== 'finished') {
+      if (snapshot.game.winner !== null) sound.playFanfare();
+      else sound.playSad();
+    }
+    if (snapshot.reaction && snapshot.reaction.at > lastProcessedReactionAt.current) {
+      lastProcessedReactionAt.current = snapshot.reaction.at;
+      const reactorIndex = snapshot.reaction.player;
+      const reactorName = snapshot.names[reactorIndex] ?? `Traveler ${reactorIndex + 1}`;
+      setActiveReaction({
+        player: reactorIndex,
+        emoji: snapshot.reaction.emoji,
+        name: reactorName,
+        id: snapshot.reaction.at,
+      });
+      sound.playPop();
+    }
     current.current = next;
     setSession(next);
     setSelected(next.game.players[next.game.current].position);
+  }
+
+  async function handleSendReaction(emoji: string) {
+    const myIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : (g?.current ?? 0);
+    const myName = names[myIndex] || (myIndex === 0 ? copy('Traveler 1', '여행자 1', 'Viajero 1') : copy('Traveler 2', '여행자 2', 'Viajero 2'));
+    setActiveReaction({
+      player: myIndex,
+      emoji,
+      name: myName,
+      id: Date.now(),
+    });
+
+    if (roomCode && roomToken) {
+      try {
+        await fetch(`/api/rooms/${encodeURIComponent(roomCode)}/actions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: roomToken,
+            type: 'reaction',
+            emoji,
+          }),
+        });
+      } catch {
+        // network reaction fallback
+      }
+    }
   }
   async function startRoom(rematch = false) {
     if (!roomCode || !roomToken) return;
@@ -499,6 +594,29 @@ export default function Home() {
   async function act(a: Action, revision: number) {
     const old = current.current;
     if (!old) return;
+
+    if (a.type === 'roll') {
+      sound.playDice();
+      triggerHaptic('medium');
+      setIsRolling(true);
+      const interval = setInterval(() => {
+        setRollingDice([randomInt(6) + 1, randomInt(6) + 1]);
+      }, 50);
+      setTimeout(() => {
+        clearInterval(interval);
+        setIsRolling(false);
+        setRollingDice(null);
+      }, 400);
+    } else if (a.type === 'buy' || a.type === 'sell' || a.type === 'bail') {
+      sound.playCoin();
+      triggerHaptic('light');
+    } else if (a.type === 'upgrade') {
+      sound.playBuild();
+      triggerHaptic('light');
+    } else if (a.type === 'end') {
+      sound.playPop();
+    }
+
     if (roomCode && roomToken) {
       if (old.game.current !== (roomRole === 'host' ? 0 : 1)) return;
       setRoomBusy(true);
@@ -518,6 +636,7 @@ export default function Home() {
               token: roomToken,
               matchId: old.matchId,
               type: a.type,
+              space: a.type === 'sell' ? a.space : undefined,
               revision,
               requestId: crypto.randomUUID(),
             }),
@@ -610,18 +729,33 @@ export default function Home() {
           Dubi<span>poly</span> ✈
         </a>
         <span className="route-label">KOREA ··· ✈ ··· PERÚ</span>
-        <label className="language-options">
-          <span>{copy('Language', '언어', 'Idioma')}</span>
-          <select
-            aria-label={copy('Language', '언어', 'Idioma')}
-            value={lang}
-            onChange={(event) => changeLanguage(event.target.value as Lang)}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 rounded-full p-0 text-base"
+            onClick={() => {
+              const next = sound.toggle();
+              setSoundEnabled(next);
+            }}
+            title={soundEnabled ? t.soundOn : t.soundOff}
+            aria-label={soundEnabled ? t.soundOn : t.soundOff}
           >
-            <option value="en">English</option>
-            <option value="ko">한국어</option>
-            <option value="es">Español</option>
-          </select>
-        </label>
+            {soundEnabled ? '🔊' : '🔇'}
+          </Button>
+          <label className="language-options">
+            <span>{copy('Language', '언어', 'Idioma')}</span>
+            <select
+              aria-label={copy('Language', '언어', 'Idioma')}
+              value={lang}
+              onChange={(event) => changeLanguage(event.target.value as Lang)}
+            >
+              <option value="en">English</option>
+              <option value="ko">한국어</option>
+              <option value="es">Español</option>
+            </select>
+          </label>
+        </div>
       </header>
       {!online && (
         <p className="network-banner offline" role="status">
@@ -659,6 +793,17 @@ export default function Home() {
           </p>
         </div>
         <div className="toolbar-actions">
+          {g && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMiniMap(true)}
+              title={t.miniMap}
+              aria-label={t.miniMap}
+            >
+              🗺️
+            </Button>
+          )}
           <Button
             variant="outline"
             onClick={() => setZoom(!zoom)}
@@ -869,6 +1014,15 @@ export default function Home() {
                         )}
                   </p>
                 )}
+                {roomCode && (
+                  <div className="mt-3 w-full max-w-xs mx-auto">
+                    <RoomQrCode
+                      url={roomUrl(roomCode)}
+                      roomCode={roomCode}
+                      lang={lang}
+                    />
+                  </div>
+                )}
                 {roomCode && roomToken && (
                   <div className="room-actions room-share-actions">
                     <Button
@@ -1022,10 +1176,10 @@ export default function Home() {
                       )}
                       <span className="tokens">
                         {g?.players.map((p, i) =>
-                          p.position === x.index ? (
+                          (displayPositions[i] ?? p.position) === x.index ? (
                             <span
                               key={i}
-                              className={`token token-${i}`}
+                              className={`token token-${i} token-hopping`}
                               title={p.name}
                               aria-label={p.name}
                             >
@@ -1135,15 +1289,15 @@ export default function Home() {
                         📍 {board[active!.position].name[lang]}
                       </p>
                       <div
-                        className={`dice ${pendingAction === 'roll' ? 'rolling' : ''}`}
+                        className={`dice ${isRolling || pendingAction === 'roll' ? 'rolling dice-rolling' : ''}`}
                         aria-label={
-                          pendingAction === 'roll'
+                          isRolling || pendingAction === 'roll'
                             ? special.rolling
-                            : g.dice?.join(' + ')
+                            : (rollingDice ?? g.dice)?.join(' + ')
                         }
                       >
-                        {g.dice ? (
-                          g.dice.map((d, i) => (
+                        {(rollingDice ?? g.dice) ? (
+                          (rollingDice ?? g.dice)!.map((d, i) => (
                             <span key={i}>
                               {['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'][d - 1]}
                             </span>
@@ -1384,6 +1538,36 @@ export default function Home() {
                           </dd>
                         </div>
                       </dl>
+                      {g &&
+                        property &&
+                        property.owner === (roomToken ? myPlayerIndex : g.current) &&
+                        canSell(
+                          g,
+                          selected,
+                          (roomToken ? myPlayerIndex : g.current) as PlayerId,
+                        ) && (
+                          <div className="mt-3 flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-rose-300 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                              disabled={actionsBlocked}
+                              onClick={() => {
+                                sound.playCoin();
+                                triggerHaptic('medium');
+                                void roomWork(() =>
+                                  act(
+                                    { type: 'sell', space: selected },
+                                    g.revision,
+                                  ),
+                                );
+                              }}
+                              title={t.sellHint}
+                            >
+                              💰 {t.sell} · +{sellValue(selected, property.level)} Dubi
+                            </Button>
+                          </div>
+                        )}
                     </>
                   ) : (
                     <p>
@@ -1424,6 +1608,30 @@ export default function Home() {
         </>
       )}
       <footer>Made for two. Inspired by Dubu. ♥</footer>
+      {showMiniMap && (
+        <BoardMiniMap
+          game={g ?? null}
+          lang={lang}
+          onClose={() => setShowMiniMap(false)}
+          onSelectSpace={(index) => {
+            setSelected(index);
+            const cell = boardRef.current?.querySelector<HTMLElement>(
+              `[data-space="${index}"]`,
+            );
+            cell?.scrollIntoView({
+              block: 'nearest',
+              inline: 'nearest',
+              behavior: 'smooth',
+            });
+          }}
+        />
+      )}
+      {g && (
+        <QuickReaction
+          onSend={handleSendReaction}
+          activeReaction={activeReaction}
+        />
+      )}
     </main>
   );
 }

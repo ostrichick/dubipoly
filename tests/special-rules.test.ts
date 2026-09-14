@@ -6,6 +6,8 @@ import {
   transition,
   rentAt,
   canUpgrade,
+  canSell,
+  sellValue,
   restore,
   type Game,
   type Action,
@@ -202,3 +204,37 @@ test('30 seeded modern games terminate and every action replays with doubles/res
     assert.notEqual(g.winner, null);
   }
 });
+
+test('property emergency sale: refund 50% of investment, release property and replay exactly', () => {
+  let game = transition(fresh(), roll(1, 1));
+  assert.equal(game.players[0].position, 2);
+  const city = board[2];
+  const price = city.price!; // 60
+  game = transition(game, { type: 'buy' });
+  assert.equal(game.properties[2]?.owner, 0);
+  assert.equal(game.properties[2]?.level, 0);
+  const expectedRefund = sellValue(2, 0);
+  assert.equal(expectedRefund, Math.floor(price * 0.5)); // 30
+
+  // Sell during choice / end phase
+  const preCash = game.players[0].cash;
+  assert.equal(canSell(game, 2), true);
+  // Other player cannot sell
+  assert.equal(canSell(game, 2, 1), false);
+
+  game = transition(game, { type: 'sell', space: 2 });
+  assert.equal(game.players[0].cash, preCash + expectedRefund);
+  assert.equal(game.properties[2], undefined);
+  assert.equal(game.logs[game.logs.length - 1].kind, 'sell');
+
+  // Replay check
+  const savePayload = JSON.stringify({
+    version: 2,
+    names: ['Dubu', 'Dubi'],
+    actions: [roll(1, 1), { type: 'buy' }, { type: 'sell', space: 2 }],
+  });
+  const restored = restore(savePayload);
+  assert.notEqual(restored, null);
+  assert.deepEqual(restored!.game, game);
+});
+

@@ -10,6 +10,7 @@ export type ServerRoom = {
   save: Save | null;
   processed: Map<string, { revision: number; snapshot?: unknown }>;
   storedAt?: number;
+  reaction?: { player: number; emoji: string; at: number } | null;
 };
 
 export const rooms = new Map<string, ServerRoom>();
@@ -32,6 +33,7 @@ function serialize(room: ServerRoom) {
     game: room.game,
     save: room.save,
     processed: Array.from(room.processed.entries()),
+    reaction: room.reaction,
   });
 }
 
@@ -116,6 +118,10 @@ export function roomSnapshot(roomCode: string, room: ServerRoom) {
     presence: room.players.map((player) => ({
       connected: Date.now() - player.lastSeen < 8000,
     })),
+    reaction:
+      room.reaction && Date.now() - room.reaction.at < 6000
+        ? room.reaction
+        : null,
   };
 }
 

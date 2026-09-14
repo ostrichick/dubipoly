@@ -13,7 +13,8 @@ export type PlayerId = 0 | 1;
 export type Phase = 'roll' | 'choice' | 'end' | 'finished';
 export type Action =
   | { type: 'roll'; dice: [number, number]; event: number }
-  | { type: 'buy' | 'upgrade' | 'end' | 'bail' };
+  | { type: 'buy' | 'upgrade' | 'end' | 'bail' }
+  | { type: 'sell'; space: number };
 export type Entry = {
   kind:
     | 'roll'
@@ -24,7 +25,8 @@ export type Entry = {
     | 'upgrade'
     | 'rest'
     | 'finish'
-    | 'bankrupt';
+    | 'bankrupt'
+    | 'sell';
   detail?:
     | 'doubles'
     | 'three-doubles'
@@ -156,6 +158,19 @@ export function canUpgrade(g: Game) {
     prop.level < rules.maxLevel &&
     p.cash >= s.upgrade!
   );
+}
+export function sellValue(index: number, level = 0) {
+  const s = board[index];
+  if (!s || s.type !== 'city') return 0;
+  const base = s.price ?? 0;
+  const upgrades = level * (s.upgrade ?? 0);
+  return Math.floor((base + upgrades) * 0.5);
+}
+export function canSell(g: Game, index: number, actor: PlayerId = g.current) {
+  if (actor !== g.current) return false;
+  if (g.phase === 'finished') return false;
+  const prop = g.properties[index];
+  return !!prop && prop.owner === actor;
 }
 function finishLanding(g: Game) {
   if (g.rulesVersion === 2 && g.phase === 'end' && g.extraRoll)
@@ -295,7 +310,12 @@ export function transition(
       state.players[actor].cash < rules.restFee)
   )
     return state;
-  if (!['roll', 'buy', 'upgrade', 'end', 'bail'].includes(action.type))
+  if (
+    action.type === 'sell' &&
+    (action.space == null || !canSell(state, action.space, actor))
+  )
+    return state;
+  if (!['roll', 'buy', 'upgrade', 'end', 'bail', 'sell'].includes(action.type))
     return state;
   const g = structuredClone(state);
   g.revision++;
@@ -373,6 +393,16 @@ export function transition(
       amount: rules.restFee,
       detail: 'rest-fee',
     });
+  }
+  if (action.type === 'sell') {
+    const spaceIndex = action.space;
+    const prop = g.properties[spaceIndex];
+    if (prop && prop.owner === actor) {
+      const value = sellValue(spaceIndex, prop.level);
+      g.players[actor].cash += value;
+      delete g.properties[spaceIndex];
+      log(g, { kind: 'sell', player: actor, space: spaceIndex, amount: value });
+    }
   }
   if (action.type === 'end') {
     if (g.rulesVersion === 2 && g.extraRoll) {

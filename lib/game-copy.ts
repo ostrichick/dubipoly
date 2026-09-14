@@ -55,6 +55,12 @@ export const ui = {
     rest: 'A free place to rest. You can end your turn.',
     event: 'Landing here triggers a travel event.',
     loading: 'Preparing your trip…',
+    sell: 'Sell property (50%)',
+    sellHint: 'Sell this city to the bank for 50% of your total investment.',
+    qrTitle: 'Scan to join room',
+    miniMap: 'Board Overview',
+    soundOn: 'Sound enabled',
+    soundOff: 'Sound muted',
   },
   ko: {
     start: '새 여행 시작',
@@ -108,6 +114,12 @@ export const ui = {
     rest: '잠깐 쉬어가는 곳이에요. 비용 없이 턴을 마칠 수 있습니다.',
     event: '여기에 도착하면 여행 이벤트가 발생해요.',
     loading: '여행 준비 중…',
+    sell: '도시 매각 (50%)',
+    sellHint: '투자한 금액의 50%를 받고 은행에 도시를 긴급 매각합니다.',
+    qrTitle: 'QR 코드로 방 입장',
+    miniMap: '보드 조감도',
+    soundOn: '효과음 켜짐',
+    soundOff: '효과음 꺼짐',
   },
   es: {
     start: 'Empezar un viaje',
@@ -162,6 +174,12 @@ export const ui = {
     rest: 'Un lugar para descansar. Termina tu turno sin costo.',
     event: 'Al llegar aquí se activa un evento de viaje.',
     loading: 'Preparando el viaje…',
+    sell: 'Vender propiedad (50%)',
+    sellHint: 'Vende esta ciudad al banco por el 50% de tu inversión total.',
+    qrTitle: 'Escanear para unirse',
+    miniMap: 'Vista general',
+    soundOn: 'Sonido activado',
+    soundOff: 'Sonido desactivado',
   },
 };
 export function describe(e: Entry, g: Game, l: Lang) {
@@ -189,6 +207,8 @@ export function describe(e: Entry, g: Game, l: Lang) {
       return `${n}: ${c} · ${en ? 'rest' : es ? 'descanso' : '휴식'}`;
     case 'bankrupt':
       return `${n}: ${en ? 'bankruptcy' : es ? 'bancarrota' : '파산'}`;
+    case 'sell':
+      return `${n}: ${c} · +${a} (${en ? 'sold' : es ? 'venta' : '매각'})`;
     case 'finish':
       return ui[l].finished;
   }
