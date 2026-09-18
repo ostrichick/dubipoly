@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-floating-promises */
 import assert from 'node:assert/strict';
 import test, { beforeEach, afterEach, mock } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';

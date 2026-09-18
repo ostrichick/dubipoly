@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { board, type Lang } from '../lib/board';
 import { events } from '../lib/events';
 import {
@@ -60,20 +60,46 @@ function randomInt(max: number) {
   return bytes[0] % max;
 }
 export default function Home() {
-  const [lang, setLang] = useState<Lang>('en'),
-    [session, setSession] = useState<Session | null>(null),
+  const [lang, setLang] = useState<Lang>(() => {
+    if (typeof window === 'undefined') return 'en';
+    const stored = localStorage.getItem('dubipoly.lang');
+    return stored === 'en' || stored === 'ko' || stored === 'es' ? stored : 'en';
+  }),
+    [hydrate] = useState(() => {
+      const result: { session: Session | null; selected: number; badSave: boolean; saveError: boolean } = {
+        session: null, selected: 0, badSave: false, saveError: false,
+      };
+      if (typeof window === 'undefined') return result;
+      const initialRoom = roomFromLocation();
+      if (initialRoom) return result;
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (!raw) return result;
+        const restored = restore(raw);
+        if (restored) {
+          result.session = restored;
+          result.selected = restored.game.players[restored.game.current].position;
+        } else result.badSave = true;
+      } catch { result.saveError = true; }
+      return result;
+    }),
+    [session, setSession] = useState<Session | null>(hydrate.session),
     [loaded, setLoaded] = useState(false),
-    [selected, setSelected] = useState(0),
+    [selected, setSelected] = useState(hydrate.selected),
     [zoom, setZoom] = useState(false),
     [names, setNames] = useState<[string, string]>(['', '']),
     [reset, setReset] = useState(false),
-    [saveError, setSaveError] = useState(false),
-    [badSave, setBadSave] = useState(false);
+    [saveError, setSaveError] = useState(hydrate.saveError),
+    [badSave, setBadSave] = useState(hydrate.badSave);
 
-  const [roomCode, setRoomCode] = useState(''),
-    [roomInput, setRoomInput] = useState(''),
+  const [roomCode, setRoomCode] = useState(() => roomFromLocation()),
+    [roomInput, setRoomInput] = useState(() => roomFromLocation()),
     [roomNotice, setRoomNotice] = useState(''),
-    [roomToken, setRoomToken] = useState(''),
+    [roomToken, setRoomToken] = useState(() => {
+      const room = roomFromLocation();
+      if (!room) return '';
+      return localStorage.getItem(`dubipoly.room.${room}`) ?? '';
+    }),
     [roomReady, setRoomReady] = useState(false),
     [roomBusy, setRoomBusy] = useState(false),
     [roomRole, setRoomRole] = useState<'host' | 'guest' | ''>(''),
@@ -82,7 +108,9 @@ export default function Home() {
     [roomPresence, setRoomPresence] = useState<Array<{ connected: boolean }>>(
       [],
     ),
-    [online, setOnline] = useState(true),
+    [online, setOnline] = useState(
+      () => (typeof navigator !== 'undefined' ? navigator.onLine : true),
+    ),
     [pendingAction, setPendingAction] = useState<Action['type'] | null>(null),
     [roomRefresh, setRoomRefresh] = useState(0),
     [roomConnected, setRoomConnected] = useState(false),
@@ -117,7 +145,7 @@ export default function Home() {
     retiredMatches = useRef(new Set<string>());
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
-  const copy = (en: string, ko: string, es: string) => ({ en, ko, es })[lang];
+  const copy = useCallback((en: string, ko: string, es: string) => ({ en, ko, es })[lang], [lang]);
   const special = specialCopy[lang];
   const t = ui[lang],
     g = session?.game,
@@ -125,7 +153,6 @@ export default function Home() {
     property = g?.properties[selected],
     myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1;
   useEffect(() => {
-    setOnline(navigator.onLine);
     const handleOnline = () => {
       setOnline(true);
       setRoomRefresh((value) => value + 1);
@@ -147,31 +174,15 @@ export default function Home() {
     window.addEventListener('touchstart', handleGlobalUnlock, { once: true });
     if ('serviceWorker' in navigator)
       void navigator.serviceWorker.register('/sw.js');
-    const initialRoom = roomFromLocation();
-    if (initialRoom) {
-      setRoomCode(initialRoom);
-      setRoomInput(initialRoom);
-      const savedToken = localStorage.getItem(`dubipoly.room.${initialRoom}`);
-      if (savedToken) setRoomToken(savedToken);
-    }
     try {
       const language = localStorage.getItem('dubipoly.lang');
       if (language === 'en' || language === 'ko' || language === 'es') {
-        setLang(language);
         document.documentElement.lang = language;
       }
-      const raw = localStorage.getItem(KEY);
-      if (raw && !initialRoom) {
-        const restored = restore(raw);
-        if (restored) {
-          current.current = restored;
-          setSession(restored);
-          setSelected(restored.game.players[restored.game.current].position);
-        } else setBadSave(true);
-      }
     } catch {
-      setSaveError(true);
+      // language sync is best-effort
     }
+    // eslint-disable-next-line react/react-compiler -- one-time post-mount ready flag
     setLoaded(true);
     return () => {
       window.removeEventListener('online', handleOnline);
@@ -181,6 +192,66 @@ export default function Home() {
       window.removeEventListener('touchstart', handleGlobalUnlock);
     };
   }, []);
+  useEffect(() => {
+    current.current = session;
+  }, [session]);
+  const applyRoomSnapshot = useCallback(
+    (snapshot: RoomSnapshot) => {
+      if (!snapshot.game || !snapshot.save) return;
+      if (retiredMatches.current.has(snapshot.matchId)) return;
+      const next = {
+        game: snapshot.game,
+        save: snapshot.save,
+        matchId: snapshot.matchId,
+      };
+      const previous = current.current;
+      if (
+        previous?.matchId === next.matchId &&
+        previous.game.revision >= next.game.revision
+      )
+        return;
+      if (previous?.matchId && previous.matchId !== next.matchId) {
+        retiredMatches.current.add(previous.matchId);
+        setReset(false);
+      }
+      if (
+        snapshot.game.phase === 'finished' &&
+        previous?.game.phase !== 'finished'
+      ) {
+        if (snapshot.game.winner !== null) sound.playFanfare();
+        else sound.playSad();
+      }
+      if (
+        snapshot.reaction &&
+        snapshot.reaction.at > lastProcessedReactionAt.current
+      ) {
+        lastProcessedReactionAt.current = snapshot.reaction.at;
+        const reactorIndex = snapshot.reaction.player;
+        const reactorName =
+          snapshot.names[reactorIndex] ?? `Traveler ${reactorIndex + 1}`;
+        setActiveReaction({
+          player: reactorIndex,
+          emoji: snapshot.reaction.emoji,
+          name: reactorName,
+          id: snapshot.reaction.at,
+        });
+        sound.playPop();
+      }
+      const myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1;
+      if (
+        myPlayerIndex !== -1 &&
+        next.game.current === myPlayerIndex &&
+        previous?.game.current !== myPlayerIndex &&
+        next.game.phase !== 'finished'
+      ) {
+        TurnNotifier.notify(names[myPlayerIndex]);
+      }
+      current.current = next;
+      setSession(next);
+      setSelected(next.game.players[next.game.current].position);
+    },
+    [roomRole, names],
+  );
   useEffect(() => {
     if (!roomCode || !roomToken) return;
     let stopped = false;
@@ -263,7 +334,7 @@ export default function Home() {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [roomCode, roomToken, roomRefresh, lang, roomNameDirty]);
+  }, [roomCode, roomToken, roomRefresh, lang, roomNameDirty, copy, applyRoomSnapshot]);
   function changeLanguage(l: Lang) {
     setLang(l);
     setRoomNotice('');
@@ -275,22 +346,22 @@ export default function Home() {
     }
   }
 
+  const pos0 = g?.players[0]?.position;
+  const pos1 = g?.players[1]?.position;
   useEffect(() => {
-    if (!g) return;
-    const target0 = g.players[0].position;
-    const target1 = g.players[1].position;
-    if (displayPositions[0] === target0 && displayPositions[1] === target1) return;
+    if (pos0 === undefined || pos1 === undefined) return;
+    if (displayPositions[0] === pos0 && displayPositions[1] === pos1) return;
 
     const timer = setInterval(() => {
       setDisplayPositions(([p0, p1]) => {
         let next0 = p0;
         let next1 = p1;
         let moved = false;
-        if (next0 !== target0) {
+        if (next0 !== pos0) {
           next0 = (next0 + 1) % 40;
           moved = true;
         }
-        if (next1 !== target1) {
+        if (next1 !== pos1) {
           next1 = (next1 + 1) % 40;
           moved = true;
         }
@@ -298,7 +369,7 @@ export default function Home() {
           sound.playStep();
           triggerHaptic('light');
         }
-        if (next0 === target0 && next1 === target1) {
+        if (next0 === pos0 && next1 === pos1) {
           clearInterval(timer);
           setTokenSpeechBubble(null);
           if (tokenBubbleTimerRef.current) {
@@ -311,7 +382,7 @@ export default function Home() {
     }, 75);
 
     return () => clearInterval(timer);
-  }, [g?.players[0]?.position, g?.players[1]?.position]);
+  }, [pos0, pos1, displayPositions]);
 
   useEffect(() => {
     if (!g || g.logs.length === 0) return;
@@ -322,6 +393,7 @@ export default function Home() {
 
       if (latest.kind === 'bonus') {
         sound.playCoin();
+        // eslint-disable-next-line react/react-compiler -- legitimate log-watch→state derivation
         setBonusPopup({ active: true, at: Date.now() });
         setTimeout(() => {
           setBonusPopup({ active: false, at: 0 });
@@ -359,25 +431,24 @@ export default function Home() {
     }
   }, [g?.logs?.length, g, roomToken, myPlayerIndex, lang]);
 
+  const cash0 = g?.players[0]?.cash;
+  const cash1 = g?.players[1]?.cash;
+  const cashRevision = g?.revision;
   useEffect(() => {
-    if (!g || g.revision === 0) {
-      prevCashRef.current = g ? [g.players[0].cash, g.players[1].cash] : [null, null];
-      setCashDeltas([[], []]);
+    if (cashRevision === undefined || cashRevision === 0) {
+      prevCashRef.current = [cash0 ?? null, cash1 ?? null];
       return;
     }
 
-    const p0Cash = g.players[0]?.cash;
-    const p1Cash = g.players[1]?.cash;
-
     if (prevCashRef.current[0] === null || prevCashRef.current[1] === null) {
-      prevCashRef.current = [p0Cash, p1Cash];
+      prevCashRef.current = [cash0 ?? null, cash1 ?? null];
       return;
     }
 
     const [old0, old1] = prevCashRef.current;
-    const d0 = p0Cash - old0;
-    const d1 = p1Cash - old1;
-    prevCashRef.current = [p0Cash, p1Cash];
+    const d0 = (cash0 ?? 0) - old0;
+    const d1 = (cash1 ?? 0) - old1;
+    prevCashRef.current = [cash0 ?? null, cash1 ?? null];
 
     if (d0 !== 0 || d1 !== 0) {
       const newDeltas: [CashDelta[], CashDelta[]] = [[], []];
@@ -405,7 +476,7 @@ export default function Home() {
         [...prev[1], ...newDeltas[1]],
       ]);
     }
-  }, [g?.players[0]?.cash, g?.players[1]?.cash, g?.revision]);
+  }, [cash0, cash1, cashRevision]);
 
   function commit(next: Session) {
     if (next.game.phase === 'finished' && current.current?.game.phase !== 'finished') {
@@ -592,54 +663,6 @@ export default function Home() {
       setRoomBusy(false);
     }
   }
-  function applyRoomSnapshot(snapshot: RoomSnapshot) {
-    if (!snapshot.game || !snapshot.save) return;
-    if (retiredMatches.current.has(snapshot.matchId)) return;
-    const next = {
-      game: snapshot.game,
-      save: snapshot.save,
-      matchId: snapshot.matchId,
-    };
-    const previous = current.current;
-    if (
-      previous?.matchId === next.matchId &&
-      previous.game.revision >= next.game.revision
-    )
-      return;
-    if (previous?.matchId && previous.matchId !== next.matchId) {
-      retiredMatches.current.add(previous.matchId);
-      setReset(false);
-    }
-    if (snapshot.game.phase === 'finished' && previous?.game.phase !== 'finished') {
-      if (snapshot.game.winner !== null) sound.playFanfare();
-      else sound.playSad();
-    }
-    if (snapshot.reaction && snapshot.reaction.at > lastProcessedReactionAt.current) {
-      lastProcessedReactionAt.current = snapshot.reaction.at;
-      const reactorIndex = snapshot.reaction.player;
-      const reactorName = snapshot.names[reactorIndex] ?? `Traveler ${reactorIndex + 1}`;
-      setActiveReaction({
-        player: reactorIndex,
-        emoji: snapshot.reaction.emoji,
-        name: reactorName,
-        id: snapshot.reaction.at,
-      });
-      sound.playPop();
-    }
-    const myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1;
-    if (
-      myPlayerIndex !== -1 &&
-      next.game.current === myPlayerIndex &&
-      previous?.game.current !== myPlayerIndex &&
-      next.game.phase !== 'finished'
-    ) {
-      TurnNotifier.notify(names[myPlayerIndex]);
-    }
-    current.current = next;
-    setSession(next);
-    setSelected(next.game.players[next.game.current].position);
-  }
-
   async function handleSendReaction(emoji: string) {
     const myIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : (g?.current ?? 0);
     const myName = names[myIndex] || (myIndex === 0 ? copy('Traveler 1', '여행자 1', 'Viajero 1') : copy('Traveler 2', '여행자 2', 'Viajero 2'));
@@ -928,6 +951,7 @@ export default function Home() {
       data-pending={pendingAction ?? ''}
     >
       <header>
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- full reload resets the lobby state */}
         <a className="wordmark" href="/">
           Dubi<span>poly</span> ✈
         </a>
@@ -1337,7 +1361,6 @@ export default function Home() {
           <div className="workspace">
             <section
               className="board-scroll"
-              tabIndex={0}
               aria-label="Dubipoly board"
             >
               <div ref={boardRef} className={`board ${zoom ? 'zoom' : ''}`}>

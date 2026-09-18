@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-floating-promises */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { board } from '../lib/board.ts';
@@ -24,11 +25,11 @@ test('28 unique cities, 8 events, 4 corners, balanced country placement', () => 
     cities
       .filter((s) => s.country === 'korea')
       .map((s) => s.price)
-      .sort(),
+      .sort((a, b) => (a ?? 0) - (b ?? 0)),
     cities
       .filter((s) => s.country === 'peru')
       .map((s) => s.price)
-      .sort(),
+      .sort((a, b) => (a ?? 0) - (b ?? 0)),
   );
   assert.deepEqual(
     cities.filter((s) => s.country === 'korea').map((s) => s.name.en),

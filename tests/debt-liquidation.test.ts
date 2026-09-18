@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-floating-promises */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -15,7 +16,7 @@ const roll = (d1: number, d2: number, ev = 0): Action => ({
 });
 
 test('insufficient cash with owned properties enters debt phase instead of bankruptcy', () => {
-  let g = createGame(['Dubu', 'Dubi'], 2);
+  const g = createGame(['Dubu', 'Dubi'], 2);
   g.players[0].cash = 20;
   g.players[0].position = 0;
 

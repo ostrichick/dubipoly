@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useState } from 'react';
 
 const COLORS = ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export function Confetti() {
-  const pieces = useMemo(() => {
+  const [pieces] = useState(() => {
     return Array.from({ length: 45 }).map((_, i) => ({
       id: i,
       color: COLORS[i % COLORS.length],
@@ -15,7 +15,7 @@ export function Confetti() {
       size: `${6 + (i % 4) * 2}px`,
       isCircle: i % 3 === 0,
     }));
-  }, []);
+  });
 
   return (
     <div className="pointer-events-none fixed inset-0 z-50 overflow-hidden" aria-hidden="true">

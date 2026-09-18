@@ -35,8 +35,12 @@ export function TravelAnimation({
   return (
     <div
       onClick={onComplete}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') onComplete();
+      }}
       className="travel-board-center-overlay"
-      role="status"
+      role="button"
+      tabIndex={0}
       aria-label={isFlight ? 'Flight animation' : 'Sailing animation'}
     >
       <div className="relative flex flex-col items-center w-full text-center">

@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-floating-promises */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { board } from '../lib/board.ts';
@@ -52,7 +53,7 @@ test('double skip and third double go to rest without movement or Start salary',
   assert.equal(g.current, 1);
 });
 test('double rent resolves payment and extra roll, but bankruptcy cancels it', () => {
-  let g = fresh();
+  const g = fresh();
   g.properties[2] = { owner: 1, level: 0 };
   let n = transition(g, roll(1, 1));
   assert.equal(n.phase, 'choice');
@@ -104,7 +105,7 @@ test('airport flight with bonus, harbor rest and sail, ordinary rest visit', () 
   assert.equal(r.restTurns![0], null);
 });
 test('rest escape doubles give no extra roll; voluntary fee keeps normal roll available', () => {
-  let g = fresh();
+  const g = fresh();
   g.players[0].position = 20;
   g.restTurns![0] = 0;
   let n = transition(g, roll(1, 1));

@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-floating-promises */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadRoom, persistRoom, rooms } from '../lib/server-rooms.ts';

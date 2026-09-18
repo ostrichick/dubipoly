@@ -1,9 +1,9 @@
 // Client-side Turn Notification helper (Browser title flash + vibration)
 export class TurnNotifier {
   private static originalTitle = typeof document !== 'undefined' ? document.title : 'Dubipoly';
-  private static intervalId: any = null;
+  private static intervalId: ReturnType<typeof setInterval> | null = null;
 
-  public static notify(playerName?: string) {
+  public static notify(_playerName?: string) {
     if (typeof window === 'undefined') return;
 
     // 1. Mobile Vibration if supported

@@ -1,3 +1,4 @@
+/* oxlint-disable typescript/no-floating-promises */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -7,7 +8,6 @@ import {
   rentAt,
   restore,
   rules,
-  type Game,
   type Action,
 } from '../lib/game.ts';
 import { events } from '../lib/events.ts';
@@ -102,18 +102,18 @@ test('all 18 trilingual events resolve, event movement does not chain', () => {
 });
 test('new strategic events: startBonus, singleDie, doubles, freePass, freeUpgrade, warpTourist', () => {
   // 1. startBonus (event 12)
-  let g = transition(at(1), { ...roll, event: 12 });
+  const g = transition(at(1), { ...roll, event: 12 });
   assert.equal(g.players[0].startBonusBonus, 100);
-  let passedStart = transition(
+  const passedStart = transition(
     { ...g, phase: 'roll', current: 0, players: [{ ...g.players[0], position: 38 }, g.players[1]] },
     { type: 'roll', dice: [1, 2], event: 0 },
   );
   assert.equal(passedStart.players[0].cash, g.players[0].cash + 300);
 
   // 2. singleDie (event 13)
-  let singleG = transition(at(1), { ...roll, event: 13 });
+  const singleG = transition(at(1), { ...roll, event: 13 });
   assert.equal(singleG.players[0].nextRollModifier, 'single');
-  let rolledSingle = transition(
+  const rolledSingle = transition(
     { ...singleG, phase: 'roll', current: 0 },
     { type: 'roll', dice: [5, 0], event: 0 },
   );
@@ -121,9 +121,9 @@ test('new strategic events: startBonus, singleDie, doubles, freePass, freeUpgrad
   assert.equal(rolledSingle.players[0].nextRollModifier, null);
 
   // 3. guaranteedDoubles (event 14)
-  let doublesG = transition(at(1), { ...roll, event: 14 });
+  const doublesG = transition(at(1), { ...roll, event: 14 });
   assert.equal(doublesG.players[0].nextRollModifier, 'doubles');
-  let rolledDoubles = transition(
+  const rolledDoubles = transition(
     { ...doublesG, phase: 'roll', current: 0 },
     { type: 'roll', dice: [4, 4], event: 0 },
   );
@@ -131,10 +131,10 @@ test('new strategic events: startBonus, singleDie, doubles, freePass, freeUpgrad
   assert.equal(rolledDoubles.players[0].nextRollModifier, null);
 
   // 4. freePass (event 15)
-  let freePassG = transition(at(1), { ...roll, event: 15 });
+  const freePassG = transition(at(1), { ...roll, event: 15 });
   assert.equal(freePassG.players[0].freePasses, 1);
   freePassG.properties[5] = { owner: 1, level: 2 };
-  let rentTurn = transition(
+  const rentTurn = transition(
     { ...freePassG, phase: 'roll', current: 0, players: [{ ...freePassG.players[0], position: 3 }, freePassG.players[1]] },
     { type: 'roll', dice: [1, 1], event: 0 },
   );
@@ -144,20 +144,20 @@ test('new strategic events: startBonus, singleDie, doubles, freePass, freeUpgrad
   assert.ok(rentTurn.logs.some((l) => l.kind === 'rent' && l.detail === 'freepass'));
 
   // 5. freeUpgrade (event 16)
-  let upgradeG = at(1);
+  const upgradeG = at(1);
   upgradeG.properties[1] = { owner: 0, level: 0 };
-  let upgraded = transition(upgradeG, { ...roll, event: 16 });
+  const upgraded = transition(upgradeG, { ...roll, event: 16 });
   assert.equal(upgraded.properties[1].level, 1);
   assert.ok(upgraded.logs.some((l) => l.kind === 'upgrade' && l.detail === 'free-upgrade'));
-  let noPropG = transition(at(1), { ...roll, event: 16 });
+  const noPropG = transition(at(1), { ...roll, event: 16 });
   assert.equal(noPropG.players[0].cash, 1600);
 
   // 6. warpTourist (event 17)
-  let warpG = transition(at(1), { ...roll, event: 17 });
+  const warpG = transition(at(1), { ...roll, event: 17 });
   assert.equal(warpG.players[0].position, 6);
 });
 test('event travel resolves destination rent, backward move, and forward crossing', () => {
-  let g = at(1);
+  const g = at(1);
   g.properties[6] = { owner: 1, level: 0 };
   let n = transition(g, { ...roll, event: 9 });
   assert.equal(n.players[0].position, 6);
@@ -243,8 +243,8 @@ test('save/replay exactly restores actions and rejects malformed, stale or incom
 test('100 deterministic complete games preserve invariants and every checkpoint restores', () => {
   for (let seed = 1; seed <= 100; seed++) {
     let g = fresh(),
-      actions: Action[] = [],
       r = seed;
+    const actions: Action[] = [];
     const random = (max: number) => {
       r = (r * 1664525 + 1013904223) >>> 0;
       return r % max;

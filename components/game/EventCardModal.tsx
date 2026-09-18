@@ -31,11 +31,16 @@ export function EventCardModal({ eventIndex, lang, onClose }: EventCardModalProp
 
   return (
     <div
-      onClick={onClose}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+      role="presentation"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm animate-in fade-in duration-200 pointer-events-auto"
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         className="relative w-full max-w-sm overflow-hidden rounded-3xl border-2 border-amber-300 bg-gradient-to-b from-amber-50 via-white to-amber-50/90 p-6 shadow-2xl animate-in zoom-in-95 duration-200"
       >
         {/* Ticket punch hole decorations */}

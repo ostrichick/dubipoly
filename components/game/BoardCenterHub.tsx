@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Game, PlayerId, Action } from '../../lib/game';
 import { assets, rules, canBuy, canUpgrade, canFly, canSail, sellValue, playerStartBonus } from '../../lib/game';
 import { board } from '../../lib/board';
@@ -63,34 +63,40 @@ export function BoardCenterHub({
     };
   }, []);
 
-  const copy = (en: string, ko: string, es: string) =>
-    lang === 'ko' ? ko : lang === 'es' ? es : en;
+  const copy = useCallback(
+    (en: string, ko: string, es: string) =>
+      lang === 'ko' ? ko : lang === 'es' ? es : en,
+    [lang],
+  );
 
-  const processQueue = () => {
-    if (transferQueue.current.length === 0) {
-      setActiveTransfer(null);
-      isProcessingQueue.current = false;
-      return;
-    }
-    isProcessingQueue.current = true;
-    const next = transferQueue.current.shift()!;
-    setActiveTransfer(next);
-    sound.playCoin();
-    triggerHaptic('medium');
-
-    if (next.from === 'bank' || next.to === 'bank') {
-      setBankActive(true);
-      setTimeout(() => {
-        if (isMounted.current) setBankActive(false);
-      }, 1500);
-    }
-
-    setTimeout(() => {
-      if (isMounted.current) {
-        processQueue();
+  const processQueueRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    processQueueRef.current = () => {
+      if (transferQueue.current.length === 0) {
+        setActiveTransfer(null);
+        isProcessingQueue.current = false;
+        return;
       }
-    }, 1800);
-  };
+      isProcessingQueue.current = true;
+      const next = transferQueue.current.shift()!;
+      setActiveTransfer(next);
+      sound.playCoin();
+      triggerHaptic('medium');
+
+      if (next.from === 'bank' || next.to === 'bank') {
+        setBankActive(true);
+        setTimeout(() => {
+          if (isMounted.current) setBankActive(false);
+        }, 1500);
+      }
+
+      setTimeout(() => {
+        if (isMounted.current) {
+          processQueueRef.current();
+        }
+      }, 1800);
+    };
+  }, []);
 
   // Process game logs to trigger money transfers
   useEffect(() => {
@@ -206,7 +212,7 @@ export function BoardCenterHub({
       if (discoveredTransfers.length > 0) {
         transferQueue.current.push(...discoveredTransfers);
         if (!isProcessingQueue.current) {
-          processQueue();
+          processQueueRef.current();
         }
       }
     }
@@ -256,7 +262,6 @@ export function BoardCenterHub({
     game.travelBlocked?.space === rules.airportSpace ||
     ((game.travelCooldown?.[activeActor] ?? 0) > 0 && activePos === rules.airportSpace)
   );
-  const isTravelActive = isAirportActive || isHarborActive;
 
   const hasPropertyAction = canBuy(game) || canUpgrade(game);
   const endEmphasized =

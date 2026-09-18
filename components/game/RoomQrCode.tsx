@@ -16,7 +16,7 @@ export function RoomQrCode({ url, roomCode, lang }: RoomQrCodeProps) {
   useEffect(() => {
     if (!url) return;
     let active = true;
-    generateQrCode(url).then((data) => {
+    void generateQrCode(url).then((data) => {
       if (active) setQrData(data);
     });
     return () => {
