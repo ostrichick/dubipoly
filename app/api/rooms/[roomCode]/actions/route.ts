@@ -1,4 +1,5 @@
 import { events } from '../../../../../lib/events.ts';
+import { randomInt } from '../../../../../lib/random.ts';
 import {
   loadRoom,
   persistRoom,
@@ -15,11 +16,6 @@ function json(data: unknown, status = 200) {
     status,
     headers: { 'Cache-Control': 'no-store' },
   });
-}
-function randomInt(max: number) {
-  const bytes = new Uint32Array(1);
-  crypto.getRandomValues(bytes);
-  return bytes[0] % max;
 }
 export async function POST(
   request: Request,
@@ -50,7 +46,7 @@ export async function POST(
       if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
       room.reaction = {
         player: playerIndex,
-        emoji: String(body.emoji ?? '🐾').slice(0, 10),
+        emoji: (typeof body.emoji === 'string' ? body.emoji : '🐾').slice(0, 10),
         at: Date.now(),
       };
       await persistRoom(roomCode, room);

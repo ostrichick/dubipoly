@@ -329,6 +329,54 @@ function move(g: Game, steps: number) {
   }
   p.position = ((next % 40) + 40) % 40;
 }
+/** Apply a resolved event's effect to `actor`. `event` is passed through to recursive landings. */
+function applyEventEffect(
+  g: Game,
+  actor: PlayerId,
+  effect: TravelEventEffect,
+  event: number,
+  reason: 'rent' | 'event' = 'event',
+) {
+  if (effect.kind === 'cash') {
+    if (effect.amount > 0) g.players[actor].cash += effect.amount;
+    else pay(g, -effect.amount, undefined, reason);
+  } else if (effect.kind === 'move') {
+    move(g, effect.steps);
+    land(g, false, event);
+  } else if (effect.kind === 'warpTourist') {
+    const currentPos = g.players[actor].position;
+    const touristIndexes = [6, 16, 25, 36];
+    const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
+    const stepsToTourist = (nextTourist - currentPos + 40) % 40;
+    move(g, stepsToTourist);
+    land(g, false, event);
+  } else if (effect.kind === 'startBonus') {
+    g.players[actor].startBonusBonus = (g.players[actor].startBonusBonus ?? 0) + effect.amount;
+  } else if (effect.kind === 'singleDie') {
+    g.players[actor].nextRollModifier = 'single';
+  } else if (effect.kind === 'guaranteedDoubles') {
+    g.players[actor].nextRollModifier = 'doubles';
+  } else if (effect.kind === 'freePass') {
+    g.players[actor].freePasses = (g.players[actor].freePasses ?? 0) + 1;
+  } else if (effect.kind === 'freeUpgrade') {
+    const ownedCityIndexes = Object.keys(g.properties)
+      .map(Number)
+      .filter((sp) => {
+        const prop = g.properties[sp];
+        const tile = board[sp];
+        return prop?.owner === actor && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
+      })
+      .sort((a, b) => g.properties[a].level - g.properties[b].level);
+
+    if (ownedCityIndexes.length > 0) {
+      const target = ownedCityIndexes[0];
+      g.properties[target].level++;
+      log(g, { kind: 'upgrade', player: actor, space: target, detail: 'free-upgrade' });
+    } else {
+      g.players[actor].cash += 100;
+    }
+  }
+}
 function land(g: Game, allowEvent: boolean, event: number) {
   const index = g.players[g.current].position,
     s = board[index];
@@ -422,45 +470,7 @@ function land(g: Game, allowEvent: boolean, event: number) {
     const effect = events[event].effect;
     if (g.rulesVersion === 1) {
       log(g, { kind: 'event', player: g.current, event });
-      if (effect.kind === 'cash') {
-        if (effect.amount < 0) pay(g, -effect.amount);
-        else g.players[g.current].cash += effect.amount;
-      } else if (effect.kind === 'move') {
-        move(g, effect.steps);
-        land(g, false, event);
-      } else if (effect.kind === 'warpTourist') {
-        const currentPos = g.players[g.current].position;
-        const touristIndexes = [6, 16, 25, 36];
-        const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
-        const stepsToTourist = (nextTourist - currentPos + 40) % 40;
-        move(g, stepsToTourist);
-        land(g, false, event);
-      } else if (effect.kind === 'startBonus') {
-        g.players[g.current].startBonusBonus = (g.players[g.current].startBonusBonus ?? 0) + effect.amount;
-      } else if (effect.kind === 'singleDie') {
-        g.players[g.current].nextRollModifier = 'single';
-      } else if (effect.kind === 'guaranteedDoubles') {
-        g.players[g.current].nextRollModifier = 'doubles';
-      } else if (effect.kind === 'freePass') {
-        g.players[g.current].freePasses = (g.players[g.current].freePasses ?? 0) + 1;
-      } else if (effect.kind === 'freeUpgrade') {
-        const ownedCityIndexes = Object.keys(g.properties)
-          .map(Number)
-          .filter((sp) => {
-            const prop = g.properties[sp];
-            const tile = board[sp];
-            return prop?.owner === g.current && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
-          })
-          .sort((a, b) => g.properties[a].level - g.properties[b].level);
-
-        if (ownedCityIndexes.length > 0) {
-          const target = ownedCityIndexes[0];
-          g.properties[target].level++;
-          log(g, { kind: 'upgrade', player: g.current, space: target, detail: 'free-upgrade' });
-        } else {
-          g.players[g.current].cash += 100;
-        }
-      }
+      applyEventEffect(g, g.current, effect, event, 'rent');
       return;
     }
     g.phase = 'choice';
@@ -819,63 +829,21 @@ export function transition(
     log(g, { kind: 'event', player: actor, event: eventIdx });
 
     if (effect) {
-      if (effect.kind === 'cash') {
-        if (effect.amount > 0) {
-          g.players[actor].cash += effect.amount;
+      if (effect.kind === 'cash' && effect.amount < 0) {
+        pay(g, -effect.amount, undefined, 'event');
+        if ((g.phase as Phase) !== 'debt' && (g.phase as Phase) !== 'finished') {
           g.phase = 'end';
           finishLanding(g);
-        } else {
-          pay(g, -effect.amount, undefined, 'event');
-          if ((g.phase as Phase) !== 'debt' && (g.phase as Phase) !== 'finished') {
-            g.phase = 'end';
-            finishLanding(g);
-          }
         }
-      } else if (effect.kind === 'move') {
-        move(g, effect.steps);
-        land(g, false, eventIdx);
-        finishLanding(g);
-      } else if (effect.kind === 'warpTourist') {
-        const currentPos = g.players[actor].position;
-        const touristIndexes = [6, 16, 25, 36];
-        const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
-        const stepsToTourist = (nextTourist - currentPos + 40) % 40;
-        move(g, stepsToTourist);
-        land(g, false, eventIdx);
-        finishLanding(g);
-      } else if (effect.kind === 'startBonus') {
-        g.players[actor].startBonusBonus = (g.players[actor].startBonusBonus ?? 0) + effect.amount;
+      } else if (effect.kind === 'cash') {
+        g.players[actor].cash += effect.amount;
         g.phase = 'end';
         finishLanding(g);
-      } else if (effect.kind === 'singleDie') {
-        g.players[actor].nextRollModifier = 'single';
-        g.phase = 'end';
+      } else if (effect.kind === 'move' || effect.kind === 'warpTourist') {
+        applyEventEffect(g, actor, effect, eventIdx);
         finishLanding(g);
-      } else if (effect.kind === 'guaranteedDoubles') {
-        g.players[actor].nextRollModifier = 'doubles';
-        g.phase = 'end';
-        finishLanding(g);
-      } else if (effect.kind === 'freePass') {
-        g.players[actor].freePasses = (g.players[actor].freePasses ?? 0) + 1;
-        g.phase = 'end';
-        finishLanding(g);
-      } else if (effect.kind === 'freeUpgrade') {
-        const ownedCityIndexes = Object.keys(g.properties)
-          .map(Number)
-          .filter((sp) => {
-            const prop = g.properties[sp];
-            const tile = board[sp];
-            return prop?.owner === actor && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
-          })
-          .sort((a, b) => g.properties[a].level - g.properties[b].level);
-
-        if (ownedCityIndexes.length > 0) {
-          const target = ownedCityIndexes[0];
-          g.properties[target].level++;
-          log(g, { kind: 'upgrade', player: actor, space: target, detail: 'free-upgrade' });
-        } else {
-          g.players[actor].cash += 100;
-        }
+      } else {
+        applyEventEffect(g, actor, effect, eventIdx);
         g.phase = 'end';
         finishLanding(g);
       }
@@ -893,50 +861,13 @@ export function transition(
       g.pendingPayment = null;
       log(g, { kind: 'event', player: actor, event: eventIdx });
       if (effect) {
-        if (effect.kind === 'cash') {
-          if (effect.amount > 0) {
-            g.players[actor].cash += effect.amount;
-          } else {
-            pay(g, -effect.amount, undefined, 'event');
-            if ((g.phase as Phase) === 'debt' || (g.phase as Phase) === 'finished') {
-              return g;
-            }
+        if (effect.kind === 'cash' && effect.amount < 0) {
+          pay(g, -effect.amount, undefined, 'event');
+          if ((g.phase as Phase) === 'debt' || (g.phase as Phase) === 'finished') {
+            return g;
           }
-        } else if (effect.kind === 'move') {
-          move(g, effect.steps);
-          land(g, false, eventIdx);
-        } else if (effect.kind === 'warpTourist') {
-          const currentPos = g.players[actor].position;
-          const touristIndexes = [6, 16, 25, 36];
-          const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
-          const stepsToTourist = (nextTourist - currentPos + 40) % 40;
-          move(g, stepsToTourist);
-          land(g, false, eventIdx);
-        } else if (effect.kind === 'startBonus') {
-          g.players[actor].startBonusBonus = (g.players[actor].startBonusBonus ?? 0) + effect.amount;
-        } else if (effect.kind === 'singleDie') {
-          g.players[actor].nextRollModifier = 'single';
-        } else if (effect.kind === 'guaranteedDoubles') {
-          g.players[actor].nextRollModifier = 'doubles';
-        } else if (effect.kind === 'freePass') {
-          g.players[actor].freePasses = (g.players[actor].freePasses ?? 0) + 1;
-        } else if (effect.kind === 'freeUpgrade') {
-          const ownedCityIndexes = Object.keys(g.properties)
-            .map(Number)
-            .filter((sp) => {
-              const prop = g.properties[sp];
-              const tile = board[sp];
-              return prop?.owner === actor && tile.type === 'city' && tile.kind !== 'tourist' && prop.level < rules.maxLevel;
-            })
-            .sort((a, b) => g.properties[a].level - g.properties[b].level);
-
-          if (ownedCityIndexes.length > 0) {
-            const target = ownedCityIndexes[0];
-            g.properties[target].level++;
-            log(g, { kind: 'upgrade', player: actor, space: target, detail: 'free-upgrade' });
-          } else {
-            g.players[actor].cash += 100;
-          }
+        } else {
+          applyEventEffect(g, actor, effect, eventIdx);
         }
       }
     }
