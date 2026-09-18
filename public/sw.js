@@ -1,5 +1,5 @@
-const CACHE = 'dubipoly-shell-v4';
-const SHELL = ['/', '/manifest.webmanifest', '/favicon.svg'];
+const CACHE = 'dubipoly-shell-v5';
+const SHELL = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/favicon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
@@ -38,7 +38,7 @@ self.addEventListener('fetch', (event) => {
           (url.pathname === '/' || url.pathname.startsWith('/_next/'))
         ) {
           const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          void caches.open(CACHE).then((cache) => cache.put(request, copy));
         }
         return response;
       })
