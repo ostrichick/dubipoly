@@ -18,6 +18,7 @@ type Snapshot = ReturnType<typeof roomSnapshot> & {
   token: string;
   playerIndex: number;
   error?: string;
+  role?: 'host' | 'guest';
 };
 let sqlite: DatabaseSync;
 let failReads = false,
@@ -318,6 +319,88 @@ test('concurrent rolls apply once, duplicate returns latest state, stale/out-of-
     'old duplicate must not return revision 1',
   );
   await equalPlayers(code, tokens);
+});
+
+test('two clients disconnect and reconnect independently without changing seats or game state', async () => {
+  const { code, tokens, started } = await pair();
+  await read(code, tokens[0]);
+  const guestBefore = await read(code, tokens[1]);
+  assert.deepEqual(guestBefore.presence, [{ connected: true }, { connected: true }]);
+
+  // Simulate the host phone being closed while the guest is still polling.
+  const offlineAt = Date.now() - 9000;
+  sqlite.prepare('UPDATE dubipoly_presence SET last_seen = ? WHERE room_code = ? AND token = ?')
+    .run(offlineAt, code, tokens[0]);
+  rooms.clear(); // The next request is handled by a new Worker instance.
+  const guestWhileHostOffline = await read(code, tokens[1]);
+  assert.deepEqual(guestWhileHostOffline.presence, [{ connected: false }, { connected: true }]);
+  assert.equal(guestWhileHostOffline.game!.revision, started.game!.revision);
+
+  // Reloading with the stored host token restores the original seat.
+  const hostRejoined = await post({ action: 'join', roomCode: code, token: tokens[0] });
+  assert.equal(hostRejoined.role, 'host');
+  assert.equal(hostRejoined.token, tokens[0]);
+  assert.equal(hostRejoined.players, 2);
+  const hostAfterReconnect = await read(code, tokens[0]);
+  const guestAfterReconnect = await read(code, tokens[1]);
+  assert.deepEqual(guestAfterReconnect.presence, [{ connected: true }, { connected: true }]);
+  assert.deepEqual(hostAfterReconnect.game, guestAfterReconnect.game);
+  assert.deepEqual(hostAfterReconnect.save, guestAfterReconnect.save);
+  await post({ action: 'join', roomCode: code }, 409);
+});
+
+test('two independent clients recover stale polls and actions, then reload after rematch', async () => {
+  const { code, tokens, started } = await pair();
+  const guestCached = await read(code, tokens[1]);
+  const fastUrl = (token: string, match: string, revision: number) =>
+    `http://test/api/rooms?room=${code}&token=${token}&sync=1&match=${match}&revision=${revision}`;
+
+  const unchanged = await GET(new Request(fastUrl(tokens[1], started.matchId, 0)));
+  assert.equal(unchanged.status, 204);
+  assert.equal(unchanged.headers.get('cache-control'), 'no-store');
+
+  const rolled = await action(code, {
+    token: tokens[0], matchId: started.matchId, revision: 0,
+    requestId: 'host-after-guest-poll', type: 'roll',
+  });
+  const guestUpdate = await result(await GET(new Request(fastUrl(tokens[1], guestCached.matchId, 0))));
+  assert.equal(guestUpdate.game!.revision, rolled.game!.revision);
+  assert.deepEqual(guestUpdate.game, rolled.game);
+
+  const stale = await action(code, {
+    token: tokens[0], matchId: started.matchId, revision: 0,
+    requestId: 'new-stale-action', type: 'end',
+  }, 409);
+  assert.equal(stale.error, 'STALE_STATE');
+  const refreshed = await read(code, tokens[0]);
+  const ended = await action(code, {
+    token: tokens[0], matchId: refreshed.matchId, revision: refreshed.game!.revision,
+    requestId: 'end-after-refresh', type: 'end',
+  });
+  assert.ok(ended.game!.revision > refreshed.game!.revision);
+  assert.deepEqual((await read(code, tokens[1])).game, ended.game);
+
+  // A host rematch remains visible even to a client holding a newer revision
+  // from the old match, and neither device can replay old-match actions.
+  const room = (await loadRoom(code))!;
+  room.game!.phase = 'finished';
+  assert.equal(await persistRoom(code, room), true);
+  const reset = await post({
+    action: 'rematch', roomCode: code, token: tokens[0], matchId: started.matchId,
+  });
+  assert.notEqual(reset.matchId, started.matchId);
+  const guestAfterRematch = await result(
+    await GET(new Request(fastUrl(tokens[1], started.matchId, ended.game!.revision))),
+  );
+  assert.equal(guestAfterRematch.matchId, reset.matchId);
+  assert.equal(guestAfterRematch.game!.revision, 0);
+  assert.equal((await post({ action: 'join', roomCode: code, token: tokens[1] })).role, 'guest');
+  const rejected = await action(code, {
+    token: tokens[1], matchId: started.matchId, revision: ended.game!.revision,
+    requestId: 'old-match-guest', type: 'roll',
+  }, 409);
+  assert.equal(rejected.error, 'STALE_MATCH');
+  assert.deepEqual((await equalPlayers(code, tokens)).game, reset.game);
 });
 
 test('complete online game and rematch: every action matches both players and replay', async () => {

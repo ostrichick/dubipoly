@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Game, PlayerId, Action } from '../../lib/game';
 import { assets, rules, canBuy, canUpgrade, canFly, canSail, sellValue, playerStartBonus } from '../../lib/game';
 import { board } from '../../lib/board';
@@ -31,7 +32,9 @@ export interface BoardCenterHubProps {
   rollingDice?: [number, number] | null;
   pendingAction?: Action['type'] | null;
   targetTravelSpace?: number;
+  travelDestinationChosen?: boolean;
   onAction?: (action: Action) => void;
+  onRoll?: () => void;
 }
 
 export function BoardCenterHub({
@@ -46,7 +49,9 @@ export function BoardCenterHub({
   rollingDice = null,
   pendingAction = null,
   targetTravelSpace = 0,
+  travelDestinationChosen = false,
   onAction,
+  onRoll,
 }: BoardCenterHubProps) {
   const [activeTransfer, setActiveTransfer] = useState<MoneyTransfer | null>(null);
   const [bankActive, setBankActive] = useState(false);
@@ -283,22 +288,8 @@ export function BoardCenterHub({
 
   // Action handlers
   const handleRoll = () => {
-    if (!onAction || actionsBlocked) return;
-    const modifier = game.players[activeActor]?.nextRollModifier;
-    let dice: [number, number];
-    if (modifier === 'single') {
-      dice = [Math.floor(Math.random() * 6) + 1, 0];
-    } else if (modifier === 'doubles') {
-      const d = Math.floor(Math.random() * 6) + 1;
-      dice = [d, d];
-    } else {
-      dice = [Math.floor(Math.random() * 6) + 1, Math.floor(Math.random() * 6) + 1];
-    }
-    onAction({
-      type: 'roll',
-      dice,
-      event: Math.floor(Math.random() * events.length),
-    });
+    if (!onRoll || actionsBlocked) return;
+    onRoll();
   };
 
   const handleBuy = () => {
@@ -322,7 +313,7 @@ export function BoardCenterHub({
   };
 
   const handleFly = () => {
-    if (!onAction || actionsBlocked || targetTravelSpace === undefined) return;
+    if (!onAction || actionsBlocked || !travelDestinationChosen) return;
     onAction({ type: 'fly', space: targetTravelSpace });
   };
 
@@ -332,7 +323,7 @@ export function BoardCenterHub({
   };
 
   const handleSail = () => {
-    if (!onAction || actionsBlocked || targetTravelSpace === undefined) return;
+    if (!onAction || actionsBlocked || !travelDestinationChosen) return;
     onAction({ type: 'sail', space: targetTravelSpace });
   };
 
@@ -373,6 +364,16 @@ export function BoardCenterHub({
   const currentEventIdx = pendingEvent?.event ?? (pendingPayment?.type === 'event' ? pendingPayment.event : (isPendingEventActive ? game.lastEvent : null));
   const modalEvent = currentEventIdx !== null && currentEventIdx !== undefined ? events[currentEventIdx] : null;
   const modalEffect = modalEvent?.effect;
+  const eventDialogRef = useRef<HTMLDialogElement>(null);
+  const showEventDialog = Boolean(isPendingEventActive && modalEvent && modalEffect);
+  useEffect(() => {
+    if (!showEventDialog) return;
+    const dialog = eventDialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    return () => {
+      if (dialog?.open) dialog.close();
+    };
+  }, [showEventDialog]);
 
   // Status message
   let statusHintText = '';
@@ -627,21 +628,23 @@ export function BoardCenterHub({
                     🚢 {copy('HARBOR SET SAIL', '항구 출항', 'SALIDA PUERTO')} · {rules.sailFee} Dubi
                   </span>
                   <span className="hub-travel-dest-number">
-                    #{String(targetTravelSpace + 1).padStart(2, '0')}
+                    {travelDestinationChosen ? `#${String(targetTravelSpace + 1).padStart(2, '0')}` : '—'}
                   </span>
                 </div>
                 <div className="hub-travel-prompt">
                   👆 {copy('Tap any tile on board to choose destination!', '보드판에서 가고 싶은 칸을 터치하세요!', '¡Toca una casilla en el tablero!')}
                 </div>
                 <div className="hub-travel-dest-card">
-                  <span className="travel-dest-icon">{board[targetTravelSpace].icon}</span>
+                  <span className="travel-dest-icon">{travelDestinationChosen ? board[targetTravelSpace].icon : '📍'}</span>
                   <div className="travel-dest-info">
                     <strong className="travel-dest-name">
-                      {board[targetTravelSpace].name[lang]}
+                      {travelDestinationChosen ? board[targetTravelSpace].name[lang] : copy('Choose destination', '목적지 선택', 'Elige destino')}
                       {board[targetTravelSpace].kind === 'tourist' && <span className="tourist-star">✦</span>}
                     </strong>
                     <span className="travel-dest-sub">
-                      {targetTravelSpace < rules.harborSpace
+                      {!travelDestinationChosen
+                        ? copy('Tap a space on the board', '보드의 칸을 터치하세요', 'Toca una casilla')
+                        : targetTravelSpace < rules.harborSpace
                         ? copy(`Passing Start: +${playerStartBonus(game, activeActor)} Dubi 💰`, `출발선 통과 보너스: +${playerStartBonus(game, activeActor)} Dubi 💰`, `Cruza Salida: +${playerStartBonus(game, activeActor)} Dubi`)
                         : copy(`Selected destination: Space #${targetTravelSpace + 1}`, `선택된 목적지: #${targetTravelSpace + 1} 칸`, `Destino: Casilla #${targetTravelSpace + 1}`)}
                     </span>
@@ -651,7 +654,7 @@ export function BoardCenterHub({
                   <button
                     type="button"
                     className="hub-btn hub-btn-travel hub-btn-sail"
-                    disabled={actionsBlocked || activePlayer.cash < rules.sailFee}
+                    disabled={actionsBlocked || !travelDestinationChosen || activePlayer.cash < rules.sailFee}
                     onClick={handleSail}
                   >
                     <span className="hub-btn-icon">🚢</span>
@@ -679,21 +682,23 @@ export function BoardCenterHub({
                     🛫 {copy('AIRPORT FLIGHT', '공항 비행', 'VUELO AEROPUERTO')} · {rules.flightFee} Dubi
                   </span>
                   <span className="hub-travel-dest-number">
-                    #{String(targetTravelSpace + 1).padStart(2, '0')}
+                    {travelDestinationChosen ? `#${String(targetTravelSpace + 1).padStart(2, '0')}` : '—'}
                   </span>
                 </div>
                 <div className="hub-travel-prompt">
                   👆 {copy('Tap any tile on board to choose destination!', '보드판에서 가고 싶은 칸을 터치하세요!', '¡Toca una casilla en el tablero!')}
                 </div>
                 <div className="hub-travel-dest-card">
-                  <span className="travel-dest-icon">{board[targetTravelSpace].icon}</span>
+                  <span className="travel-dest-icon">{travelDestinationChosen ? board[targetTravelSpace].icon : '📍'}</span>
                   <div className="travel-dest-info">
                     <strong className="travel-dest-name">
-                      {board[targetTravelSpace].name[lang]}
+                      {travelDestinationChosen ? board[targetTravelSpace].name[lang] : copy('Choose destination', '목적지 선택', 'Elige destino')}
                       {board[targetTravelSpace].kind === 'tourist' && <span className="tourist-star">✦</span>}
                     </strong>
                     <span className="travel-dest-sub">
-                      {targetTravelSpace <= rules.airportSpace
+                      {!travelDestinationChosen
+                        ? copy('Tap a space on the board', '보드의 칸을 터치하세요', 'Toca una casilla')
+                        : targetTravelSpace < rules.airportSpace
                         ? copy(`Passing Start: +${playerStartBonus(game, activeActor)} Dubi 💰`, `출발선 통과 보너스: +${playerStartBonus(game, activeActor)} Dubi 💰`, `Cruza Salida: +${playerStartBonus(game, activeActor)} Dubi`)
                         : copy(`Selected destination: Space #${targetTravelSpace + 1}`, `선택된 목적지: #${targetTravelSpace + 1} 칸`, `Destino: Casilla #${targetTravelSpace + 1}`)}
                     </span>
@@ -703,7 +708,7 @@ export function BoardCenterHub({
                   <button
                     type="button"
                     className="hub-btn hub-btn-travel hub-btn-fly"
-                    disabled={actionsBlocked || activePlayer.cash < rules.flightFee}
+                    disabled={actionsBlocked || !travelDestinationChosen || activePlayer.cash < rules.flightFee}
                     onClick={handleFly}
                   >
                     <span className="hub-btn-icon">🛫</span>
@@ -1258,8 +1263,8 @@ export function BoardCenterHub({
       </div>
 
       {/* Travel Event Popup Modal inside Board */}
-      {isPendingEventActive && modalEvent && modalEffect && (
-        <div className="hub-event-popup-overlay" role="dialog" aria-modal="true" aria-label="Travel event announcement">
+      {isPendingEventActive && modalEvent && modalEffect && typeof document !== 'undefined' && createPortal(
+        <dialog ref={eventDialogRef} className="hub-event-popup-overlay" aria-labelledby="hub-event-title" onCancel={(event) => event.preventDefault()}>
           <div className="hub-event-popup-card">
             <div className="hub-event-popup-header">
               <span className="hub-event-popup-badge">
@@ -1267,7 +1272,7 @@ export function BoardCenterHub({
               </span>
               <span className="hub-event-hero-icon">{modalEvent.icon ?? '🎒'}</span>
             </div>
-            <h3 className="hub-event-popup-title">{modalEvent.text[lang]}</h3>
+            <h3 id="hub-event-title" className="hub-event-popup-title">{modalEvent.text[lang]}</h3>
             <div className="hub-event-popup-details">
               {modalEffect.kind === 'move' && (
                 <div className="hub-event-effect-badge badge-move">
@@ -1398,7 +1403,8 @@ export function BoardCenterHub({
               )}
             </div>
           </div>
-        </div>
+        </dialog>,
+        document.body,
       )}
 
       {/* Travel Event Display */}

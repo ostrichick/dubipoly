@@ -197,6 +197,56 @@ test('last-round doubles resolve before winner; v1 saves retain original no-doub
   assert.equal(modern.game.current, 0);
   assert.equal(modern.game.phase, 'roll');
 });
+test('ending a movement event preserves destination purchase and replays subsequent actions', () => {
+  const names: [string, string] = ['Dubu', 'Dubi'];
+  const actions: Action[] = [roll(1, 2, 9), end]; // Event 3 moves forward to unowned city 6.
+  let g = createGame(names);
+  for (const action of actions) g = transition(g, action);
+  assert.equal(g.players[0].position, 6);
+  assert.equal(g.phase, 'choice');
+  assert.equal(g.current, 0);
+  assert.equal(g.pendingEvent, null);
+  assert.equal(g.pendingPayment, null);
+  assert.equal(g.properties[6], undefined);
+  assert.deepEqual(restore(JSON.stringify({ version: 2, names, actions }))?.game, g);
+
+  for (const action of [{ type: 'buy' }, end] as Action[]) {
+    g = transition(g, action);
+    actions.push(action);
+    assert.deepEqual(restore(JSON.stringify({ version: 2, names, actions }))?.game, g);
+  }
+  assert.equal(g.properties[6]?.owner, 0);
+  assert.equal(g.current, 1);
+});
+test('ending a movement event preserves destination rent and claimEvent takes the same path', () => {
+  const initial = createGame(['Dubu', 'Dubi']);
+  initial.properties[6] = { owner: 1, level: 0 };
+  const event = transition(initial, roll(1, 2, 9));
+  const ended = transition(event, end);
+  const claimed = transition(event, { type: 'claimEvent' });
+  for (const g of [ended, claimed]) {
+    assert.equal(g.players[0].position, 6);
+    assert.equal(g.current, 0);
+    assert.equal(g.phase, 'choice');
+    assert.equal(g.pendingPayment?.type, 'rent');
+    assert.deepEqual(g.players.map((p) => p.cash), [1500, 1500]);
+  }
+  const paid = transition(ended, { type: 'payRent' });
+  assert.equal(paid.pendingPayment, null);
+  assert.equal(paid.players[1].cash, 1525);
+});
+test('ending a tourist warp preserves the destination choice without chaining another event', () => {
+  const names: [string, string] = ['Dubu', 'Dubi'];
+  const actions: Action[] = [roll(1, 2, 17), end];
+  let g = createGame(names);
+  for (const action of actions) g = transition(g, action);
+  assert.equal(g.players[0].position, 6);
+  assert.equal(g.phase, 'choice');
+  assert.equal(g.current, 0);
+  assert.equal(g.pendingEvent, null);
+  assert.equal(g.logs.filter((entry) => entry.kind === 'event').length, 1);
+  assert.deepEqual(restore(JSON.stringify({ version: 2, names, actions }))?.game, g);
+});
 test('30 seeded modern games terminate and every action replays with doubles/rest/tourism', () => {
   for (let seed = 1; seed <= 30; seed++) {
     let r = seed,
@@ -282,4 +332,3 @@ test('property emergency sale: refund 50% of investment, release property and re
   assert.notEqual(restored, null);
   assert.deepEqual(restored!.game, game);
 });
-

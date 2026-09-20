@@ -59,6 +59,15 @@ function randomInt(max: number) {
   } while (bytes[0] >= limit);
   return bytes[0] % max;
 }
+function rollAction(game: Game): Action {
+  const modifier = game.players[game.current].nextRollModifier;
+  const first = randomInt(6) + 1;
+  const dice: [number, number] = [
+    first,
+    modifier === 'single' ? 0 : modifier === 'doubles' ? first : randomInt(6) + 1,
+  ];
+  return { type: 'roll', dice, event: randomInt(events.length) };
+}
 export default function Home() {
   const [lang, setLang] = useState<Lang>(() => {
     if (typeof window === 'undefined') return 'en';
@@ -119,7 +128,9 @@ export default function Home() {
     [isRolling, setIsRolling] = useState(false),
     [rollingDice, setRollingDice] = useState<[number, number] | null>(null),
     [activeReaction, setActiveReaction] = useState<ReactionEvent | null>(null),
-    [displayPositions, setDisplayPositions] = useState<[number, number]>([0, 0]),
+    [displayPositions, setDisplayPositions] = useState<[number, number]>(() => hydrate.session
+      ? [hydrate.session.game.players[0].position, hydrate.session.game.players[1].position]
+      : [0, 0]),
     [bonusPopup, setBonusPopup] = useState<{ active: boolean; at: number }>({ active: false, at: 0 }),
     [opponentToast, setOpponentToast] = useState<string | null>(null),
     [constructingSpace, setConstructingSpace] = useState<{
@@ -134,6 +145,7 @@ export default function Home() {
       toName: string;
     } | null>(null),
     [targetTravelSpace, setTargetTravelSpace] = useState<number>(0),
+    [selectedTravelRevision, setSelectedTravelRevision] = useState<string | null>(null),
     [cashDeltas, setCashDeltas] = useState<[CashDelta[], CashDelta[]]>([[], []]);
   const tokenBubbleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevCashRef = useRef<[number | null, number | null]>([null, null]),
@@ -184,6 +196,7 @@ export default function Home() {
     }
     // eslint-disable-next-line react/react-compiler -- one-time post-mount ready flag
     setLoaded(true);
+    setSoundEnabled(sound.isEnabled());
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
@@ -237,6 +250,12 @@ export default function Home() {
       if (previous?.matchId && previous.matchId !== next.matchId) {
         retiredMatches.current.add(previous.matchId);
         setReset(false);
+      }
+      if (!previous || previous.matchId !== next.matchId) {
+        setDisplayPositions([
+          next.game.players[0].position,
+          next.game.players[1].position,
+        ]);
       }
       if (
         snapshot.game.phase === 'finished' &&
@@ -359,6 +378,11 @@ export default function Home() {
   useEffect(() => {
     if (pos0 === undefined || pos1 === undefined) return;
     if (displayPositions[0] === pos0 && displayPositions[1] === pos1) return;
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const timer = setTimeout(() => setDisplayPositions([pos0, pos1]), 0);
+      return () => clearTimeout(timer);
+    }
 
     const timer = setInterval(() => {
       setDisplayPositions(([p0, p1]) => {
@@ -770,6 +794,7 @@ export default function Home() {
       save: { version: 2, names: actual, actions: [] },
     });
     setSelected(0);
+    setSelectedTravelRevision(null);
     setReset(false);
   }
   async function act(a: Action, revision: number) {
@@ -946,16 +971,26 @@ export default function Home() {
   const isAirportActive = Boolean(g && canFly(g, travelActor));
   const isHarborActive = Boolean(g && canSail(g, travelActor));
   const isTravelSelection = isAirportActive || isHarborActive;
+  const travelSelectionKey = `${session?.matchId ?? 'local'}:${g?.revision}`;
+  const travelDestinationChosen = selectedTravelRevision === travelSelectionKey;
+  function sendAction(action: Action) {
+    if (g) void roomWork(() => act(action, g.revision));
+  }
+  function rollTurn() {
+    if (g) sendAction(rollAction(g));
+  }
   function selectBoardSpace(index: number) {
     setSelected(index);
     setTargetTravelSpace(index);
     if (isTravelSelection) {
+      setSelectedTravelRevision(travelSelectionKey);
       sound.playPop();
       triggerHaptic('light');
     }
   }
   return (
     <main
+      className={g && g.phase !== 'finished' && !reset ? 'has-mobile-actions' : undefined}
       data-match-id={session?.matchId ?? ''}
       data-revision={g?.revision}
       data-phase={g?.phase}
@@ -1411,9 +1446,9 @@ export default function Home() {
                       rollingDice={rollingDice}
                       pendingAction={pendingAction}
                       targetTravelSpace={targetTravelSpace}
-                      onAction={(action) => {
-                        void roomWork(() => act(action, g.revision));
-                      }}
+                      travelDestinationChosen={travelDestinationChosen}
+                      onAction={sendAction}
+                      onRoll={rollTurn}
                     />
                   ) : (
                     <>
@@ -1439,7 +1474,7 @@ export default function Home() {
                 </div>
                 {board.map((x) => {
                   const p = g?.properties[x.index];
-                  const isSelectedDest = isTravelSelection && targetTravelSpace === x.index;
+                  const isSelectedDest = isTravelSelection && travelDestinationChosen && targetTravelSpace === x.index;
                   const isLandmark = Boolean(p && p.level >= 3);
                   const hasBubble = tokenSpeechBubble && (displayPositions[tokenSpeechBubble.player] ?? g?.players[tokenSpeechBubble.player]?.position) === x.index;
                   const activeTurnPlayer = g?.current ?? 0;
@@ -1768,6 +1803,7 @@ export default function Home() {
                     </section>
                   ) : (
                     <section
+                      id="turn-actions"
                       className="action-panel"
                       aria-live="polite"
                       aria-busy={roomBusy}
@@ -1858,29 +1894,7 @@ export default function Home() {
                           <Button
                             data-action="roll"
                             disabled={actionsBlocked}
-                            onClick={() => {
-                              const actor = (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : g.current) as PlayerId;
-                              const modifier = g.players[actor]?.nextRollModifier;
-                              let dice: [number, number];
-                              if (modifier === 'single') {
-                                dice = [randomInt(6) + 1, 0];
-                              } else if (modifier === 'doubles') {
-                                const d = randomInt(6) + 1;
-                                dice = [d, d];
-                              } else {
-                                dice = [randomInt(6) + 1, randomInt(6) + 1];
-                              }
-                              void roomWork(() =>
-                                act(
-                                  {
-                                    type: 'roll',
-                                    dice,
-                                    event: randomInt(events.length),
-                                  },
-                                  g.revision,
-                                ),
-                              );
-                            }}
+                            onClick={rollTurn}
                           >
                             {pendingAction === 'roll'
                               ? special.rolling
@@ -2046,15 +2060,15 @@ export default function Home() {
                               <div className="text-[11px] font-medium text-sky-700 flex items-center justify-between">
                                 <span>{copy('👆 Tap any tile on board to choose', '👆 보드판에서 원하는 칸을 터치하세요', '👆 Toca una casilla en el tablero')}</span>
                                 <span className="font-extrabold text-sky-800 bg-sky-100 px-1.5 py-0.5 rounded-md">
-                                  #{String(targetTravelSpace + 1).padStart(2, '0')}
+                                  {travelDestinationChosen ? `#${String(targetTravelSpace + 1).padStart(2, '0')}` : '—'}
                                 </span>
                               </div>
                               <div className="mt-1.5 flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-2xl">{board[targetTravelSpace].icon}</span>
+                                  <span className="text-2xl">{travelDestinationChosen ? board[targetTravelSpace].icon : '📍'}</span>
                                   <div>
                                     <div className="font-extrabold text-slate-900 text-sm flex items-center gap-1">
-                                      {board[targetTravelSpace].name[lang]}
+                                      {travelDestinationChosen ? board[targetTravelSpace].name[lang] : copy('Choose destination', '목적지 선택', 'Elige destino')}
                                       {board[targetTravelSpace].kind === 'tourist' && (
                                         <span className="text-emerald-600 font-bold text-xs">✦ {special.tourist}</span>
                                       )}
@@ -2068,14 +2082,14 @@ export default function Home() {
                                     </div>
                                   </div>
                                 </div>
-                                {targetTravelSpace <= rules.airportSpace && (
+                                {travelDestinationChosen && targetTravelSpace < rules.airportSpace && (
                                   <span className="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-black text-emerald-700 whitespace-nowrap shadow-xs">
                                     +{playerStartBonus(g, (roomToken && myPlayerIndex >= 0 ? myPlayerIndex : g.current) as PlayerId)} Dubi 💰
                                   </span>
                                 )}
                               </div>
                             </div>
-                            {targetTravelSpace <= rules.airportSpace && (
+                            {travelDestinationChosen && targetTravelSpace < rules.airportSpace && (
                               <p className="mt-1.5 text-[11px] font-bold text-emerald-700">
                                 ✨ {special.crossingBonus}
                               </p>
@@ -2084,7 +2098,7 @@ export default function Home() {
                               <Button
                                 size="sm"
                                 className="bg-sky-600 hover:bg-sky-700 text-white font-black"
-                                disabled={actionsBlocked || active!.cash < rules.flightFee}
+                                disabled={actionsBlocked || !travelDestinationChosen || active!.cash < rules.flightFee}
                                 onClick={() =>
                                   void roomWork(() =>
                                     act(
@@ -2128,15 +2142,15 @@ export default function Home() {
                               <div className="text-[11px] font-medium text-emerald-700 flex items-center justify-between">
                                 <span>{copy('👆 Tap any tile on board to choose', '👆 보드판에서 원하는 칸을 터치하세요', '👆 Toca una casilla en el tablero')}</span>
                                 <span className="font-extrabold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">
-                                  #{String(targetTravelSpace + 1).padStart(2, '0')}
+                                  {travelDestinationChosen ? `#${String(targetTravelSpace + 1).padStart(2, '0')}` : '—'}
                                 </span>
                               </div>
                               <div className="mt-1.5 flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-2xl">{board[targetTravelSpace].icon}</span>
+                                  <span className="text-2xl">{travelDestinationChosen ? board[targetTravelSpace].icon : '📍'}</span>
                                   <div>
                                     <div className="font-extrabold text-slate-900 text-sm flex items-center gap-1">
-                                      {board[targetTravelSpace].name[lang]}
+                                      {travelDestinationChosen ? board[targetTravelSpace].name[lang] : copy('Choose destination', '목적지 선택', 'Elige destino')}
                                       {board[targetTravelSpace].kind === 'tourist' && (
                                         <span className="text-emerald-600 font-bold text-xs">✦ {special.tourist}</span>
                                       )}
@@ -2166,7 +2180,7 @@ export default function Home() {
                               <Button
                                 size="sm"
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-black"
-                                disabled={actionsBlocked || active!.cash < rules.sailFee}
+                                disabled={actionsBlocked || !travelDestinationChosen || active!.cash < rules.sailFee}
                                 onClick={() =>
                                   void roomWork(() =>
                                     act(
@@ -2432,6 +2446,82 @@ export default function Home() {
             </aside>
           </div>
         </>
+      )}
+      {g && g.phase !== 'finished' && !reset && (
+        <section className="mobile-turn-bar" aria-label={copy('Quick turn actions', '빠른 턴 조작', 'Acciones rápidas')} aria-busy={roomBusy}>
+          <div className="mobile-turn-summary" role="status">
+            <strong>
+              {roomToken && !isMyTurn
+                ? copy('Opponent’s turn', '상대방 턴', 'Turno del oponente')
+                : roomToken && (!online || !roomConnected)
+                  ? copy('Reconnecting…', '재연결 중…', 'Reconectando…')
+                  : copy('Your move', '현재 행동', 'Tu acción')}
+            </strong>
+            <span>
+              {g.phase === 'debt'
+                ? `${copy('Debt', '채무', 'Deuda')} ${g.pendingDebt?.amount ?? 0} Dubi`
+                : isTravelSelection
+                  ? travelDestinationChosen
+                    ? `#${targetTravelSpace + 1} · ${board[targetTravelSpace].name[lang]}`
+                    : copy('Choose a destination', '목적지를 선택하세요', 'Elige destino')
+                  : board[active!.position].name[lang]}
+            </span>
+          </div>
+          {roomToken && !isMyTurn ? null : (
+            <div className="mobile-turn-buttons">
+              {g.phase === 'debt' ? (
+                <>
+                  <Button className="mobile-primary" disabled={actionsBlocked || active!.cash < (g.pendingDebt?.amount ?? 0)} onClick={() => sendAction({ type: 'payDebt' })}>
+                    {copy('Pay debt', '채무 변제', 'Pagar deuda')}
+                  </Button>
+                  <a className="mobile-action-link" href="#turn-actions">{copy('Sell property / details', '자산 매각·상세', 'Vender / detalles')}</a>
+                </>
+              ) : g.pendingPayment?.type === 'rent' ? (
+                <Button className="mobile-primary" disabled={actionsBlocked} onClick={() => sendAction({ type: 'payRent' })}>
+                  {copy(`Pay rent · ${g.pendingPayment.amount} Dubi`, `방문료 납부 · ${g.pendingPayment.amount} Dubi`, `Pagar alquiler · ${g.pendingPayment.amount} Dubi`)}
+                </Button>
+              ) : g.pendingPayment?.type === 'event' || g.pendingEvent ? (
+                <Button className="mobile-primary" disabled={actionsBlocked} onClick={() => sendAction({ type: 'claimEvent' })}>
+                  {copy('Confirm event', '이벤트 확인', 'Confirmar evento')}
+                </Button>
+              ) : isTravelSelection ? (
+                <>
+                  <Button variant="outline" onClick={() => setShowMiniMap(true)}>{copy('🗺️ Choose', '🗺️ 목적지', '🗺️ Destino')}</Button>
+                  <Button className="mobile-primary" disabled={actionsBlocked || !travelDestinationChosen || active!.cash < (isAirportActive ? rules.flightFee : rules.sailFee)} onClick={() => sendAction({ type: isAirportActive ? 'fly' : 'sail', space: targetTravelSpace })}>
+                    {isAirportActive ? special.flyBtn : special.sailBtn}
+                  </Button>
+                  <Button variant="ghost" disabled={actionsBlocked} onClick={() => sendAction({ type: isAirportActive ? 'skipFly' : 'skipSail' })}>
+                    {copy('Skip', '건너뛰기', 'Pasar')}
+                  </Button>
+                </>
+              ) : g.phase === 'roll' ? (
+                <>
+                  <Button className="mobile-primary" disabled={actionsBlocked} onClick={rollTurn}>
+                    {inRest ? special.tryDoubles : extraRoll ? special.rollAgain : t.roll}
+                  </Button>
+                  {inRest && (
+                    <Button variant="outline" disabled={actionsBlocked || active!.cash < rules.restFee} onClick={() => sendAction({ type: 'bail' })}>
+                      {special.payRest} · {rules.restFee}
+                    </Button>
+                  )}
+                </>
+              ) : g.phase === 'choice' && (canBuy(g) || canUpgrade(g)) ? (
+                <>
+                  <Button className="mobile-primary" disabled={actionsBlocked} onClick={() => sendAction({ type: canBuy(g) ? 'buy' : 'upgrade' })}>
+                    {canBuy(g) ? `${copy('Buy', '구매', 'Comprar')} · ${landed?.price} Dubi` : `${t.upgrade} · ${landed?.upgrade} Dubi`}
+                  </Button>
+                  <Button variant="outline" disabled={actionsBlocked} onClick={() => sendAction({ type: 'end' })}>
+                    {t.skip}
+                  </Button>
+                </>
+              ) : (
+                <Button className="mobile-primary" disabled={actionsBlocked} onClick={() => sendAction({ type: 'end' })}>
+                  {extraRoll ? special.skipRoll : t.end} →
+                </Button>
+              )}
+            </div>
+          )}
+        </section>
       )}
       <footer>Made for two. Inspired by Dubu. ♥</footer>
       {showMiniMap && (

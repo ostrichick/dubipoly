@@ -883,6 +883,10 @@ export function transition(
           }
         } else {
           applyEventEffect(g, actor, effect, eventIdx);
+          if (
+            (effect.kind === 'move' || effect.kind === 'warpTourist') &&
+            g.phase !== 'end'
+          ) return g;
         }
       }
     }

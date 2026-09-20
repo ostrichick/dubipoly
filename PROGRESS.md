@@ -158,8 +158,14 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - Added a board test that verifies the country boundary by space number.
 - The Dubu character artwork is integrated as a transparent mascot in the board center and player cards.
 
-### Next requested stage
-Run the real two-phone room acceptance test: host creates a 10-character room, spouse joins from a separate Android phone, both players verify their names and turn indicators, host starts the match, both phones complete turns, and one device refreshes or briefly loses connection. Fix any user-visible issues found in that test.
+### Mobile usability and reconnect hardening — 2026-09-20
+- Added a mobile-only fixed action bar for the current required move, 44px-or-larger touch targets, an explicit destination choice before travel, and one shared cryptographically random dice-roll handler for board and sidebar controls. Desktop controls remain unchanged.
+- Moved mandatory event confirmation into a native modal dialog outside the clipped board, synchronized saved audio mute state, honored reduced-motion preferences and avoided replaying token travel from Start when restoring a match.
+- Fixed movement/warp events resolved through End so arriving at a city still presents its purchase, upgrade, or rent decision; replay regression tests cover all three cases.
+- Automated two-client API tests cover separate seats, temporary disconnection, rejoin with stored token, stale revision refresh and retry, complete game, and rematch. Production D1 UUID, GitHub secret and live schema remain unverified; no deployment was performed.
+
+### Remaining on-device acceptance test
+After confirming the GitHub D1 secret and production schema, run the real two-phone room test: host creates a 10-character room, a guest joins on a separate Android phone, both verify names and turn indicators, complete turns, refresh one phone, briefly disconnect/reconnect and rematch. The automated SQLite route tests do not replace this hardware check.
 
 ## Stage 1 history (superseded by stage 2 above)
 
