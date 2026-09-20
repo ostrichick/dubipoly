@@ -14,6 +14,17 @@ export type ServerRoom = {
 };
 
 export const rooms = new Map<string, ServerRoom>();
+const ROOM_LIFETIME_MS = 6 * 60 * 60 * 1000;
+
+export function roomExpired(room: ServerRoom, now = Date.now(), latestPresence = 0) {
+  const lastActivity = Math.max(
+    room.createdAt,
+    room.storedAt ?? 0,
+    latestPresence,
+    ...room.players.map((player) => player.lastSeen),
+  );
+  return !Number.isFinite(lastActivity) || now - lastActivity >= ROOM_LIFETIME_MS;
+}
 
 declare global {
   // The custom Worker wrapper exposes Cloudflare bindings to route handlers.
@@ -21,7 +32,11 @@ declare global {
 }
 
 function database() {
-  return globalThis.__DUBIPOLY_ENV__?.DB;
+  const env = globalThis.__DUBIPOLY_ENV__;
+  // The Worker always supplies an env object. Only direct local/test calls
+  // without that object may use the in-memory room store.
+  if (env && !env.DB) throw new Error('D1 binding DB is required');
+  return env?.DB;
 }
 
 function serialize(room: ServerRoom) {
@@ -50,22 +65,60 @@ function deserialize(payload: string) {
 export async function loadRoom(roomCode: string) {
   const db = database();
   const existing = rooms.get(roomCode);
-  if (!db) return existing ? structuredClone(existing) : undefined;
-  const row = await db
-    .prepare(
-      'SELECT payload, updated_at FROM dubipoly_rooms WHERE room_code = ?1',
-    )
-    .bind(roomCode)
-    .first<{ payload: string; updated_at: number }>();
-  if (!row?.payload) return undefined;
-  const room = deserialize(row.payload);
-  room.storedAt = row.updated_at;
-  rooms.set(roomCode, room);
-  return room;
+  if (!db) {
+    if (existing && roomExpired(existing)) {
+      rooms.delete(roomCode);
+      return undefined;
+    }
+    return existing ? structuredClone(existing) : undefined;
+  }
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const row = await db
+      .prepare(
+        'SELECT payload, updated_at FROM dubipoly_rooms WHERE room_code = ?1',
+      )
+      .bind(roomCode)
+      .first<{ payload: string; updated_at: number }>();
+    if (!row?.payload) {
+      rooms.delete(roomCode);
+      return undefined;
+    }
+    const room = deserialize(row.payload);
+    room.storedAt = row.updated_at;
+    if (!roomExpired(room)) {
+      rooms.set(roomCode, room);
+      return room;
+    }
+    const seen = await db
+      .prepare('SELECT MAX(last_seen) AS last_seen FROM dubipoly_presence WHERE room_code = ?1')
+      .bind(roomCode)
+      .first<{ last_seen: number | null }>();
+    if (!roomExpired(room, Date.now(), seen?.last_seen ?? 0)) {
+      rooms.set(roomCode, room);
+      return room;
+    }
+    // Check row version and activity together: a concurrent heartbeat must
+    // keep an active room alive even if it occurs after the presence read.
+    const cutoff = Date.now() - ROOM_LIFETIME_MS;
+    const removed = await db
+      .prepare('DELETE FROM dubipoly_rooms WHERE room_code = ?1 AND updated_at = ?2 AND NOT EXISTS (SELECT 1 FROM dubipoly_presence WHERE room_code = ?1 AND last_seen > ?3)')
+      .bind(roomCode, row.updated_at, cutoff)
+      .run();
+    if (removed.meta.changes === 1) {
+      rooms.delete(roomCode);
+      await db
+        .prepare('DELETE FROM dubipoly_presence WHERE room_code = ?1 AND NOT EXISTS (SELECT 1 FROM dubipoly_rooms WHERE room_code = ?1)')
+        .bind(roomCode)
+        .run();
+      return undefined;
+    }
+  }
+  throw new Error('Room changed while expiring');
 }
 
 export async function persistRoom(roomCode: string, room: ServerRoom) {
   const db = database();
+  if (!db && roomExpired(room)) return false;
   if (!db) {
     const existing = rooms.get(roomCode);
     if (existing && existing.storedAt !== room.storedAt) return false;
@@ -99,9 +152,8 @@ export async function persistRoom(roomCode: string, room: ServerRoom) {
 }
 
 export function cleanupRooms() {
-  const expiry = Date.now() - 1000 * 60 * 60 * 6;
   for (const [code, room] of rooms) {
-    if (room.createdAt < expiry) rooms.delete(code);
+    if (roomExpired(room)) rooms.delete(code);
   }
 }
 

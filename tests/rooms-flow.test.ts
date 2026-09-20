@@ -22,9 +22,15 @@ type Snapshot = ReturnType<typeof roomSnapshot> & {
 let sqlite: DatabaseSync;
 let failReads = false,
   failWrites = false;
+let forcedRoomRandom: number[] | null = null;
 beforeEach(() => {
   let seed = 42719;
   mock.method(crypto, 'getRandomValues', (array: Uint32Array) => {
+    if (forcedRoomRandom) {
+      for (let i = 0; i < array.length; i++)
+        array[i] = forcedRoomRandom[i % forcedRoomRandom.length];
+      return array;
+    }
     for (let i = 0; i < array.length; i++) {
       seed ^= seed << 13;
       seed ^= seed >>> 17;
@@ -41,6 +47,7 @@ beforeEach(() => {
   }
   failReads = false;
   failWrites = false;
+  forcedRoomRandom = null;
   rooms.clear();
   // Actual SQLite SQL/constraints, with the small async D1 interface adapter.
   globalThis.__DUBIPOLY_ENV__ = {
@@ -101,7 +108,7 @@ async function read(code: string, token: string) {
 }
 async function pair() {
   const host = await post({ action: 'create' }, 201);
-  assert.match(host.roomCode, /^\d{2}$/);
+  assert.match(host.roomCode, /^[A-HJ-NP-Z2-9]{10}$/);
   const guest = await post({ action: 'join', roomCode: host.roomCode });
   assert.notEqual(host.token, guest.token);
   assert.deepEqual(guest.names, ['Traveler 1', 'Traveler 2']);
@@ -168,11 +175,121 @@ test('two independent identities: authorization, name changes, rejoin, heartbeat
     snapshot.game!.players.map((p) => p.name),
     ['Dubu Korea', 'Dubi Perú'],
   );
-  assert.equal(snapshot.game!.revision, started.game!.revision + 2);
+  assert.equal(snapshot.game!.revision, started.game!.revision);
+  assert.deepEqual(
+    restore(JSON.stringify(snapshot.save))!.game,
+    snapshot.game,
+    'renaming must not leave a revision unsupported by the replay journal',
+  );
   assert.equal(
     (await post({ action: 'join', roomCode: code, token: tokens[0] })).token,
     tokens[0],
   );
+});
+
+test('new room codes remain distinct and existing two-digit rooms can be joined', async () => {
+  const first = await post({ action: 'create' }, 201);
+  const second = await post({ action: 'create' }, 201);
+  assert.notEqual(first.roomCode, second.roomCode);
+  const room = (await loadRoom(first.roomCode))!;
+  room.storedAt = undefined;
+  assert.equal(await persistRoom('27', room), true);
+  rooms.clear();
+  const oldRoom = await read('27', first.token);
+  assert.equal(oldRoom.roomCode, '27');
+  const joined = await post({ action: 'join', roomCode: '27', name: 'Legacy guest' });
+  assert.equal(joined.names[1], 'Legacy guest');
+  await post({ action: 'join', roomCode: 'SHORT' }, 400);
+});
+
+test('room creation retries bounded random collisions without enumerating other codes', async () => {
+  forcedRoomRandom = [0];
+  const first = await post({ action: 'create' }, 201);
+  assert.equal(first.roomCode, '2222222222');
+  const exhausted = await post({ action: 'create' }, 503);
+  assert.equal(exhausted.error, 'NO_ROOM_CODES');
+  forcedRoomRandom = null;
+  const next = await post({ action: 'create' }, 201);
+  assert.notEqual(next.roomCode, first.roomCode);
+});
+
+test('renaming after a played action preserves the save/replay revision', async () => {
+  const { code, tokens, started } = await pair();
+  const played = await action(code, {
+    token: tokens[0], matchId: started.matchId, revision: 0,
+    requestId: 'rename-replay', type: 'roll',
+  });
+  const renamed = await post({ action: 'rename', roomCode: code, token: tokens[0], name: 'Updated traveler' });
+  assert.equal(renamed.game!.revision, played.game!.revision);
+  assert.deepEqual(restore(JSON.stringify(renamed.save))!.game, renamed.game);
+});
+
+test('expired D1 rooms cannot be read, joined, or acted upon', async () => {
+  const host = await post({ action: 'create' }, 201);
+  await read(host.roomCode, host.token);
+  const room = (await loadRoom(host.roomCode))!;
+  const oldTime = Date.now() - 6 * 60 * 60 * 1000 - 1000;
+  const stale = {
+    ...room, createdAt: oldTime,
+    players: room.players.map((player) => ({ ...player, lastSeen: oldTime })),
+  };
+  sqlite.prepare('UPDATE dubipoly_rooms SET payload = ?, updated_at = ? WHERE room_code = ?')
+    .run(JSON.stringify({ ...stale, processed: [...stale.processed] }), oldTime, host.roomCode);
+  sqlite.prepare('UPDATE dubipoly_presence SET last_seen = ? WHERE room_code = ?')
+    .run(oldTime, host.roomCode);
+  rooms.clear();
+  await result(await GET(new Request(`http://test/api/rooms?room=${host.roomCode}&token=${host.token}`)), 404);
+  await post({ action: 'join', roomCode: host.roomCode }, 404);
+  await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '💪' }, 404);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM dubipoly_rooms WHERE room_code = ?').get(host.roomCode)?.count, 0);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM dubipoly_presence WHERE room_code = ?').get(host.roomCode)?.count, 0);
+});
+
+test('recent game updates and heartbeats prevent eviction of rooms older than six hours', async () => {
+  const host = await post({ action: 'create' }, 201);
+  await read(host.roomCode, host.token);
+  const room = (await loadRoom(host.roomCode))!;
+  const oldTime = Date.now() - 6 * 60 * 60 * 1000 - 1000;
+  const stalePayload = JSON.stringify({
+    ...room, createdAt: oldTime,
+    players: room.players.map((player) => ({ ...player, lastSeen: oldTime })),
+    processed: [...room.processed],
+  });
+  // A recent game write should keep the room alive even when creation is old.
+  sqlite.prepare('UPDATE dubipoly_rooms SET payload = ? WHERE room_code = ?')
+    .run(stalePayload, host.roomCode);
+  rooms.clear();
+  await read(host.roomCode, host.token);
+
+  // With an old game row, the independently persisted heartbeat keeps it alive.
+  sqlite.prepare('UPDATE dubipoly_rooms SET payload = ?, updated_at = ? WHERE room_code = ?')
+    .run(stalePayload, oldTime, host.roomCode);
+  rooms.clear();
+  await read(host.roomCode, host.token);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM dubipoly_rooms WHERE room_code = ?').get(host.roomCode)?.count, 1);
+});
+
+test('missing Worker D1 binding fails closed even with a cached room', async () => {
+  const host = await post({ action: 'create' }, 201);
+  const actualEnv = globalThis.__DUBIPOLY_ENV__;
+  globalThis.__DUBIPOLY_ENV__ = {};
+  try {
+    await post({ action: 'create' }, 503);
+    await result(await GET(new Request(`http://test/api/rooms?room=${host.roomCode}&token=${host.token}`)), 503);
+    await action(host.roomCode, { type: 'reaction', token: host.token }, 503);
+  } finally {
+    globalThis.__DUBIPOLY_ENV__ = actualEnv;
+  }
+});
+
+test('failed reaction persistence does not acknowledge delivery or leak into D1', async () => {
+  const host = await post({ action: 'create' }, 201);
+  failWrites = true;
+  await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '😍' }, 409);
+  failWrites = false;
+  rooms.clear();
+  const snapshot = await read(host.roomCode, host.token);
+  assert.equal(snapshot.reaction, null);
 });
 
 test('concurrent rolls apply once, duplicate returns latest state, stale/out-of-turn rejected', async () => {

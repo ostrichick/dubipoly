@@ -59,6 +59,36 @@ test('insufficient cash with owned properties enters debt phase instead of bankr
   assert.equal(paid.extraRoll, true);
 });
 
+test('third rest failure retains fee debt and resumes original roll and event after liquidation', () => {
+  let g = createGame(['Dubu', 'Dubi'], 2);
+  g.players[0].position = 20;
+  g.players[0].cash = 20;
+  g.restTurns![0] = 2;
+  g.properties[5] = { owner: 0, level: 0 };
+
+  g = transition(g, roll(1, 2, 7));
+  assert.equal(g.phase, 'debt');
+  assert.deepEqual(g.pendingDebt, { amount: 50, to: undefined, reason: 'rest', space: undefined, event: 7 });
+  assert.equal(g.players[0].position, 20);
+  assert.equal(g.restTurns![0], 3);
+  assert.equal(transition(g, { type: 'end' }), g);
+
+  g = transition(g, { type: 'sell', space: 5 });
+  assert.equal(g.phase, 'debt');
+  assert.equal(g.players[0].cash, 90);
+  g = transition(g, { type: 'payDebt' });
+  assert.equal(g.players[0].cash, 40);
+  assert.equal(g.pendingDebt, null);
+  assert.equal(g.restTurns![0], null);
+  assert.equal(g.players[0].position, 23);
+  assert.equal(g.pendingEvent?.event, 7);
+  assert.equal(g.phase, 'choice');
+
+  g = transition(g, { type: 'claimEvent' });
+  assert.equal(g.phase, 'finished');
+  assert.equal(g.reason, 'bankruptcy');
+});
+
 test('natural gameplay flow with emergency property liquidation and replay restore', () => {
   let g = createGame(['Dubu', 'Dubi'], 2);
 

@@ -159,7 +159,7 @@ Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game m
 - The Dubu character artwork is integrated as a transparent mascot in the board center and player cards.
 
 ### Next requested stage
-Run the real two-phone room acceptance test: host creates a two-digit room, spouse joins from a separate Android phone, both players verify their names and turn indicators, host starts the match, both phones complete turns, and one device refreshes or briefly loses connection. Fix any user-visible issues found in that test.
+Run the real two-phone room acceptance test: host creates a 10-character room, spouse joins from a separate Android phone, both players verify their names and turn indicators, host starts the match, both phones complete turns, and one device refreshes or briefly loses connection. Fix any user-visible issues found in that test.
 
 ## Stage 1 history (superseded by stage 2 above)
 

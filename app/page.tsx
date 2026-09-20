@@ -206,22 +206,6 @@ export default function Home() {
       };
       const previous = current.current;
       if (
-        previous?.matchId === next.matchId &&
-        previous.game.revision >= next.game.revision
-      )
-        return;
-      if (previous?.matchId && previous.matchId !== next.matchId) {
-        retiredMatches.current.add(previous.matchId);
-        setReset(false);
-      }
-      if (
-        snapshot.game.phase === 'finished' &&
-        previous?.game.phase !== 'finished'
-      ) {
-        if (snapshot.game.winner !== null) sound.playFanfare();
-        else sound.playSad();
-      }
-      if (
         snapshot.reaction &&
         snapshot.reaction.at > lastProcessedReactionAt.current
       ) {
@@ -236,6 +220,30 @@ export default function Home() {
           id: snapshot.reaction.at,
         });
         sound.playPop();
+      }
+      if (
+        previous?.matchId === next.matchId &&
+        previous.game.revision >= next.game.revision
+      ) {
+        if (
+          previous.game.revision === next.game.revision &&
+          previous.game.players.some((player, index) => player.name !== next.game.players[index].name)
+        ) {
+          current.current = next;
+          setSession(next);
+        }
+        return;
+      }
+      if (previous?.matchId && previous.matchId !== next.matchId) {
+        retiredMatches.current.add(previous.matchId);
+        setReset(false);
+      }
+      if (
+        snapshot.game.phase === 'finished' &&
+        previous?.game.phase !== 'finished'
+      ) {
+        if (snapshot.game.winner !== null) sound.playFanfare();
+        else sound.playSad();
       }
       const myPlayerIndex = roomRole === 'host' ? 0 : roomRole === 'guest' ? 1 : -1;
       if (
@@ -557,13 +565,13 @@ export default function Home() {
     );
   }
   async function joinRoom() {
-    const code = roomInput.trim();
-    if (!/^\d{2}$/.test(code)) {
+    const code = roomInput.trim().toUpperCase();
+    if (!/^(?:[A-HJ-NP-Z2-9]{10}|\d{2})$/.test(code)) {
       setRoomNotice(
         copy(
-          'Enter a 2-digit room code.',
-          '두 자리 숫자 방 코드를 입력하세요.',
-          'Escribe un código de sala de 2 dígitos.',
+          'Enter a valid room code.',
+          '올바른 방 코드를 입력하세요.',
+          'Introduce un código de sala válido.',
         ),
       );
       return;
@@ -938,6 +946,14 @@ export default function Home() {
   const isAirportActive = Boolean(g && canFly(g, travelActor));
   const isHarborActive = Boolean(g && canSail(g, travelActor));
   const isTravelSelection = isAirportActive || isHarborActive;
+  function selectBoardSpace(index: number) {
+    setSelected(index);
+    setTargetTravelSpace(index);
+    if (isTravelSelection) {
+      sound.playPop();
+      triggerHaptic('light');
+    }
+  }
   return (
     <main
       data-match-id={session?.matchId ?? ''}
@@ -1224,14 +1240,13 @@ export default function Home() {
                     {copy('Create room', '방 만들기', 'Crear sala')}
                   </Button>
                   <Input
-                    maxLength={2}
-                    inputMode="numeric"
+                    maxLength={10}
                     aria-label={copy('Room code', '방 코드', 'Código de sala')}
-                    placeholder="27"
+                    placeholder="7K4W9C2N8P"
                     value={roomInput}
                     onChange={(e) =>
                       setRoomInput(
-                        e.target.value.replace(/\D/g, '').slice(0, 2),
+                        e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10),
                       )
                     }
                   />
@@ -1443,14 +1458,7 @@ export default function Home() {
                       style={{ gridRow: x.row, gridColumn: x.col }}
                       aria-label={`${x.index + 1}. ${x.name[lang]}${p ? ` · ${g!.players[p.owner].name} · ${t.level} ${p.level}` : ''}`}
                       aria-pressed={selected === x.index}
-                      onClick={() => {
-                        setSelected(x.index);
-                        setTargetTravelSpace(x.index);
-                        if (isTravelSelection) {
-                          sound.playPop();
-                          triggerHaptic('light');
-                        }
-                      }}
+                      onClick={() => selectBoardSpace(x.index)}
                     >
                       {p && (
                         <div
@@ -2432,7 +2440,7 @@ export default function Home() {
           lang={lang}
           onClose={() => setShowMiniMap(false)}
           onSelectSpace={(index) => {
-            setSelected(index);
+            selectBoardSpace(index);
             const cell = boardRef.current?.querySelector<HTMLElement>(
               `[data-space="${index}"]`,
             );

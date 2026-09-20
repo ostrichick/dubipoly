@@ -78,6 +78,7 @@ export type PendingDebt = {
   to?: PlayerId;
   reason: 'rent' | 'event' | 'rest';
   space?: number;
+  event?: number;
 };
 export type PendingEvent = {
   event: number;
@@ -612,7 +613,8 @@ export function transition(
     return state;
   if (
     action.type === 'claimEvent' &&
-    (state.phase !== 'choice' || (!state.pendingPayment && !state.pendingEvent))
+    (state.phase !== 'choice' ||
+      (!state.pendingEvent && state.pendingPayment?.type !== 'event'))
   )
     return state;
   if (
@@ -661,13 +663,17 @@ export function transition(
             });
             return g;
           }
-          pay(g, rules.restFee);
+          pay(g, rules.restFee, undefined, 'rest');
           log(g, {
             kind: 'rest',
             player: actor,
             amount: rules.restFee,
             detail: 'rest-fee',
           });
+          if (g.phase === 'debt') {
+            g.pendingDebt!.event = action.event;
+            return g;
+          }
           if (g.phase === 'finished') return g;
         }
         g.restTurns![actor] = null;
@@ -740,8 +746,17 @@ export function transition(
         space: debt.space,
       });
       g.pendingDebt = null;
-      g.phase = 'end';
-      finishLanding(g);
+      if (debt.reason === 'rest') {
+        g.restTurns![actor] = null;
+        g.doubles = 0;
+        log(g, { kind: 'rest', player: actor, detail: 'rest-release' });
+        move(g, g.dice![0] + g.dice![1]);
+        land(g, true, debt.event ?? 0);
+        finishLanding(g);
+      } else {
+        g.phase = 'end';
+        finishLanding(g);
+      }
     }
   }
   if (action.type === 'bankrupt') {
@@ -766,7 +781,7 @@ export function transition(
     g.travelCooldown[actor] = 2;
     g.travelBlocked = null;
     const dest = action.space;
-    if (dest <= rules.airportSpace) {
+    if (dest < rules.airportSpace) {
       const bonus = playerStartBonus(g, actor);
       g.players[actor].cash += bonus;
       log(g, { kind: 'bonus', player: actor, amount: bonus });

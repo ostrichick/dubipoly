@@ -38,19 +38,22 @@ export async function POST(
       return json({ error: 'INVALID_ACTION' }, 400);
 
     if (body.type === 'reaction') {
-      const room = await loadRoom(roomCode);
-      if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
-      const playerIndex = room.players.findIndex(
-        (player) => player.token === body.token,
-      );
-      if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
-      room.reaction = {
-        player: playerIndex,
-        emoji: (typeof body.emoji === 'string' ? body.emoji : '🐾').slice(0, 10),
-        at: Date.now(),
-      };
-      await persistRoom(roomCode, room);
-      return json(roomSnapshot(roomCode, room));
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const room = await loadRoom(roomCode);
+        if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
+        const playerIndex = room.players.findIndex(
+          (player) => player.token === body.token,
+        );
+        if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
+        room.reaction = {
+          player: playerIndex,
+          emoji: (typeof body.emoji === 'string' ? body.emoji : '🐾').slice(0, 10),
+          at: Date.now(),
+        };
+        if (await persistRoom(roomCode, room))
+          return json(roomSnapshot(roomCode, room));
+      }
+      return json({ error: 'ROOM_CHANGED' }, 409);
     }
 
     if (

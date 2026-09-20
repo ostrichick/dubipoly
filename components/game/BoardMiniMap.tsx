@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { board, type Lang } from '../../lib/board';
 import type { Game } from '../../lib/game';
 import { Button } from '../ui/button';
@@ -14,18 +15,25 @@ interface BoardMiniMapProps {
 export function BoardMiniMap({ game, lang, onClose, onSelectSpace }: BoardMiniMapProps) {
   const p0 = game?.players[0];
   const p1 = game?.players[1];
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => dialog?.close();
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+    <dialog ref={dialogRef} onCancel={onClose} aria-labelledby="board-overview-title" className="m-auto w-full max-w-md rounded-3xl bg-transparent p-0 backdrop:bg-black/60 backdrop:backdrop-blur-sm">
       <div className="relative flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl border border-teal-100 bg-white p-5 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xl">🗺️</span>
-            <h3 className="text-base font-bold text-slate-800">
+            <h3 id="board-overview-title" className="text-base font-bold text-slate-800">
               {lang === 'ko' ? '보드 전체 조감도' : lang === 'es' ? 'Vista general del tablero' : 'Board Overview'}
             </h3>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 rounded-full p-0">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label={lang === 'ko' ? '닫기' : lang === 'es' ? 'Cerrar' : 'Close'} className="h-8 w-8 rounded-full p-0">
             ✕
           </Button>
         </div>
@@ -132,6 +140,6 @@ export function BoardMiniMap({ game, lang, onClose, onSelectSpace }: BoardMiniMa
           </Button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

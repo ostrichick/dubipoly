@@ -14,6 +14,19 @@ function json(data: unknown, status = 200) {
   });
 }
 
+const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const ROOM_CODE_PATTERN = /^(?:[A-HJ-NP-Z2-9]{10}|\d{2})$/;
+
+function newRoomCode() {
+  const random = crypto.getRandomValues(new Uint32Array(2));
+  let code = '';
+  for (let i = 0; i < 10; i++) {
+    const word = random[i < 6 ? 0 : 1];
+    code += ROOM_CODE_ALPHABET[(word >>> ((i < 6 ? i : i - 6) * 5)) & 31];
+  }
+  return code;
+}
+
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -62,9 +75,8 @@ export async function POST(request: Request) {
     const name =
       typeof body.name === 'string' ? body.name.trim().slice(0, 24) : '';
     if (body.action === 'create') {
-      const seed = crypto.getRandomValues(new Uint32Array(1))[0] % 100;
-      for (let offset = 0; offset < 100; offset++) {
-        const roomCode = String((seed + offset) % 100).padStart(2, '0');
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const roomCode = newRoomCode();
         if (await loadRoom(roomCode)) continue;
         const token = crypto.randomUUID();
         const room: ServerRoom = {
@@ -82,8 +94,6 @@ export async function POST(request: Request) {
             { ...roomSnapshot(roomCode, room), token, role: 'host' },
             201,
           );
-        if (!(await loadRoom(roomCode)))
-          return json({ error: 'STORAGE_UNAVAILABLE' }, 503);
       }
       return json({ error: 'NO_ROOM_CODES' }, 503);
     }
@@ -91,7 +101,7 @@ export async function POST(request: Request) {
       typeof body.roomCode === 'string'
         ? body.roomCode.trim().toUpperCase()
         : '';
-    if (!/^\d{2}$/.test(roomCode))
+    if (!ROOM_CODE_PATTERN.test(roomCode))
       return json({ error: 'INVALID_ROOM_CODE' }, 400);
     for (let attempt = 0; attempt < 4; attempt++) {
       const room = await loadRoom(roomCode);
@@ -120,7 +130,6 @@ export async function POST(request: Request) {
           room.players[playerIndex].name = name;
           if (room.game) {
             room.game.players[playerIndex].name = name;
-            room.game.revision++;
           }
           if (room.save) room.save.names[playerIndex] = name;
         } else {

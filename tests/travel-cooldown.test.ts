@@ -56,6 +56,18 @@ test('flying from airport applies 1-turn cooldown preventing consecutive airport
   assert.equal(g.travelCooldown?.[0], 0); // Cooldown expired now!
 });
 
+test('flying from airport to the same airport charges the fee without start bonus', () => {
+  const g = createGame(['Player 1', 'Player 2'], 2);
+  g.players[0].position = rules.airportSpace;
+  g.phase = 'choice';
+
+  const landed = transition(g, { type: 'fly', space: rules.airportSpace });
+  assert.equal(landed.players[0].position, rules.airportSpace);
+  assert.equal(landed.players[0].cash, 1500 - rules.flightFee);
+  assert.equal(landed.logs.filter((entry) => entry.kind === 'bonus').length, 0);
+  assert.equal(landed.travelCooldown?.[0], 2);
+});
+
 test('sailing from harbor applies 1-turn cooldown preventing consecutive harbor usage on next turn', () => {
   let g = createGame(['Player 1', 'Player 2'], 2);
 

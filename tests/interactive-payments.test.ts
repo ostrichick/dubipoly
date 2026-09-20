@@ -56,6 +56,24 @@ test('landing on opponent property requires payRent action', () => {
   assert.equal(g.extraRoll, true);
 });
 
+test('claimEvent cannot clear rent debt or award an unrelated event', () => {
+  let g = createGame(['Dubu', 'Dubi'], 2);
+  g.properties[2] = { owner: 1, level: 0 };
+  g = transition(g, roll(1, 1, 0));
+  const pendingRent = g.pendingPayment;
+  const revision = g.revision;
+
+  assert.equal(pendingRent?.type, 'rent');
+  assert.equal(transition(g, { type: 'claimEvent' }), g);
+  assert.equal(g.revision, revision);
+  assert.equal(g.pendingPayment, pendingRent);
+  assert.deepEqual(g.players.map((p) => p.cash), [1500, 1500]);
+
+  const paid = transition(g, { type: 'payRent' });
+  assert.equal(paid.pendingPayment, null);
+  assert.deepEqual(paid.players.map((p) => p.cash), [1488, 1512]);
+});
+
 test('landing on positive cash event requires claimEvent action to receive money', () => {
   let g = createGame(['Dubu', 'Dubi'], 2);
   g.players[0].position = 0;

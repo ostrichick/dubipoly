@@ -16,10 +16,14 @@ const d1DatabaseId = process.env.CLOUDFLARE_D1_DATABASE_ID;
 const hasRealD1 = Boolean(d1DatabaseId && d1DatabaseId !== SITE_CREATOR_PLACEHOLDER_DATABASE_ID);
 const isDeployBuild = Boolean(process.env.NODE_ENV === 'production' || process.env.CI || process.env.CLOUDFLARE_API_TOKEN);
 
+if (d1 && isDeployBuild && !hasRealD1) {
+  throw new Error('CLOUDFLARE_D1_DATABASE_ID must be configured for production builds');
+}
+
 const localBindingConfig = {
   main: './worker.ts',
   compatibility_flags: ['nodejs_compat'],
-  d1_databases: d1 && (hasRealD1 || !isDeployBuild)
+  d1_databases: d1
     ? [
         {
           binding: d1,
