@@ -1,9 +1,22 @@
-# Stages
+# Dubipoly 작업 계획
 
-1. [Complete] Screen/board: 40 valid positions, 28 unique cities, country edges, selection/details, mobile UI and Dubu. Verify data/build/browser.
-2. [Complete] Single-device engine: provisional rules, events, save/restore, complete game and money invariants.
-3. Shared rooms: creation/join, 2-player authority and matching state in two sessions.
-4. Resilience: deduplication, refresh/reconnect, seat recovery, stale/offline handling.
-5. Finish: Korean/Spanish review, PWA, real two-phone tests, hosting/cost instructions and deployment.
+**기준:** 2026-09-21. 작업 범위·우선순위는 사용자의 최신 요청에 따라 조정한다. 이 문서는 **남은 작업**만 관리하며 완료 내역과 과거 단계 기록은 [`PROGRESS.md`](PROGRESS.md)로 분리한다. 상세 규칙은 [`SPEC.md`](SPEC.md), 실행·배포 전제는 [`README.md`](README.md)를 참고한다.
 
-One requested stage per turn. Update PROGRESS at checkpoints. Single-device stage does not replace final multiplayer.
+## 구현이 끝난 범위
+
+- 40칸 보드·3개 언어·두부 UI·로컬 저장 및 v1 저장 복원.
+- v2 규칙(40라운드, 더블·휴식·관광지·채무 등)과 서버 권위 2인 방, D1 저장·CAS·재접속 처리.
+- 모바일 하단 턴 버튼, 목적지 선택, 이벤트 대화상자 접근성, 자동화된 두 플레이어 재접속·재대전 테스트.
+
+구현 완료는 **실제 운영 배포 성공 또는 기기 수용 테스트 완료와 다르다.**
+
+## 남은 작업 — 우선순위 순
+
+| 우선 | 작업 | 완료 조건 |
+| --- | --- | --- |
+| P0 | 운영 배포 상태 확인 | GitHub `main` 푸시로 실행된 Actions의 테스트·빌드·배포 결과를 확인한다. `CLOUDFLARE_D1_DATABASE_ID`와 Cloudflare 인증 설정, 운영 D1의 두 SQL 테이블 존재 여부를 확인한다. 시험용 UUID 빌드는 배포하지 않는다. |
+| P0 | 실제 안드로이드 2대 검증 | 서로 다른 기기에서 10자리 방 생성·참가·게임 시작, 각각 턴 진행, 이름·현금·위치 일치, 한쪽 새로고침/일시 오프라인·재연결, 이전 매치 요청 거절 및 재대전까지 확인한다. 발견한 문제는 재현 후 수정한다. |
+| P1 | 모바일 화면·접근성 실측 | 작은 세로 화면·가로 화면에서 하단 고정 버튼이 보드를 가리지 않고, 주요 행동·매각·목적지 선택·모달이 잘 동작하는지 검증한다. 키보드 초점과 화면 넘침을 확인한다. |
+| P2 | 상태 동기화 체감 개선 | 이름 변경·빠른 반응은 게임 `revision`이 바뀌지 않아 빠른 204 폴링에서는 다음 전체 조회까지 반영이 늦을 수 있다. 실사용에서 지연이 문제인지 확인한 후 필요한 경우 최소 변경으로 개선한다. |
+
+진행 시 관련 테스트·TypeScript·린트를 실행하고, 수동 검증과 자동 검증을 구분해 [`PROGRESS.md`](PROGRESS.md)에 결과를 남긴다. 새 기능 추가는 위 P0 수용 기준을 통과한 뒤 우선순위를 정한다.

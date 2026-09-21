@@ -1,175 +1,38 @@
-# 🎲 Dubipoly 프로젝트 종합 점검 보고서 & 협업 가이드
+# Dubipoly 아키텍처·협업 안내
 
-> **문서 버전:** 1.0.0  
-> **점검 일시:** 2026-09-14  
-> **대상:** 프로젝트 협업자(개발자 및 AI 어시스턴트)  
+이 문서는 **코드 구조와 데이터 흐름**만 설명한다. 사용자 실행·배포 절차는 [`README.md`](README.md), 게임 규칙은 [`SPEC.md`](SPEC.md), 코딩 AI의 공통 원칙은 [`AGENTS.md`](AGENTS.md)를 참고한다. 2026-09-14 점검 보고서에 있던 2자리 방 코드, 메모리 기반 운영 장애 복구, 29개 테스트·미커밋 상태 등은 당시 기록일 뿐 현재 동작이 아니다.
 
----
+## 소스 구조와 수정 위치
 
-## 1. 프로젝트 개요 및 기획 의도
+| 영역 | 주요 파일과 책임 |
+| --- | --- |
+| UI | `app/page.tsx` — 로비·방 접속·상태 동기화·화면 조합; `app/globals.css` — 모바일 레이아웃; `components/game/BoardCenterHub.tsx` — 중앙 턴 컨트롤·이벤트 대화상자 |
+| 보조 UI | `components/game/BoardMiniMap.tsx`, `RoomQrCode.tsx`, `QuickReaction.tsx` 등 |
+| 게임 규칙 | `lib/board.ts` — 보드·가격; `lib/events.ts` — 이벤트 ID·효과·다국어; `lib/game.ts` — 상태 전이·자산·저장 재생; `lib/game-copy.ts` — UI·로그 문구 |
+| 온라인 API | `app/api/rooms/route.ts` — 방 생성·참여·이름·시작·조회; `app/api/rooms/[roomCode]/actions/route.ts` — 턴 액션·반응 처리 |
+| 저장소 | `lib/server-rooms.ts` — D1 스냅샷·CAS·presence·만료; `worker.ts` — Worker 바인딩 연결; `drizzle/*.sql` — DB 스키마 |
+| 배포 | `vite.config.ts`, `.openai/hosting.json`, `.github/workflows/deploy.yml`; `public/manifest.webmanifest`, `public/sw.js` — PWA 구성 |
+| 검증 | `tests/` — 게임·특수 규칙·채무·지급·여행 쿨다운·서버·2인 방 흐름 |
 
-- **프로젝트명:** Dubipoly (두비폴리)
-- **목적:** 한국인/페루인 커플을 위한 프라이빗 2인용 모바일 웹 보드게임 (부루마블/모노폴리 스타일)
-- **주요 테마 & 아트:**
-  - 마스코트: 고양이 **두부(Dubu)** (투명 배경 캐릭터 일러스트가 보드 중앙 및 프로필에 적용됨)
-  - 게임 내 화폐: **두비(Dubi)**
-  - 밝고 아기자기한 여행 컨셉 (한국 14개 도시 + 페루 14개 도시)
-- **지원 언어:** 영어(`en`, 기본값), 한국어(`ko`), 스페인어(`es`) 3개 국어 완벽 지원 및 실시간 변경 가능
-- **플랫폼:** 모바일 웹 우선(Mobile-first), PWA(Progressive Web App) 설치 지원
+## 게임 상태의 책임 경계
 
----
+1. `lib/game.ts`의 `transition(previous, action, actor, revision)`은 유효하지 않거나 오래된 액션을 거부하며 새로운 게임 상태를 반환한다. 로컬 저장의 **액션 저널**은 `restore()`가 초기 상태부터 재생한다. v1 저장은 예전 규칙, 새 게임은 v2 규칙이다.
+2. 온라인 방의 게임 상태는 서버가 결정한다. 서버가 주사위·이벤트를 추첨하고 현재 플레이어·요청값을 검증한다. 클라이언트가 잠깐 표시하는 예측 상태는 서버 응답으로 반드시 교정한다.
+3. 각 방은 D1 `dubipoly_rooms`에 방 정보·게임 스냅샷·액션 저널·처리한 요청 ID를 함께 저장한다. 행의 `updated_at`으로 비교 후 갱신(CAS)해 경합 시 오래된 쓰기를 거절한다. `requestId`로 재전송된 액션의 중복 처리를 막는다.
+4. 하트비트는 별도 `dubipoly_presence` 테이블에 기록해 게임 상태 갱신과 분리한다. 게임·접속 활동이 마지막으로 기록된 때부터 6시간 비활성이면 방을 만료시키며, 동시 하트비트를 고려해 삭제한다.
+5. 빠른 폴링은 `matchId`와 게임 `revision`이 같으면 204를 반환한다. **이름 변경·리액션은 게임 revision을 증가시키지 않으므로 다음 전체 동기화(주기적인 heartbeat 조회)에서 보일 수 있다.** 이를 즉각 동기화가 보장된 것으로 안내하지 않는다.
 
-## 2. 기술 스택 및 아키텍처
+### D1과 메모리의 구분
 
-```mermaid
-graph TD
-    Client["Client (Mobile PWA / React 19)"] <--> API["Next.js App Router (Cloudflare Workers)"]
-    API <--> D1["Cloudflare D1 (SQLite DB)"]
-    API <--> Memory["In-Memory Cache (Fallback)"]
-    Client <--> SW["Service Worker (App Shell Cache)"]
-```
+실제 Worker 환경에서 `DB` 바인딩이 없으면 서버는 503 오류로 실패해야 하며, 운영 게임을 메모리에 저장한 것처럼 성공 응답하지 않는다. **직접 호출하는 로컬 테스트/개발 환경에 한해서만** 메모리 저장 경로가 가능하다. `.openai/hosting.json`의 `DB`는 바인딩 이름이며, 실제 데이터베이스 UUID나 프로덕션 설정 확인을 대신하지 않는다.
 
-| 영역 | 기술 스택 | 설명 |
-| :--- | :--- | :--- |
-| **Frontend** | React 19.2.8, TypeScript, Tailwind CSS v4 | Next.js App Router 호환 Vite RSC 엔진(`vinext`) 활용 |
-| **UI Components** | shadcn/ui, Lucide Icons | 모바일 터치 및 반응형 UI 완비 |
-| **Backend** | Cloudflare Workers, Wrangler | Edge 환경에서 경량 API 라우트 실행 |
-| **Database** | Cloudflare D1 (분산 SQLite) | 룸 스냅샷 및 접속 상태(`presence`) 영속화 |
-| **State Engine** | Pure Functional State Machine | `lib/game.ts` - 액션 저널 리플레이 기반 순수 함수 엔진 |
-| **PWA** | Service Worker (`public/sw.js`) | 앱 셸 캐싱, 오프라인 화면 표시 |
+`drizzle/0000_create_rooms.sql`은 방 테이블, `drizzle/0001_room_presence.sql`은 접속 테이블을 만든다. 운영 DB에 두 스키마가 모두 존재하는지는 운영 환경에서 별도 확인해야 한다. CI는 마이그레이션을 적용하지 않는다.
 
----
+## 안전한 변경 순서
 
-## 3. 핵심 아키텍처 & 설계 원칙
+- 게임 규칙 변경: `SPEC.md`와 `lib/game.ts`·관련 테스트를 함께 바꾸고 구 v1 재생 호환성을 확인한다.
+- API 또는 저장 구조 변경: 새·구 요청, 동시 요청, 실패·재시도, 재접속 및 재대전 시나리오를 테스트한다. 운영 DB 마이그레이션을 CI가 자동 수행한다고 가정하지 않는다.
+- UI 변경: 현재 턴의 행동만 노출하는지, 두 언어 외 영어까지 일관적인지, 터치 영역·키보드 포커스·모바일 화면 크기를 확인한다. 실제 휴대전화 검증을 자동 테스트로 대체하지 않는다.
+- 배포 전제·검증 결과가 달라지면 `README.md`·`PLAN.md`·`PROGRESS.md`에서 **담당하는 부분만** 갱신한다. 날짜 지난 테스트 수치나 과거 배포 링크를 최신 현황으로 재사용하지 않는다.
 
-### 3.1. 순수 함수형 게임 엔진 (`lib/game.ts`)
-- **저널 기반 리플레이(Save/Replay Journal):**  
-  게임 상태는 임의의 상태 변조를 방지하기 위해 `names`와 유효한 `actions` 리스트만 저장하며, 복원 시 `restore()` 함수를 통해 초기 상태부터 순수 함수(`transition`)로 100% 재현(Replay)합니다.
-- **불변성(Immutability):**  
-  모든 턴 진행과 상태 변화는 이전 객체를 직접 변경하지 않고 새로운 상태 객체를 반환합니다.
-
-### 3.2. 네트워크 멱등성 및 동시성 제어 (`lib/server-rooms.ts`)
-- **2자리 룸 코드:** 방 코드가 `00`~`99` 숫자로 단순화되어 모바일에서 쉽게 입력하고 공유 가능합니다.
-- **멱등성 (`requestId`):** 클라이언트가 주사위 굴리기, 구매, 업그레이드 등 요청 시 고유한 `requestId`를 생성하여 전송합니다. 서버는 이미 처리된 요청인 경우 이전 결과를 그대로 반환하여 중복 처리를 방지합니다.
-- **낙관적 동시성 제어 (CAS / Compare-And-Swap):**  
-  `dubipoly_rooms` 테이블의 `updated_at` 컬럼을 버전 번호처럼 사용하여, 동시 요청 시 나중에 도착한 요청은 충돌(409 Conflict) 처리하고 클라이언트 상태 갱신을 유도합니다.
-- **하트비트 분리 (`dubipoly_presence`):**  
-  플레이어의 주기적 접속 확인(5초 주기)은 게임 상태 테이블을 락하지 않도록 `dubipoly_presence` 테이블로 분리 저장됩니다.
-- **스마트 폴링 (204 No Content 지원):**  
-  클라이언트가 최신 `matchId`와 `revision`을 헤더/쿼리로 전송하며, 변경 사항이 없을 경우 서버는 `204 No Content`로 응답하여 대역폭과 연산량을 절약합니다.
-
----
-
-## 4. 보드 구성 및 게임 규칙
-
-### 4.1. 보드 맵 구성 (총 40칸)
-- **1 ~ 20번 칸 (한국):**
-  - 광주, 전주, 대전, 수원, 경주(관광지), 춘천, 강릉, 속초, 대구, 부산, 인천, 제주(관광지), 서울 등
-  - **20번 칸 (코너):** 휴식처 (Rest / 무인도)
-- **21 ~ 40번 칸 (페루):**
-  - Iquitos, Puno, Arequipa, Trujillo, Chiclayo, Huaraz, Ica, Paracas, Piura(관광지), Huancayo, Tarapoto, Cusco(관광지), Lima 등
-  - **30번 칸 (코너):** 여행 지연 (Travel Delay - 20번 휴식처로 강제 송환)
-  - **40번 칸 (코너):** 출발점 (Start - 통과 시 200 Dubi 지급)
-- **이벤트 칸 (8칸):** 12가지 다국어 이벤트 카드 (축제, 세금, 추가 이동 등, 연쇄 이동 방지 포함)
-
-### 4.2. 최신 스페셜 룰 (Stage 10~12 구현 내용)
-1. **주사위 더블 (Doubles):**
-   - 두 주사위 눈이 같으면 턴 종료 후 **추가 주사위(Extra Roll)** 기회 부여
-   - 연속 3회 더블 발생 시 즉시 이동 없이 20번 휴식처로 강제 이동 (출발 보너스 없음)
-2. **휴식처 및 여행 지연 (Rest & Travel Delay):**
-   - 30번 '여행 지연' 칸에 걸리거나 3연속 더블 시 20번 '휴식처'로 이동되어 갇힘(`restTurns`)
-   - 탈출 조건:
-     - (1) 더블 주사위를 굴려 즉시 탈출 (이 경우 추가 롤 없음)
-     - (2) 보석금/휴식비 50 Dubi 지불 후 일반 주사위로 이동
-     - (3) 3회 연속 탈출 실패 시 3회째 50 Dubi 강제 지불 후 해당 눈금만큼 이동
-3. **관광지 (Tourist Destinations - 4곳):**
-   - 한국: 경주, 제주 / 페루: Cusco, Piura
-   - 일반 도시와 달리 업그레이드가 불가능하며, 한 플레이어가 소유한 관광지 개수에 따라 통행료가 배수로 증가 (`25 × 2^(소유개수-1)`)
-4. **지역 독점 (Regional Monopoly):**
-   - 동일 지역(예: 한국 수도권, 페루 안데스 등)의 모든 도시를 독점하면, 건물이 없는 기본 상태(level 0)의 통행료가 2배로 증가
-
----
-
-## 5. 전체 시스템 점검 결과
-
-| 점검 항목 | 결과 | 상세 내용 |
-| :--- | :---: | :--- |
-| **테스트 스위트 (`npm test`)** | ✅ **통과 (29/29)** | 100회 랜덤 시뮬레이션, 장애 주입(Fault injection), 동시성 락, 룸 플로우, 스페셜 룰 전체 통과 |
-| **타입 안정성 (`tsc --noEmit`)** | ✅ **통과 (0 errors)** | 전체 TypeScript 정적 타입 검사 완벽 통과 |
-| **프로덕션 빌드 (`npm run build`)** | ✅ **통과** | Vinext(Vite) RSC, SSR, 클라이언트 번들링 성공 |
-| **린터 (`oxlint`)** | ⚠️ **경고** | 소스 코드는 정상이나, 아카이브 디렉토리(`package-stage*`)가 린트 범위에 포함되어 대량 에러 감지됨. (`.oxlintrc.json` 수정 권장) |
-| **Git 작업 트리 상태** | ⚠️ **미커밋 변경 다수** | Stage 10~12 스페셜 룰 및 D1 presence 분리 등 **1,854줄 추가 / 475줄 삭제**가 Uncommitted 상태 |
-
----
-
-## 6. 주요 디렉토리 및 파일 가이드
-
-```
-MobilePoly/
-├── app/
-│   ├── api/rooms/
-│   │   ├── route.ts                 # 방 생성/참여/상태 조회/닉네임 변경 API
-│   │   └── [roomCode]/actions/
-│   │       └── route.ts             # 게임 액션(주사위, 구매, 업그레이드, 턴종료, 보석금) API
-│   ├── globals.css                  # Tailwind v4 글로벌 스타일 및 반응형 레이아웃
-│   ├── layout.tsx                   # 메타데이터, 뷰포트, PWA 매니페스트 링크
-│   └── page.tsx                     # 메인 단일 페이지 (보드, 컨트롤, 방 모달, PWA/오프라인)
-├── components/
-│   ├── game/
-│   │   ├── BoardMiniMap.tsx         # 40칸 보드 전체 조감도 팝업 미니맵
-│   │   ├── QuickReaction.tsx        # 두부 퀵 리액션 이모티콘 런처 & 플로팅 버블
-│   │   └── RoomQrCode.tsx           # 대기실 방 참여용 1초 스캔 QR 코드
-│   └── ui/                          # shadcn UI 컴포넌트 풀세트
-├── lib/
-│   ├── audio.ts                     # Web Audio API 무설치 신디사이저 SFX & 햅틱 엔진
-│   ├── board.ts                     # 40개 칸 상세 정보(도시명, 지역, 국기, 가격, 렌트비)
-│   ├── events.ts                    # 12종 이벤트 카드 정의
-│   ├── game.ts                      # 순수 함수형 게임 룰/엔진 (주사위, 자산, 이동, 파산, 매각, 리플레이)
-│   ├── game-copy.ts                 # 3개 국어(KO, EN, ES) UI 텍스트 및 로그 메시지
-│   ├── qr.ts                        # 방 링크 QR 코드 생성기
-│   ├── room.ts                      # URL 기반 룸 파라미터 파싱 및 공유 URL 생성
-│   └── server-rooms.ts              # D1/메모리 방 저장소, CAS 동시성 제어, 하트비트
-├── db/
-│   └── schema.ts                    # D1 테이블 메타정보
-├── drizzle/
-│   ├── 0000_create_rooms.sql        # dubipoly_rooms 테이블 생성
-│   └── 0001_room_presence.sql       # dubipoly_presence 테이블 생성
-├── tests/
-│   ├── board.test.ts                # 보드 데이터 무결성 검증
-│   ├── game.test.ts                 # 단일 기기 룰 엔진 및 100회 시뮬레이션
-│   ├── server-rooms.test.ts         # 방 스토리지 및 CAS 락 테스트
-│   ├── rooms-flow.test.ts           # 2인 온라인 플로우 및 장애 주입 통합 테스트
-│   └── special-rules.test.ts        # 더블, 휴식처, 관광지, 독점, 긴급 매각 룰 검증
-└── public/
-    ├── sw.js                        # PWA 서비스 워커 (앱 셸 캐싱)
-    ├── dubu.png                     # 마스코트 두부 캐릭터 에셋
-    └── manifest.webmanifest         # PWA 매니페스트
-```
-
----
-
-## 7. 협업 시 필수 작업 가이드 & 팁
-
-### 7.1. 로컬 개발 및 테스트 실행법
-```bash
-# 1. 의존성 설치
-npm ci
-
-# 2. 로컬 개발 서버 시작 (동일 Wi-Fi의 모바일 테스트를 위해 0.0.0.0 바인딩)
-npm run dev -- --host 0.0.0.0
-
-# 3. 테스트 실행 (29개 테스트 전체 검증)
-npm test
-
-# 4. 프로덕션 빌드 검증
-npm run build
-```
-
-### 7.2. 협업 전 우선 권장 작업 (Next Steps)
-1. **Git Commit 정리 (중요):**
-   - 현재 작업 트리에 있는 변경사항(스페셜 룰, presence 마이그레이션 등)은 모든 테스트와 빌드가 통과하는 매우 안정된 상태입니다.
-   - 기능별 또는 스테이지(Stage 10~12) 단위로 깔끔하게 커밋하여 GitHub 원격 저장소에 push해두는 것을 권장합니다.
-2. **`.oxlintrc.json` 보완:**
-   - `ignorePatterns`에 `"package-stage*/**"` 추가하여 아카이브 폴더가 린터 검사 대상에서 제외되도록 설정합니다.
-3. **두 대의 실제 안드로이드 폰 최종 수용 테스트(Acceptance Test):**
-   - 현재 배포된 URL(`https://dubipoly.nukapig.chatgpt.site`) 또는 로컬 LAN 환경에서 실제 2대의 모바일 기기로 방 생성(`00~99`) → 참가 → 더블/휴식 룰 플레이 → 화면 새로고침 및 네트워크 재접속 시 정상 동기화되는지 최종 확인.
+최소 검사 명령과 배포 안전 요건은 [`README.md`](README.md)에만 유지한다. 실제 수정 내역의 완료·미완료 구분은 [`PROGRESS.md`](PROGRESS.md)를 참고한다.

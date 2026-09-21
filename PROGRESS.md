@@ -1,189 +1,28 @@
-# Progress
+# Dubipoly 진행 현황 및 변경 이력
 
-## Dynamic Cash Delta Floating Badges (+/- Dubi animations) — 2026-09-14
-- Added automatic tracking of player cash changes across all game actions (rent, buy, upgrade, sell, salary, events, flights, sails, bail fees).
-- Implemented floating badge animations (`@keyframes cash-delta-float`) positioned on each player's cash balance card:
-  - Positive gain: emerald badge with upward float (`+XX Dubi 💰`).
-  - Negative loss: red badge with floating descent (`-XX Dubi 💸`).
-- Added mobile responsive sizing and multi-delta queue cleanup after 1.8s.
+**기준:** 2026-09-21. 이 문서는 최근 확인 결과와 중요한 구현 변경만 기록한다. 현재 규칙은 [`SPEC.md`](SPEC.md), 다음 작업은 [`PLAN.md`](PLAN.md), 운영 절차는 [`README.md`](README.md)에서 관리한다. 과거 단계별 상세 보고는 이 문서를 정리하기 전 Git 커밋 이력에서 확인할 수 있다.
 
-## Standalone Web Service & GitHub Actions CI/CD deployment — 2026-09-14
-- Transitioned project from ChatGPT Sites sandbox to standalone public web service on Cloudflare Workers.
-- Registered Cloudflare Workers subdomain `ostrichick.workers.dev` via API.
-- Renamed package to `dubipoly` in `package.json` for custom domain routing.
-- Configured conditional D1 database binding in `vite.config.ts` to allow zero-config production deployment without breaking on dummy database IDs.
-- Added GitHub Actions workflow (`.github/workflows/deploy.yml`) for automated CI/CD: runs `npm test` and deploys to Cloudflare Workers on every `git push main`.
-- Deployed initial production release to `https://dubipoly.ostrichick.workers.dev`.
+## 최근 확인된 상태
 
-## Special spaces overhaul & visual animations: Airport/Harbor swap & rules, tourist theme, construction & cash VFX — 2026-09-14
-- Swapped positions of Airport (now space 30) and Harbor (now space 10) in `lib/board.ts`.
-- Implemented space 30 (Airport) special rule: pay 50 Dubi to fly immediately to any chosen board space (`fly` action); crossing or landing on Start awards the +200 Dubi salary bonus.
-- Implemented space 10 (Harbor) special rule: player rests for 1 turn upon landing; on their next turn they can pay 20 Dubi to set sail to any destination space (`sail` action) with Start bonus applied if crossing Start.
-- Added distinct, dedicated styling for 4 tourist spots (Gyeongju, Jeju, Cusco, Piura) with shared emerald gradients (`.tile.tourist-tile`), glowing borders, and mini-map legend integration.
-- Added visual construction animations (`@keyframes construct-tile-bounce`, floating `🏗️ 토지 매입!` / `🔨 증축 Lv.X!` badge, and golden highlight) triggered upon purchasing land or upgrading buildings.
-- Enhanced special travel events (`EventCardModal.tsx`) with animated gold coin bursts (`+amount Dubi 💰`) on positive events and red falling cash notes (`-amount Dubi 💸`) on negative events.
-- Added flight (`🛫`) and sailing (`🚢`) travel animation overlay (`components/game/TravelAnimation.tsx`) with clouds/waves and destination announcement during air/sea travel.
-- Updated room actions API endpoint, game copy in 3 languages (ko, en, es), and tests in `tests/special-rules.test.ts` and `tests/rooms-flow.test.ts` (all 30 tests 100% passing).
+| 항목 | 확인 결과 |
+| --- | --- |
+| 소스 | 2026-09-21에 `main`으로 두 커밋 `1346c43`, `9d1365d` 푸시 성공. 당시 원격·로컬 브랜치 일치 확인. |
+| 자동 테스트 | 2026-09-21 문서 정리 후 게임·D1 모의 저장소·2인 API 흐름 **61/61 재통과**. 타입 검사, 린트 0경고/0오류, 문서 링크 및 `git diff --check` 통과. |
+| 빌드 | 실제 D1 UUID가 없는 로컬 프로덕션 빌드는 의도대로 중단. 시험용 UUID로 만든 **빌드 검증만** 통과하고, 생성된 시험용 D1 바인딩을 제거함. 이 결과를 운영 빌드 성공으로 간주하지 않는다. |
+| 운영 및 기기 | GitHub Actions의 최신 배포 결과, 실제 운영 D1 식별자·마이그레이션 상태, 안드로이드 기기 2대의 동시 플레이·재접속은 **미확인**. |
 
-## Polish & Mobile optimizations: visibility sync, audio unlock, salary float, confetti, event ticket & fever time — 2026-09-14
-- Added mobile `visibilitychange` immediate resync to eliminate delay when waking the phone or switching back to the browser.
-- Added global audio unlock on first user interaction to guarantee instant sound playback on mobile web.
-- Added animated Start salary bonus (`+200 Dubi 💸`) floating popup upon passing Start.
-- Added victory celebration confetti particle animation (`components/game/Confetti.tsx`).
-- Added boarding-pass style travel event ticket modal (`components/game/EventCardModal.tsx`).
-- Added real-time opponent action notification toast during online rooms.
-- Added Golden Travel Fever Time banner notification starting from round 15.
-- Extracted Next.js viewport configuration into `export const viewport: Viewport` in `app/layout.tsx`.
+## 주요 변경 이력
 
-## Polish and UX enhancements: animations, audio SFX, quick reactions, property sale, QR code & minimap — 2026-09-14
-- Added Web Audio API synthesized SFX engine (`lib/audio.ts`) with sounds for dice roll, coins, building upgrades, fanfares, defeat, pops, and token steps, with haptics and sound mute toggle.
-- Added dice shake rolling animation and hop-by-hop animated token movement across board spaces.
-- Added Dubu mascot quick reaction floating emoji system (😍, 😭, 😱, 💪) with room action synchronization (`components/game/QuickReaction.tsx`).
-- Added property emergency sale rule: players can sell owned properties to the bank for 50% total invested value to avoid bankruptcy or gain liquidity (`sell` action).
-- Added room entry QR code generator (`lib/qr.ts`, `components/game/RoomQrCode.tsx`) for 1-second camera join on mobile.
-- Added 40-space board overview mini-map modal (`components/game/BoardMiniMap.tsx`).
-- Expanded test suite to 30 tests covering property emergency sale and journal replay.
+| 날짜 | 완료한 개발 내용 |
+| --- | --- |
+| 2026-09-08 | 40칸 보드·28개 도시·8개 이벤트 칸·4개 코너, 반응형 UI와 초기 마스코트 구현. 초기 로컬 브라우저 미리보기 검사. |
+| 2026-09-09 | 단일 기기 게임 엔진·액션 저널·저장 복원, 영어·한국어·스페인어, 방 로비·서버 액션·재접속·PWA·D1 방 저장·CAS의 단계적 구현. 초기 Sites 주소·임시 메모리 서버에 관한 당시 기록은 **현재 배포 설명이 아님**. |
+| 2026-09-09~14 | 한국·페루 도시 노선, 공항(인덱스 30)·항구(10), 더블·휴식·관광지·지역 독점, D1 접속 테이블 분리, 건설·현금 효과와 사운드·QR·미니맵 등 UI 추가. Cloudflare Workers 배포 대상 및 자동 배포 워크플로 구성. |
+| 2026-09-16 | 의존성·PWA 아이콘 등 정비. 현재 정확한 의존성 버전은 `package.json` 및 lockfile 참조. |
+| 2026-09-20 · `1346c43` | 이벤트 보상으로 방문료를 회피하는 오류, 휴식비 채무 후 주사위 복구, 공항 제자리 비행 보너스 오류 수정. 방 코드를 10자리 난수로 변경(기존 2자리 방 호환), 비활성 방 만료·D1 바인딩 누락 실패 처리·이름·리액션 동기화 보완. |
+| 2026-09-20 · `9d1365d` | 모바일 하단 고정 행동·터치 영역 개선, 주사위 생성 통합·여행 목적지 명시 선택, 전체 화면 이벤트 대화상자, 음소거·모션 감소 대응. 이동 이벤트 후 도착지 구매·방문료 선택 보존. 독립적인 두 플레이어의 연결 끊김·복원·재대전 자동 테스트 추가. |
+| 2026-09-21 | 중복 AI 지침을 `AGENTS.md` 단일 원본으로 합치고 README·SPEC·협업·계획 문서의 역할 분리 및 오래된 수치·안내 정리. **문서 작업이며 런타임 기능 변경 아님.** |
 
-## Stage 10–12 special rules, resilience hardening & presence isolation — 2026-09-14
-- Added dice doubles mechanic: rolling doubles grants an extra roll; rolling doubles three consecutive times sends player directly to rest (space 20) without salary.
-- Added rest & travel delay system: space 30 delays travel and sends player to rest; escape via doubles roll or paying 50 Dubi fee; 3rd failure forces fee payment.
-- Added tourist destinations (Gyeongju, Jeju, Cusco, Piura): non-upgradable, rent scales exponentially with holdings count (25 × 2^(count-1)).
-- Added regional monopoly bonus: owning all cities in a region doubles base rent for unimproved properties.
-- Isolated player heartbeats into `dubipoly_presence` table (`0001_room_presence.sql`) to prevent lock contention with game state snapshots.
-- Added comprehensive test suites (`tests/special-rules.test.ts`, `tests/rooms-flow.test.ts`), bringing total passing tests to 29.
-- Updated project documentation and created `COLLABORATION.md`.
+## 열린 검증 항목
 
-## English default and language options — 2026-09-09
-- Added English alongside Korean and Spanish for all board cells, 12 events, game rules, logs, and room messages.
-- First visits default to English. The header language selector saves the device's choice and updates the document language; existing saved preferences are preserved.
-- English page metadata and PWA manifest; room play now identifies itself as online rather than single-device mode.
-- Fixed the pre-existing room-store test double's TypeScript annotation.
-- Dubu character artwork was added separately as a transparent game mascot asset and is now used in the board center and player cards.
-
-## Stage 9 regional route and room identity — 2026-09-09
-- Reordered Korean cities from southwestern and inland/east-coast destinations toward the Seoul capital area, with Seoul last; reordered Peruvian cities from the southeastern region toward the Lima capital area, with Lima last.
-- Added localized region labels to city details, including Southwestern Korea, Southeastern Peru, and the two capital-area groups, so the travel route explains the price progression.
-- Changed room codes from six mixed characters to exactly two digits (`00`–`99`) and changed the join input to numeric-only.
-- Added server-backed room name editing for the current player, distinct defaults (`Traveler 1` and `Traveler 2`), and explicit You/Opponent plus current-turn indicators.
-- Local engine tests (14), TypeScript, and production build passed. The local development D1 wrapper returned a persistence conflict during an isolated rename smoke test; the deployed D1 room path must be checked after publishing.
-
-## Hosted test deployment — 2026-09-09
-User requested web-hosted testing before stage 3. Registered owner-private Sites project; id in .openai/hosting.json, expected origin https://dubipoly.nukapig.chatgpt.site. Deploy stage 2 as-is; multiplayer still pending. Upgraded React/React DOM/RSC 19.2.8, Vinext beta.9, Vite 8.2.2, plugin-rsc 0.5.34, Cloudflare plugin 1.54.6, Wrangler 4.120.0 and worker types to compatible versions. Build/types and all 13 tests passed after updates. Remaining audit findings: sharp <0.35.4 through local miniflare/wrangler development tooling (4 transitive high reports). No user image uploads or local image conversion endpoints implemented. Do not claim all dependency advisories resolved. Publishing status to be confirmed via Sites tool; never infer live status from expected URL alone.
-
-## Stage 2 complete — 2026-09-09
-Pure engine (lib/game.ts), 12 bilingual events (lib/events.ts), localized game messages (lib/game-copy.ts), local action-journal restore, name setup, dice, buy/upgrade/end controls, live balances/tokens/ownership, results, rules, recent history and restart confirmation implemented. Accepted actions use a synchronous session ref and revision check to prevent stale duplicate UI actions. Gameplay is SINGLE DEVICE; no shared rooms yet.
-
-### Stage 2 verified
-- Build and TypeScript passed. 13 tests passed, including 100 deterministic full games with save/replay at every accepted action, cash/ownership invariants, stale/wrong-player actions, insufficient funds, exact-zero payment, max upgrades, start bonus, all events, event destination rent, no event chaining, bankruptcy, ties and round limit. Corrected one test's expected city rent from 19 to 22 per existing board price.
-- Chromium via agent-browser: entered names and started; duplicate roll click saved one action. Played nine actions (including buys), reloaded, same balances and action count restored.
-- Continued through visible controls to end of round 20, 101 accepted actions total. Results: Dubu 2,188 and Dubi 2,312, Dubi winner. Switched to Spanish; result translated. Cancelled restart and refreshed; result preserved. Confirmed restart; zero actions and 1,500 each, first player turn.
-- Desktop screenshot inspected; full portrait 390x844 screenshot inspected; landscape 844x390 width checked. Page width equals viewport in both sizes, images loaded, no browser errors reported. Board scroll is intentional.
-- npm run dev running at port 3000 with host 0.0.0.0 for same-Wi-Fi access. Real Android device not tested by agent.
-- Screenshots stage2-desktop.png, stage2-mobile.png. Personal test state exists only in isolated automated browser, not user's browser.
-
-### Deployment verified
-- Stage 2 was published owner-private at `https://dubipoly.nukapig.chatgpt.site` as Sites version 1.
-
-### Stage 3 room lobby prototype — 2026-09-09
-- Added six-character room-code creation and join flow.
-- Room code is reflected in the URL and can be reopened as a test session.
-- Added a `BroadcastChannel` transport for same-browser tab-to-tab state checks.
-- Published the prototype owner-private at the same URL as Sites version 2 after `npm test`, `npx tsc --noEmit`, and `npm run build` passed.
-- This is intentionally not yet authoritative two-phone networking: the Site currently has no D1 or Durable Object binding, so browser storage and tab messaging are not the final multiplayer source of truth.
-
-### Stage 3 server room relay — 2026-09-09
-- Added `POST /api/rooms` to create or join a two-player room and `GET /api/rooms?room=...` to read readiness.
-- Room creation and joining were verified locally: host + guest produced a ready two-player room.
-- Published as Sites version 3 at the same owner-private URL.
-- The room registry is currently Worker-memory only. It is suitable for a short live test but can disappear when the Worker instance restarts or traffic is routed elsewhere; D1/Durable Object persistence is still required before calling this production multiplayer.
-
-### Stage 3 synchronized game actions — 2026-09-09
-- Server now owns room game state after both players join and the host starts the match.
-- Roll results and event selection are generated on the server; buy, upgrade, and end actions are validated against the current player and revision.
-- Clients poll the room snapshot and update board position, cash, ownership, logs, and winner state from the server response.
-- Local verification passed for create → join → start → server roll, with 13 tests, TypeScript, and production build passing.
-- Published as Sites version 4 at the same owner-private URL.
-
-### Stage 4 resilience basics — 2026-09-09
-- Added server-side request IDs so a retried roll, buy, upgrade, or end action is applied at most once.
-- Added revision checks so an old screen cannot overwrite a newer server state.
-- Added player heartbeat timestamps and presence information to room snapshots.
-- Client polling now sends its room token, refreshes state after reconnect, and disables room actions while a request is pending.
-- Local verification passed for duplicate action replay returning the same revision and stale revision rejection with HTTP 409.
-- Published as Sites version 5 at the same owner-private URL.
-
-### Stage 5 mobile web app shell — 2026-09-09
-- Added an installable PWA manifest with Dubipoly branding and mobile standalone display settings.
-- Added a service worker that caches only the app shell and never caches room API requests.
-- Added online/offline status messaging and preserved the last visible game state while reconnecting.
-- Verified the manifest and service worker are included in the deployment archive.
-- Published as Sites version 6 at the same owner-private URL.
-
-### Stage 5 room usability — 2026-09-09
-- Added host/guest role labels and a connected-player count.
-- Added per-player presence dots driven by room heartbeats.
-- Added native mobile share or clipboard fallback for the room link.
-- Prevented guests and rooms without two players from showing an actionable start control.
-- Published as Sites version 7 at the same owner-private URL.
-
-### Stage 6 persistent room storage — 2026-09-09
-- Added a D1 logical binding named `DB` and a `dubipoly_rooms` table for serialized room/game snapshots.
-- Added a Worker wrapper that exposes the D1 binding to route handlers.
-- Room creation, joining, heartbeats, game start, and actions now persist snapshots when D1 is available, while retaining memory fallback for local development.
-- Deployment succeeded as Sites version 8, and the live D1 overview confirms the `DB` binding and `dubipoly_rooms` table.
-- The database is currently empty because no live room has been created after the migration; the first real room will create its row.
-
-### Stage 6 persistence consistency hardening — 2026-09-09
-- Persisted the processed request-ID map inside each D1 room snapshot, so retry deduplication survives Worker instance changes.
-- When D1 is available, every room request now reloads the latest snapshot from D1 before validation instead of trusting a possibly stale per-isolate memory copy.
-- Kept the in-memory fallback for local development and temporary D1 read failures.
-- Verified 13 engine tests, TypeScript/build output, and the deployment archive contents.
-- Published as Sites version 9 at the same owner-private URL; the live overview still confirms `DB` → `dubipoly_rooms`.
-
-### GitHub mirror — 2026-09-09
-- Added `https://github.com/ostrichick/dubipoly.git` as the project GitHub remote.
-- Pushed the `main` branch through the latest persistence-hardening commit.
-- Future implementation commits should be pushed to both the Sites source repository and GitHub.
-
-### Stage 7 concurrent room safety — 2026-09-09
-- Added D1 compare-and-swap persistence using the room row's `updated_at` value, so two near-simultaneous actions cannot both overwrite the same room revision.
-- Moved processed request-ID persistence into the same atomic room snapshot as the game action.
-- Added a focused room-store test covering D1 round-trip restoration and stale-writer rejection; the full suite now has 14 passing tests.
-- Added a mobile-friendly `상태 새로고침` / `Actualizar estado` control and automatic refresh after a stale-action response or restored network connection.
-- Source build and focused lint for the changed server files passed. The repository-wide lint command still sees generated `package-stage*` bundles and reports pre-existing generated-file/UI warnings; this does not block the production build.
-- This stage is ready for a real two-phone acceptance test after publishing.
-
-### Stage 8 city-route rearrangement — 2026-09-09
-- Reordered the route so spaces 1–20 use Korean cities and spaces 21–40 use Peruvian cities, while keeping the four corners, eight event spaces, 28-city count, and balanced price distribution intact.
-- Added a board test that verifies the country boundary by space number.
-- The Dubu character artwork is integrated as a transparent mascot in the board center and player cards.
-
-### Mobile usability and reconnect hardening — 2026-09-20
-- Added a mobile-only fixed action bar for the current required move, 44px-or-larger touch targets, an explicit destination choice before travel, and one shared cryptographically random dice-roll handler for board and sidebar controls. Desktop controls remain unchanged.
-- Moved mandatory event confirmation into a native modal dialog outside the clipped board, synchronized saved audio mute state, honored reduced-motion preferences and avoided replaying token travel from Start when restoring a match.
-- Fixed movement/warp events resolved through End so arriving at a city still presents its purchase, upgrade, or rent decision; replay regression tests cover all three cases.
-- Automated two-client API tests cover separate seats, temporary disconnection, rejoin with stored token, stale revision refresh and retry, complete game, and rematch. Production D1 UUID, GitHub secret and live schema remain unverified; no deployment was performed.
-
-### Remaining on-device acceptance test
-After confirming the GitHub D1 secret and production schema, run the real two-phone room test: host creates a 10-character room, a guest joins on a separate Android phone, both verify names and turn indicators, complete turns, refresh one phone, briefly disconnect/reconnect and rematch. The automated SQLite route tests do not replace this hardware check.
-
-## Stage 1 history (superseded by stage 2 above)
-
-## Stage 1 complete — 2026-09-08
-React/TypeScript/Vite/Vinext with shadcn Button. 40 unique perimeter positions, 28 unique cities (14 per country), 8 events, 4 corners. Top/left Korea, bottom/right Peru, identical price distributions. Selectable cities and details, Korean/Spanish switch, sample player balances, zoom and internally scrollable board. Supplied Dubu photo copied to public/dubu.png; temporary artwork, not final illustration.
-
-## Verified
-- Production build and TypeScript passed.
-- Board tests: 2 passed (counts, unique geometry, city uniqueness, country placement, localization, price symmetry).
-- HTTP localhost:3000 returned 200.
-- Chromium: all 40 buttons rendered. Cusco selection updated detail, Spanish changed UI and document language, corner selection and zoom on/off worked. Images loaded; no browser errors returned.
-- Desktop screenshot inspected. Portrait 390x844 inspected; landscape 844x390 checked. Page width equals viewport at both mobile sizes; only the board scrolls internally.
-- Screenshots: stage1-desktop.png and stage1-mobile.png. Real Android phones not tested.
-
-## Limitations
-City emoji and source photo are interim art. Small phones require board scrolling. No dice, buying, engine, save, multiplayer, PWA or deployment yet; UI explicitly says preview.
-Starter install reported 11 dependency advisories (8 high); production audit 6 (5 high), including React server DOM, Vinext/image-size, Vite and undici. No public deployment. Update affected dependencies and verify before internet exposure; do not blindly force audit fixes.
-
-## Next
-Stage 2: single-device rule engine, events, turn flow, save/restore and complete-game tests. Keep engine separate for stage 3 shared authoritative rooms. Read SPEC.md and PLAN.md before continuing. Do not redo stage 1 or advance without next stage request.
-Run npm ci, then npm run dev -- --host 0.0.0.0; current port 3000. Same Wi-Fi needs computer LAN IP and private firewall allowance. No paid resources or hosted site registered. See README.md.
+운영 배포·D1 구성과 실제 안드로이드 2대 수용 테스트는 완료 처리하지 않았다. 구체적인 순서와 성공 기준은 [`PLAN.md`](PLAN.md)에만 유지한다. GitHub `main`에 푸시하면 자동 배포가 실행될 수 있으므로, 문서 변경 커밋을 포함한 추가 푸시 전에도 운영 전제 조건을 확인한다.

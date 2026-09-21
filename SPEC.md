@@ -1,19 +1,47 @@
-# Dubipoly
+# Dubipoly 제품·게임 규칙 명세
 
-## Confirmed requirements
-Private game for a Korean/Peruvian couple, ultimately two Android phones in one shared room. Cute bright travel aesthetic based on the conversation concept. 40 perimeter cells; spaces 1–20 (top and right edges) are Korea, spaces 21–40 (bottom and left edges) are Peru. Currency Dubi, mascot Dubu (tabby face/back, white muzzle/chest/paws, pink nose). No store release, account, ads, payment, chat, matchmaking or leaderboard. Independent Korean/Spanish per device.
+현재 신규 게임의 규칙은 `lib/game.ts`의 `createGame(..., rulesVersion = 2)`를 기준으로 한다. 실제 동작을 바꿀 때는 게임 엔진·테스트와 **이 문서**를 함께 갱신한다. 이전 단계의 초안 규칙(20라운드, 더블 없음, 자동 통행료 등)은 현재 신규 게임에 적용되지 않는다.
 
-## Proposed defaults, editable
-28 unique cities (14 per country), 4 corners and 8 events. Starting cash 1,500. Two six-sided dice, no doubles extra turn. Passing start +200. Buy/skip unowned cities; automatic opponent rent; upgrade own landed city to level 3. No auction, mortgage, trading or set prerequisites. 12+ localized events, no movement event chains. Two turns per round, 20 rounds. Final score cash + purchase cost + spent upgrades; ties shared. Bankruptcy on unaffordable mandatory payment. No optional overdraft. Country price distributions identical, not real economic valuations.
+## 제품 범위
 
-## Final contract
-Host creates random code/link, second player joins, both ready then start. Authoritative dice/state, validate turn, balance and duplicate requests. Separate seat recovery tokens; refresh/reconnect resync, block offline input. Explicit room expiry/restart persistence. Event IDs and values in shared state, not translated strings. No secrets in browser. Genuine two-session validation.
+- 한국인·페루인 커플을 위한 프라이빗 2인용 여행 보드게임. 서로 다른 안드로이드 기기의 브라우저에서 같은 방에 참가하는 것이 최종 사용 환경이다. 동일 기기에서 번갈아 플레이하는 로컬 모드도 제공한다.
+- 영어·한국어·스페인어 UI를 지원하며 언어는 기기별로 선택한다. 최초 기본 언어는 영어다. 화폐는 Dubi, 마스코트는 Dubu, 밝은 여행 테마를 유지한다.
+- 앱스토어 등록, 계정, 광고, 인앱 결제, 채팅, 공개 매칭 및 리더보드는 범위 밖이다. 두부 마스코트 이미지는 교체 가능한 임시 자산이다.
 
-## UI and architecture
-Reference is guidance, never a screenshot with overlaid buttons. Functional cells and detail panel; landscape side panel, portrait scrollable board and panel below. Dubu is represented by a transparent character illustration based on the supplied reference photos. React/TypeScript with Vite/Vinext from Sites scaffold, shadcn Button, CSS. Data in lib/board.ts; the rule engine is separate from UI. The hosted PWA currently supports owner-private two-player rooms.
+## 보드와 기본 진행 — 최신 규칙 v2
 
-## Stage 2 rule clarifications
-Rent = base rent × (upgrade level + 1), levels 0–3. One upgrade per landing. Paying exactly all remaining cash is allowed; only an unaffordable mandatory cost causes bankruptcy. Bankruptcy transfers remaining cash to the rent creditor, cash becomes zero and game ends immediately. Forward event movement awards start bonus and resolves destination city purchase/rent/upgrade; backward movement has no start bonus. A second event tile reached by a card is inert. All corners except start are free rest. Events are sampled independently with replacement. The round counter increments after player 2 ends their turn. At the end of round 20, both players have taken 20 turns unless bankruptcy ended play early.
+| 항목 | 규칙 |
+| --- | --- |
+| 보드 | 총 40칸: 서로 다른 도시 28개(한국 14·페루 14), 이벤트 8개, 코너 4개. 첫 절반은 한국, 뒷 절반은 페루 구간이다. 정확한 칸·도시·가격은 `lib/board.ts`가 정본이다. |
+| 코너(0부터 시작하는 인덱스) | `0` 출발, `10` 항구, `20` 휴식처, `30` 공항. |
+| 시작 자금 | 플레이어마다 1,500 Dubi. 일반적인 출발선 전진 통과 시 기본 보너스 200 Dubi; 이벤트로 보너스가 증가할 수 있다. |
+| 주사위 | 기본 6면체 2개. 더블이면 추가 굴림을 얻고, 연속 세 번째 더블이면 이동·출발 보너스 없이 휴식처로 간다. 이벤트로 다음 굴림이 1개 또는 확정 더블이 될 수 있다. |
+| 매입·증축 | 빈 도시에 도착하면 매입하거나 건너뛴다. 자신의 일반 도시에서는 도착당 최대 한 단계, 최대 3단계까지 증축할 수 있다. 자금이 부족하면 해당 행동을 선택할 수 없다. |
+| 통행료 | 상대 소유 도시 도착 시 직접 납부 확인. 일반 도시는 기본 통행료 × (건물 단계 + 1). 가지고 있는 면제권이 있으면 한 번 무료로 통과한다. |
+| 라운드·승패 | 두 플레이어의 턴이 끝나면 한 라운드 진행, **40라운드** 완료 시 현금 + 보유 도시 매입가 + 투입 증축비의 합산 자산을 비교한다. 동점은 공동 결과. 중간 파산 시 상대가 승리한다. |
 
-## Stage 2 save contract
-One-device pass-and-play only. Save version 1 contains initial names and accepted action journal (dice and event outcomes included); restore replays through pure rule engine. Phase and ownership are reconstructed, not trusted as arbitrary saved state. UI synchronously rejects duplicate stale revisions. Browser storage is per origin/device; localhost and LAN IP are separate saves. Clearing browser data loses saves. Multiple tabs sharing one origin are not synchronized and should not be used concurrently. Room authority and two-device synchronization remain stage 3. Bump save version or migrate before incompatible future rule changes.
+### 특수 규칙
+
+- **휴식처(20):** 더블을 굴리면 탈출하지만 그 탈출 굴림에 추가 굴림은 없다. 또는 50 Dubi를 지불하고 다음 정상 굴림을 진행한다. 세 번째 탈출 실패 시 50 Dubi를 강제 납부하고 **해당 세 번째 주사위 결과로 이동**한다.
+- **항구(10):** 도착하면 한 턴 대기한다. 다음 자기 턴에 20 Dubi로 원하는 칸까지 항해하거나 항해를 건너뛰고 정상 주사위를 굴린다. 항해로 출발선을 넘는 목적지에 도착하면 보너스 규칙을 적용한다.
+- **공항(30):** 50 Dubi를 내고 선택한 칸으로 비행하거나 비행하지 않고 턴을 마친다. 출발선을 지나는 목적지에만 보너스가 생기며 **공항에서 공항으로 제자리 비행하는 경우 보너스는 없다.** 공항·항구 이용 후에는 다음 턴의 연속 이동을 막는 쿨다운이 적용된다.
+- **관광지:** 경주·제주·쿠스코·피우라의 네 도시. 증축할 수 없고, 해당 플레이어가 소유한 관광지 수에 따라 방문료는 `25 × 2^(보유 수 − 1)` Dubi다.
+- **지역 독점:** 관광지를 제외한 같은 지역의 도시를 모두 소유하면 건물 없는 일반 도시(0단계)의 기본 통행료만 2배가 된다.
+- **채무·파산:** 필수 비용을 현금으로 낼 수 없지만 부동산이 있다면 곧바로 파산시키지 않고 채무 단계로 진입한다. 소유 부동산을 총투자액의 50%에 매각해 변제할 수 있다. 변제 불가 시 파산하며, 통행료 채무였다면 남은 현금은 채권자에게 이전된다. **현금이 정확히 0이 되는 결제는 허용**한다.
+
+## 이벤트
+
+- 이벤트 칸 8곳에서 `lib/events.ts`에 정의된 **18종** 카드 중 하나를 추첨한다. 카드 ID·효과·수치는 상태에 저장하고, 텍스트만 언어별로 렌더링한다.
+- 보상·벌금·이동·주사위 제한·면제권 등 효과는 확인 후 적용한다. 이동 이벤트는 목적지의 구매·증축·통행료 선택을 정상적으로 처리하고, 연쇄적으로 두 번째 이벤트를 뽑지는 않는다. 역방향 이동은 출발 보너스를 주지 않는다.
+- 부동산 구입·통행료 납부·이벤트 확인 중 어느 단계인지 게임 상태가 명시한다. 필수 지불을 이벤트 보상 처리로 회피하거나, 이벤트 이동의 도착지 선택을 건너뛰어서는 안 된다.
+
+## 저장·온라인 방 계약
+
+- **로컬 저장:** v2 저장 파일은 이름과 승인된 액션 기록을 보관한다. `restore()`는 임의의 잔액·소유권을 신뢰하지 않고 `transition()`으로 재생한다. 기존 v1 저장 파일은 구 규칙으로 복원된다. 브라우저·접속 origin이 다르면 로컬 저장소도 구분된다.
+- **온라인 방:** 서버에서 암호학적 난수로 생성한 대문자 10자리 코드·공유 링크 사용. 과거 2자리 방은 만료까지 참가 가능. 방장과 참가자가 모두 입장해야 시작하며, 마지막 활동 후 6시간 비활성인 방은 만료된다.
+- 서버가 주사위, 이벤트, 턴 권한, 잔액·소유권, 요청 중복 방지 및 동시 갱신을 처리한다. 각 플레이어의 개인 참가 토큰은 해당 브라우저에 저장하며 다른 플레이어에게 공유하지 않는다. 네트워크 장애 시 행동을 막고 복구 후 서버 상태를 다시 읽는다.
+- 마이크·카메라 접근, 개인정보 계정, 클라이언트 내 서버 비밀값은 요구하지 않는다. QR 링크는 방 **코드**만 공유하며 참가 토큰은 담지 않는다.
+
+## 수용 기준 및 현재 한계
+
+게임 엔진의 규칙·리플레이와 두 플레이어 API 시나리오는 자동 테스트로 검증한다. 그러나 실제 운영 D1 설정, 최신 자동 배포 성공 여부, 안드로이드 기기 2대의 화면·네트워크 테스트는 `PLAN.md`의 별도 미완료 항목이며, 자동 테스트만으로 완료 처리하지 않는다.
