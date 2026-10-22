@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { board } from '../lib/board.ts';
+import { events } from '../lib/events.ts';
 import {
   createGame,
   rules,
@@ -51,6 +52,45 @@ test('double skip and third double go to rest without movement or Start salary',
   assert.equal(g.phase, 'end');
   g = transition(g, end);
   assert.equal(g.current, 1);
+});
+test('guaranteed doubles cannot be spent on mismatched dice', () => {
+  const names: [string, string] = ['Dubu', 'Dubi'];
+  const actions: Action[] = [roll(1, 2, 14), { type: 'claimEvent' }, end, roll(1, 2), end];
+  let g = createGame(names);
+  for (const action of actions) g = transition(g, action);
+  assert.equal(g.current, 0);
+  assert.equal(g.phase, 'roll');
+  assert.equal(g.players[0].nextRollModifier, 'doubles');
+
+  const mismatched = roll(1, 2);
+  assert.equal(transition(g, mismatched), g);
+  assert.equal(
+    restore(JSON.stringify({ version: 2, names, actions: [...actions, mismatched] })),
+    null,
+  );
+  const valid = transition(g, roll(2, 2));
+  assert.notEqual(valid, g);
+  assert.equal(valid.extraRoll, true);
+  assert.equal(valid.players[0].nextRollModifier, null);
+});
+test('airport and harbor validate optional travel event indexes before landing', () => {
+  for (const type of ['fly', 'sail'] as const) {
+    const g = fresh();
+    g.players[0].position = type === 'fly' ? 30 : 10;
+    g.phase = type === 'fly' ? 'choice' : 'roll';
+    if (type === 'sail') g.harborTurns![0] = 1;
+
+    for (const invalidEvent of [-1, events.length, 1.5, NaN, null, '0']) {
+      const action = { type, space: 38, event: invalidEvent } as Action;
+      assert.equal(transition(g, action), g, `${type} must reject ${String(invalidEvent)}`);
+    }
+
+    const omitted = transition(g, { type, space: 38 });
+    assert.equal(omitted.players[0].position, 38);
+    assert.equal(omitted.pendingEvent?.event, 0);
+    const explicit = transition(g, { type, space: 38, event: events.length - 1 });
+    assert.equal(explicit.pendingEvent?.event, events.length - 1);
+  }
 });
 test('double rent resolves payment and extra roll, but bankruptcy cancels it', () => {
   const g = fresh();

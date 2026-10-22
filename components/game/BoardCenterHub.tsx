@@ -55,11 +55,12 @@ export function BoardCenterHub({
 }: BoardCenterHubProps) {
   const [activeTransfer, setActiveTransfer] = useState<MoneyTransfer | null>(null);
   const [bankActive, setBankActive] = useState(false);
-  const lastProcessedLog = useRef(game.logs.length);
+  const lastProcessedLog = useRef({ revision: game.revision, logs: game.logs });
   const nextTransferId = useRef(1);
   const transferQueue = useRef<MoneyTransfer[]>([]);
   const isProcessingQueue = useRef(false);
   const isMounted = useRef(true);
+  const queueGeneration = useRef(0);
 
   useEffect(() => {
     isMounted.current = true;
@@ -84,6 +85,7 @@ export function BoardCenterHub({
       }
       isProcessingQueue.current = true;
       const next = transferQueue.current.shift()!;
+      const generation = queueGeneration.current;
       setActiveTransfer(next);
       sound.playCoin();
       triggerHaptic('medium');
@@ -91,12 +93,12 @@ export function BoardCenterHub({
       if (next.from === 'bank' || next.to === 'bank') {
         setBankActive(true);
         setTimeout(() => {
-          if (isMounted.current) setBankActive(false);
+          if (isMounted.current && queueGeneration.current === generation) setBankActive(false);
         }, 1500);
       }
 
       setTimeout(() => {
-        if (isMounted.current) {
+        if (isMounted.current && queueGeneration.current === generation) {
           processQueueRef.current();
         }
       }, 1800);
@@ -106,9 +108,33 @@ export function BoardCenterHub({
   // Process game logs to trigger money transfers
   useEffect(() => {
     const logs = game.logs;
-    if (logs.length > lastProcessedLog.current) {
-      const newEntries = logs.slice(lastProcessedLog.current);
-      lastProcessedLog.current = logs.length;
+    const previous = lastProcessedLog.current;
+    const oldEntries = previous.logs.map((entry) => JSON.stringify(entry));
+    const currentEntries = logs.map((entry) => JSON.stringify(entry));
+    let overlap = 0;
+    for (let count = Math.min(oldEntries.length, currentEntries.length); count > 0; count--) {
+      if (oldEntries.slice(-count).every((entry, i) => entry === currentEntries[i])) {
+        overlap = count;
+        break;
+      }
+    }
+
+    const gameReplaced =
+      game.revision < previous.revision ||
+      (oldEntries.length > 0 && overlap === 0) ||
+      (game.revision === previous.revision &&
+        (overlap !== oldEntries.length || overlap !== currentEntries.length));
+    lastProcessedLog.current = { revision: game.revision, logs };
+    if (gameReplaced) {
+      queueGeneration.current++;
+      transferQueue.current = [];
+      isProcessingQueue.current = false;
+      setActiveTransfer(null);
+      setBankActive(false);
+      return;
+    }
+    if (game.revision !== previous.revision && logs.length > overlap) {
+      const newEntries = logs.slice(overlap);
 
       const discoveredTransfers: MoneyTransfer[] = [];
 
@@ -221,7 +247,7 @@ export function BoardCenterHub({
         }
       }
     }
-  }, [game.logs, copy]);
+  }, [game.logs, game.revision, copy]);
 
   const p0 = game.players[0];
   const p1 = game.players[1];

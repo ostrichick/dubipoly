@@ -24,6 +24,7 @@ let sqlite: DatabaseSync;
 let failReads = false,
   failWrites = false;
 let forcedRoomRandom: number[] | null = null;
+let beforeSweepDelete: ((code: string) => void) | null = null;
 beforeEach(() => {
   let seed = 42719;
   mock.method(crypto, 'getRandomValues', (array: Uint32Array) => {
@@ -49,6 +50,7 @@ beforeEach(() => {
   failReads = false;
   failWrites = false;
   forcedRoomRandom = null;
+  beforeSweepDelete = null;
   rooms.clear();
   // Actual SQLite SQL/constraints, with the small async D1 interface adapter.
   globalThis.__DUBIPOLY_ENV__ = {
@@ -56,7 +58,7 @@ beforeEach(() => {
       prepare(sql: string) {
         return {
           bind(...args: Array<string | number>) {
-            const statement = () => sqlite.prepare(sql.replace(/\?\d+/g, '?'));
+            const statement = () => sqlite.prepare(sql);
             return {
               async first() {
                 if (failReads) throw Error('Injected read outage');
@@ -68,6 +70,8 @@ beforeEach(() => {
               },
               async run() {
                 if (failWrites) throw Error('Injected write outage');
+                if (sql.startsWith('DELETE FROM dubipoly_rooms WHERE room_code') && beforeSweepDelete)
+                  beforeSweepDelete(String(args[0]));
                 return {
                   meta: { changes: Number(statement().run(...args).changes) },
                 };
@@ -203,6 +207,69 @@ test('new room codes remain distinct and existing two-digit rooms can be joined'
   await post({ action: 'join', roomCode: 'SHORT' }, 400);
 });
 
+test('client-generated join token survives a lost response and cannot claim another seat', async () => {
+  const host = await post({ action: 'create' }, 201);
+  const proposedToken = crypto.randomUUID();
+  const initial = await POST(request({
+    action: 'join', roomCode: host.roomCode, name: 'Guest', token: proposedToken,
+  }));
+  assert.equal(initial.status, 200);
+  // Client loses this successful response before saving any returned payload.
+  rooms.clear();
+
+  const retried = await post({
+    action: 'join', roomCode: host.roomCode, name: 'Guest', token: proposedToken,
+  });
+  assert.equal(retried.token, proposedToken);
+  assert.equal(retried.role, 'guest');
+  assert.equal(retried.players, 2);
+  assert.equal(retried.names[1], 'Guest');
+  assert.equal(JSON.stringify(retried).includes(host.token), false);
+  assert.equal((await post({ action: 'join', roomCode: host.roomCode, token: host.token })).role, 'host');
+
+  const stranger = crypto.randomUUID();
+  const rejected = await post({ action: 'join', roomCode: host.roomCode, token: stranger }, 409);
+  assert.equal(rejected.error, 'ROOM_FULL');
+  assert.equal(JSON.stringify(rejected).includes(host.token), false);
+  assert.equal(JSON.stringify(rejected).includes(proposedToken), false);
+  assert.equal((await post({
+    action: 'rename', roomCode: host.roomCode, token: stranger, name: 'Impostor',
+  }, 403)).error, 'INVALID_PLAYER');
+  assert.equal((await result(await GET(new Request(
+    `http://test/api/rooms?room=${host.roomCode}&token=${stranger}`,
+  )), 403)).error, 'INVALID_PLAYER');
+  const saved = (await loadRoom(host.roomCode))!;
+  assert.deepEqual(saved.players.map((player) => player.token), [host.token, proposedToken]);
+});
+
+test('join rejects invalid proposed tokens before occupying a vacant seat', async () => {
+  const host = await post({ action: 'create' }, 201);
+  for (const token of ['not-a-uuid', '00000000-0000-0000-0000-000000000000', '', 123, {}]) {
+    const failed = await post({ action: 'join', roomCode: host.roomCode, token }, 400);
+    assert.equal(failed.error, 'INVALID_TOKEN');
+  }
+  assert.equal((await loadRoom(host.roomCode))!.players.length, 1);
+  const guest = await post({ action: 'join', roomCode: host.roomCode, token: crypto.randomUUID() });
+  assert.equal(guest.players, 2);
+  await post({ action: 'join', roomCode: host.roomCode, token: crypto.randomUUID() }, 409);
+  const legacy = await post({ action: 'create' }, 201);
+  const legacyGuest = await post({ action: 'join', roomCode: legacy.roomCode, token: null });
+  assert.match(legacyGuest.token, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+});
+
+test('two different proposed guest tokens cannot win the same seat', async () => {
+  const host = await post({ action: 'create' }, 201);
+  const candidates = [crypto.randomUUID(), crypto.randomUUID()];
+  const responses = await Promise.all(candidates.map((token) => POST(request({
+    action: 'join', roomCode: host.roomCode, token,
+  }))));
+  assert.deepEqual(responses.map((response) => response.status).sort((a, b) => a - b), [200, 409]);
+  const stored = (await loadRoom(host.roomCode))!;
+  assert.equal(stored.players.length, 2);
+  assert.ok(candidates.includes(stored.players[1].token));
+  assert.equal(stored.players[0].token, host.token);
+});
+
 test('room creation retries bounded random collisions without enumerating other codes', async () => {
   forcedRoomRandom = [0];
   const first = await post({ action: 'create' }, 201);
@@ -268,6 +335,95 @@ test('recent game updates and heartbeats prevent eviction of rooms older than si
   rooms.clear();
   await read(host.roomCode, host.token);
   assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM dubipoly_rooms WHERE room_code = ?').get(host.roomCode)?.count, 1);
+});
+
+test('room creation sweeps at most four idle expired D1 rooms and orphan presence', async () => {
+  const expired = await Promise.all(Array.from({ length: 6 }, () => post({ action: 'create' }, 201)));
+  const recentHeartbeat = await post({ action: 'create' }, 201);
+  const active = await post({ action: 'create' }, 201);
+  const oldTime = Date.now() - 6 * 60 * 60 * 1000 - 1000;
+  for (const room of [...expired, recentHeartbeat]) {
+    const staleAt = room.roomCode === expired[0].roomCode ? oldTime - 1000 : oldTime;
+    const row = sqlite.prepare('SELECT payload FROM dubipoly_rooms WHERE room_code = ?')
+      .get(room.roomCode) as { payload: string };
+    const payload = JSON.parse(row.payload);
+    payload.createdAt = staleAt;
+    for (const player of payload.players) player.lastSeen = staleAt;
+    sqlite.prepare('UPDATE dubipoly_rooms SET payload = ?, updated_at = ? WHERE room_code = ?')
+      .run(JSON.stringify(payload), staleAt, room.roomCode);
+  }
+  for (const room of [expired[0], recentHeartbeat]) {
+    sqlite.prepare('INSERT INTO dubipoly_presence (room_code, token, last_seen) VALUES (?, ?, ?)')
+      .run(room.roomCode, room.token, room === recentHeartbeat ? Date.now() : oldTime);
+  }
+  rooms.clear();
+
+  await post({ action: 'create' }, 201);
+  const countExpired = () => expired.filter((room) => sqlite.prepare(
+    'SELECT 1 FROM dubipoly_rooms WHERE room_code = ?',
+  ).get(room.roomCode)).length;
+  assert.equal(countExpired(), 2, 'one request removes at most four stale rooms');
+  assert.ok(sqlite.prepare('SELECT 1 FROM dubipoly_rooms WHERE room_code = ?').get(recentHeartbeat.roomCode));
+  assert.ok(sqlite.prepare('SELECT 1 FROM dubipoly_rooms WHERE room_code = ?').get(active.roomCode));
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS total FROM dubipoly_presence WHERE room_code = ?')
+    .get(expired[0].roomCode)?.total, 0, 'old presence is removed with its expired room');
+
+  await post({ action: 'create' }, 201);
+  assert.equal(countExpired(), 0);
+  assert.ok(sqlite.prepare('SELECT 1 FROM dubipoly_rooms WHERE room_code = ?').get(recentHeartbeat.roomCode));
+});
+
+test('sweep preserves rows with a heartbeat or CAS write racing the DELETE', async () => {
+  const heartbeatRoom = await post({ action: 'create' }, 201);
+  const updatedRoom = await post({ action: 'create' }, 201);
+  const oldTime = Date.now() - 6 * 60 * 60 * 1000 - 1000;
+  for (const room of [heartbeatRoom, updatedRoom]) {
+    const row = sqlite.prepare('SELECT payload FROM dubipoly_rooms WHERE room_code = ?')
+      .get(room.roomCode) as { payload: string };
+    const payload = JSON.parse(row.payload);
+    payload.createdAt = oldTime;
+    payload.players.forEach((player: { lastSeen: number }) => { player.lastSeen = oldTime; });
+    sqlite.prepare('UPDATE dubipoly_rooms SET payload = ?, updated_at = ? WHERE room_code = ?')
+      .run(JSON.stringify(payload), oldTime, room.roomCode);
+  }
+  rooms.clear();
+  beforeSweepDelete = (code) => {
+    if (code === heartbeatRoom.roomCode) {
+      sqlite.prepare('INSERT INTO dubipoly_presence (room_code, token, last_seen) VALUES (?, ?, ?)')
+        .run(code, heartbeatRoom.token, Date.now());
+    } else if (code === updatedRoom.roomCode) {
+      sqlite.prepare('UPDATE dubipoly_rooms SET updated_at = ? WHERE room_code = ?')
+        .run(Date.now(), code);
+    }
+  };
+  await post({ action: 'create' }, 201);
+  beforeSweepDelete = null;
+  for (const room of [heartbeatRoom, updatedRoom]) {
+    assert.ok(sqlite.prepare('SELECT 1 FROM dubipoly_rooms WHERE room_code = ?').get(room.roomCode));
+  }
+});
+
+test('authenticated heartbeat polls eventually sweep other idle rooms without new creations', async () => {
+  const idle = await post({ action: 'create' }, 201);
+  const active = await post({ action: 'create' }, 201);
+  const oldTime = Date.now() - 6 * 60 * 60 * 1000 - 1000;
+  const oldRow = sqlite.prepare('SELECT payload FROM dubipoly_rooms WHERE room_code = ?')
+    .get(idle.roomCode) as { payload: string };
+  const payload = JSON.parse(oldRow.payload);
+  payload.createdAt = oldTime;
+  for (const player of payload.players) player.lastSeen = oldTime;
+  sqlite.prepare('UPDATE dubipoly_rooms SET payload = ?, updated_at = ? WHERE room_code = ?')
+    .run(JSON.stringify(payload), oldTime, idle.roomCode);
+  rooms.clear();
+
+  const realNow = Date.now();
+  mock.method(Date, 'now', () => realNow + 2 * 60_000);
+  const refreshed = await result(await GET(new Request(
+    `http://test/api/rooms?room=${active.roomCode}&token=${active.token}`,
+  )));
+  assert.equal(refreshed.roomCode, active.roomCode);
+  assert.equal(sqlite.prepare('SELECT 1 FROM dubipoly_rooms WHERE room_code = ?')
+    .get(idle.roomCode), undefined);
 });
 
 test('missing Worker D1 binding fails closed even with a cached room', async () => {

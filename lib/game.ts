@@ -522,6 +522,8 @@ export function transition(
       (state.players[actor].nextRollModifier === 'single'
         ? action.dice[1] !== 0
         : action.dice[1] < 1 || action.dice[1] > 6) ||
+      (state.players[actor].nextRollModifier === 'doubles' &&
+        action.dice[0] !== action.dice[1]) ||
       !Number.isInteger(action.event) ||
       !events[action.event])
   )
@@ -579,7 +581,9 @@ export function transition(
       action.space == null ||
       !Number.isInteger(action.space) ||
       action.space < 0 ||
-      action.space >= 40)
+      action.space >= 40 ||
+      (action.event !== undefined &&
+        (!Number.isInteger(action.event) || !events[action.event])))
   )
     return state;
   if (
@@ -595,7 +599,9 @@ export function transition(
       action.space == null ||
       !Number.isInteger(action.space) ||
       action.space < 0 ||
-      action.space >= 40)
+      action.space >= 40 ||
+      (action.event !== undefined &&
+        (!Number.isInteger(action.event) || !events[action.event])))
   )
     return state;
   if (

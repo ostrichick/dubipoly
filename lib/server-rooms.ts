@@ -15,6 +15,7 @@ export type ServerRoom = {
 
 export const rooms = new Map<string, ServerRoom>();
 const ROOM_LIFETIME_MS = 6 * 60 * 60 * 1000;
+let nextReadSweepAt = 0;
 
 export function roomExpired(room: ServerRoom, now = Date.now(), latestPresence = 0) {
   const lastActivity = Math.max(
@@ -114,6 +115,47 @@ export async function loadRoom(roomCode: string) {
     }
   }
   throw new Error('Room changed while expiring');
+}
+
+/** Reclaim a few inactive D1 rooms per creation request without a cron binding. */
+export async function sweepExpiredRooms() {
+  const db = database();
+  if (!db) {
+    cleanupRooms();
+    return;
+  }
+  const cutoff = Date.now() - ROOM_LIFETIME_MS;
+  const candidates = await db
+    .prepare('SELECT room_code, updated_at FROM dubipoly_rooms AS room WHERE room.updated_at <= ?1 AND NOT EXISTS (SELECT 1 FROM dubipoly_presence AS presence WHERE presence.room_code = room.room_code AND presence.last_seen > ?1) ORDER BY room.updated_at LIMIT 4')
+    .bind(cutoff)
+    .all<{ room_code: string; updated_at: number }>();
+  for (const { room_code: code, updated_at: version } of candidates.results) {
+    // Both the row version and the latest presence are checked again on DELETE.
+    // A heartbeat or game write racing with this sweep must keep the room.
+    const removed = await db
+      .prepare('DELETE FROM dubipoly_rooms WHERE room_code = ?1 AND updated_at = ?2 AND updated_at <= ?3 AND NOT EXISTS (SELECT 1 FROM dubipoly_presence WHERE room_code = ?1 AND last_seen > ?3)')
+      .bind(code, version, cutoff)
+      .run();
+    if (removed.meta.changes === 1) {
+      rooms.delete(code);
+      await db
+        .prepare('DELETE FROM dubipoly_presence WHERE room_code = ?1 AND NOT EXISTS (SELECT 1 FROM dubipoly_rooms WHERE room_code = ?1)')
+        .bind(code)
+        .run();
+    }
+  }
+}
+
+/** Full polling also reclaims idle rooms when no one is creating new rooms. */
+export async function sweepExpiredRoomsOnRead() {
+  const now = Date.now();
+  if (now < nextReadSweepAt) return;
+  nextReadSweepAt = now + 60_000;
+  try {
+    await sweepExpiredRooms();
+  } catch {
+    // Maintenance must not interrupt an otherwise healthy player's heartbeat.
+  }
 }
 
 export async function persistRoom(roomCode: string, room: ServerRoom) {

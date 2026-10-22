@@ -4,6 +4,8 @@ import {
   persistRoom,
   roomSnapshot,
   startRoom,
+  sweepExpiredRooms,
+  sweepExpiredRoomsOnRead,
   type ServerRoom,
 } from '../../../lib/server-rooms.ts';
 
@@ -16,6 +18,7 @@ function json(data: unknown, status = 200) {
 
 const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const ROOM_CODE_PATTERN = /^(?:[A-HJ-NP-Z2-9]{10}|\d{2})$/;
+const JOIN_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function newRoomCode() {
   const random = crypto.getRandomValues(new Uint32Array(2));
@@ -39,6 +42,7 @@ export async function GET(request: Request) {
       ? room.players.findIndex((player) => player.token === token)
       : await heartbeat(roomCode, room, token);
     if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
+    if (!fast) await sweepExpiredRoomsOnRead();
     if (
       fast &&
       room.game &&
@@ -75,6 +79,7 @@ export async function POST(request: Request) {
     const name =
       typeof body.name === 'string' ? body.name.trim().slice(0, 24) : '';
     if (body.action === 'create') {
+      await sweepExpiredRooms();
       for (let attempt = 0; attempt < 10; attempt++) {
         const roomCode = newRoomCode();
         if (await loadRoom(roomCode)) continue;
@@ -103,6 +108,12 @@ export async function POST(request: Request) {
         : '';
     if (!ROOM_CODE_PATTERN.test(roomCode))
       return json({ error: 'INVALID_ROOM_CODE' }, 400);
+    if (
+      body.action === 'join' &&
+      body.token != null &&
+      (typeof body.token !== 'string' || !JOIN_TOKEN_PATTERN.test(body.token))
+    )
+      return json({ error: 'INVALID_TOKEN' }, 400);
     for (let attempt = 0; attempt < 4; attempt++) {
       const room = await loadRoom(roomCode);
       if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
@@ -118,7 +129,9 @@ export async function POST(request: Request) {
             role: playerIndex === 0 ? 'host' : 'guest',
           });
         if (room.players.length >= 2) return json({ error: 'ROOM_FULL' }, 409);
-        token = crypto.randomUUID();
+        // A client may persist its UUID before POST, so a lost response is retryable.
+        // Older clients without a token still receive a server-generated UUID.
+        token = token || crypto.randomUUID();
         playerIndex = 1;
         room.names[1] = name || 'Traveler 2';
         room.players.push({ token, name: room.names[1], lastSeen: Date.now() });

@@ -117,6 +117,7 @@ export default function Home() {
     [roomPresence, setRoomPresence] = useState<Array<{ connected: boolean }>>(
       [],
     ),
+    [localGameId, setLocalGameId] = useState(0),
     [online, setOnline] = useState(
       () => (typeof navigator !== 'undefined' ? navigator.onLine : true),
     ),
@@ -131,7 +132,7 @@ export default function Home() {
     [displayPositions, setDisplayPositions] = useState<[number, number]>(() => hydrate.session
       ? [hydrate.session.game.players[0].position, hydrate.session.game.players[1].position]
       : [0, 0]),
-    [bonusPopup, setBonusPopup] = useState<{ active: boolean; at: number }>({ active: false, at: 0 }),
+    [bonusPopup, setBonusPopup] = useState<{ active: boolean; at: number; amount: number }>({ active: false, at: 0, amount: 0 }),
     [opponentToast, setOpponentToast] = useState<string | null>(null),
     [constructingSpace, setConstructingSpace] = useState<{
       space: number;
@@ -153,7 +154,7 @@ export default function Home() {
   const mutation = useRef(false),
     epoch = useRef(0),
     lastProcessedReactionAt = useRef(0),
-    lastLogCount = useRef(0),
+    lastLogCount = useRef(hydrate.session?.game.logs.length ?? 0),
     retiredMatches = useRef(new Set<string>());
   const current = useRef<Session | null>(null),
     boardRef = useRef<HTMLDivElement>(null);
@@ -252,6 +253,14 @@ export default function Home() {
         setReset(false);
       }
       if (!previous || previous.matchId !== next.matchId) {
+        lastLogCount.current = next.game.logs.length;
+        prevCashRef.current = [next.game.players[0].cash, next.game.players[1].cash];
+        setCashDeltas([[], []]);
+        setBonusPopup({ active: false, at: 0, amount: 0 });
+        setOpponentToast(null);
+        setConstructingSpace(null);
+        setTokenSpeechBubble(null);
+        setSelectedTravelRevision(null);
         setDisplayPositions([
           next.game.players[0].position,
           next.game.players[1].position,
@@ -334,7 +343,11 @@ export default function Home() {
         );
         if (snapshot.presence) setRoomPresence(snapshot.presence);
         if (snapshot.names) {
-          setNames(snapshot.names);
+          setNames((previous) =>
+            previous[0] === snapshot.names[0] && previous[1] === snapshot.names[1]
+              ? previous
+              : snapshot.names,
+          );
           const playerIndex = snapshot.playerIndex ?? -1;
           if (!roomNameDirty && playerIndex >= 0)
             setRoomNameDraft(snapshot.names[playerIndex]);
@@ -375,6 +388,12 @@ export default function Home() {
 
   const pos0 = g?.players[0]?.position;
   const pos1 = g?.players[1]?.position;
+  const lastAction = session?.save.actions.at(-1);
+  const lastEventEffect = g?.lastEvent == null ? null : events[g.lastEvent]?.effect;
+  const backwardMover = (lastAction?.type === 'claimEvent' ||
+    (lastAction?.type === 'roll' && g?.rulesVersion === 1)) &&
+    lastEventEffect?.kind === 'move' && lastEventEffect.steps < 0
+    ? g?.current : -1;
   useEffect(() => {
     if (pos0 === undefined || pos1 === undefined) return;
     if (displayPositions[0] === pos0 && displayPositions[1] === pos1) return;
@@ -390,11 +409,11 @@ export default function Home() {
         let next1 = p1;
         let moved = false;
         if (next0 !== pos0) {
-          next0 = (next0 + 1) % 40;
+          next0 = (next0 + (backwardMover === 0 ? 39 : 1)) % 40;
           moved = true;
         }
         if (next1 !== pos1) {
-          next1 = (next1 + 1) % 40;
+          next1 = (next1 + (backwardMover === 1 ? 39 : 1)) % 40;
           moved = true;
         }
         if (moved) {
@@ -414,7 +433,7 @@ export default function Home() {
     }, 75);
 
     return () => clearInterval(timer);
-  }, [pos0, pos1, displayPositions]);
+  }, [pos0, pos1, displayPositions, backwardMover]);
 
   useEffect(() => {
     if (!g || g.logs.length === 0) return;
@@ -426,9 +445,9 @@ export default function Home() {
       if (latest.kind === 'bonus') {
         sound.playCoin();
         // eslint-disable-next-line react/react-compiler -- legitimate log-watch→state derivation
-        setBonusPopup({ active: true, at: Date.now() });
+        setBonusPopup({ active: true, at: Date.now(), amount: latest.amount ?? rules.startBonus });
         setTimeout(() => {
-          setBonusPopup({ active: false, at: 0 });
+          setBonusPopup({ active: false, at: 0, amount: 0 });
         }, 2200);
       }
 
@@ -601,9 +620,16 @@ export default function Home() {
       return;
     }
     const requestedName =
+      roomNameDraft.trim() ||
       names[0].trim() ||
       names[1].trim() ||
       copy('Traveler 2', '여행자 2', 'Viajero 2');
+    const storageKey = `dubipoly.room.${code}`;
+    const pendingKey = `dubipoly.room.pending.${code}`;
+    // A failed join must remain retryable without appearing already authenticated on reload.
+    const token = localStorage.getItem(storageKey) ||
+      localStorage.getItem(pendingKey) || crypto.randomUUID();
+    localStorage.setItem(pendingKey, token);
     const response = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -611,7 +637,7 @@ export default function Home() {
         action: 'join',
         roomCode: code,
         name: requestedName,
-        token: localStorage.getItem(`dubipoly.room.${code}`),
+        token,
       }),
     });
     if (!response.ok) {
@@ -634,6 +660,7 @@ export default function Home() {
     setRoomRole(result.role ?? 'guest');
     setRoomPresence(result.presence ?? []);
     localStorage.setItem(`dubipoly.room.${result.roomCode}`, result.token);
+    localStorage.removeItem(pendingKey);
     setNames(result.names);
     setRoomNameDraft(
       result.names[result.role === 'host' ? 0 : 1] ?? requestedName,
@@ -793,6 +820,14 @@ export default function Home() {
       game: createGame(actual),
       save: { version: 2, names: actual, actions: [] },
     });
+    setLocalGameId((value) => value + 1);
+    lastLogCount.current = 0;
+    prevCashRef.current = [rules.startingCash, rules.startingCash];
+    setCashDeltas([[], []]);
+    setBonusPopup({ active: false, at: 0, amount: 0 });
+    setOpponentToast(null);
+    setConstructingSpace(null);
+    setTokenSpeechBubble(null);
     setSelected(0);
     setSelectedTravelRevision(null);
     setReset(false);
@@ -877,10 +912,6 @@ export default function Home() {
       if (old.game.current !== (roomRole === 'host' ? 0 : 1)) return;
       setRoomBusy(true);
       setPendingAction(a.type);
-      if (a.type !== 'roll') {
-        const predicted = transition(old.game, actionToExecute, old.game.current, revision);
-        if (predicted !== old.game) setSession({ ...old, game: predicted });
-      }
       let accepted = false;
       try {
         const response = await fetch(
@@ -1132,7 +1163,7 @@ export default function Home() {
           className="animate-bonus-float fixed top-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full border-2 border-amber-300 bg-gradient-to-r from-amber-400 to-yellow-300 px-5 py-2.5 text-sm font-black text-amber-950 shadow-2xl"
         >
           <span className="text-xl">💰</span>
-          <span>{copy('+200 Dubi Start Salary!', '출발점 통과! +200 Dubi 월급 지급!', '¡+200 Dubi por pasar por Salida!')}</span>
+          <span>{copy(`+${bonusPopup.amount} Dubi Start Salary!`, `출발점 통과! +${bonusPopup.amount} Dubi 월급 지급!`, `¡+${bonusPopup.amount} Dubi por pasar por Salida!`)}</span>
         </aside>
       )}
       {roomNotice && (
@@ -1155,9 +1186,10 @@ export default function Home() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (roomCode && roomToken)
-                    void roomWork(() => startRoom(reset));
-                  else start();
+                  if (roomCode) {
+                    if (roomToken) void roomWork(() => startRoom(reset));
+                    else setRoomNotice(copy('Join the room before starting.', '게임 시작 전에 방에 참가하세요.', 'Únete a la sala antes de comenzar.'));
+                  } else start();
                 }}
               >
                 {roomCode && roomToken ? (
@@ -1188,6 +1220,17 @@ export default function Home() {
                       {copy('Save name', '이름 저장', 'Guardar nombre')}
                     </Button>
                   </div>
+                ) : roomCode ? (
+                  <div className="name-fields">
+                    <label>
+                      {copy('Your name', '내 이름', 'Tu nombre')}
+                      <Input
+                        maxLength={24}
+                        value={roomNameDraft}
+                        onChange={(e) => setRoomNameDraft(e.target.value)}
+                      />
+                    </label>
+                  </div>
                 ) : (
                   <div className="name-fields">
                     {[0, 1].map((i) => (
@@ -1216,6 +1259,7 @@ export default function Home() {
                     type="submit"
                     disabled={
                       roomBusy ||
+                      Boolean(roomCode && !roomToken) ||
                       Boolean(
                         roomCode &&
                         roomToken &&
@@ -1243,7 +1287,9 @@ export default function Home() {
                                 '플레이어 대기',
                                 'Esperar jugador',
                               )
-                        : t.start}{' '}
+                        : roomCode
+                          ? copy('Join room first', '먼저 방에 참가하세요', 'Únete primero')
+                          : t.start}{' '}
                     ✈
                   </Button>
                   {reset && (
@@ -1435,6 +1481,7 @@ export default function Home() {
 
                   {g ? (
                     <BoardCenterHub
+                      key={session?.matchId ?? `local:${localGameId}`}
                       game={g}
                       names={names}
                       cashDeltas={cashDeltas}
