@@ -38,6 +38,7 @@ type CashDelta = { id: number; amount: number; text: string };
 type Session = { game: Game; save: Save; matchId?: string };
 type RoomSnapshot = {
   matchId: string;
+  stamp?: number;
   role?: 'host' | 'guest';
   roomCode: string;
   names: [string, string];
@@ -298,6 +299,8 @@ export default function Home() {
     if (!roomCode || !roomToken) return;
     let stopped = false;
     let presenceAt = 0;
+    // Last storage stamp seen; lets the fast poll notice renames and reactions.
+    let stamp: number | undefined;
     let timer: ReturnType<typeof setTimeout>;
     async function syncRoom() {
       const requestEpoch = epoch.current;
@@ -306,7 +309,7 @@ export default function Home() {
         const reportPresence =
           Date.now() - presenceAt >= 5000 || !current.current?.matchId;
         const response = await fetch(
-          `/api/rooms?room=${encodeURIComponent(roomCode)}${!reportPresence && current.current?.matchId ? `&sync=1&match=${current.current.matchId}&revision=${current.current.game.revision}` : ''}`,
+          `/api/rooms?room=${encodeURIComponent(roomCode)}${!reportPresence && current.current?.matchId ? `&sync=1&match=${current.current.matchId}&revision=${current.current.game.revision}${stamp === undefined ? '' : `&stamp=${stamp}`}` : ''}`,
           {
             cache: 'no-store',
             headers: { 'X-Room-Token': roomToken },
@@ -323,6 +326,7 @@ export default function Home() {
         const snapshot = (await response.json()) as RoomSnapshot;
         if (stopped || requestEpoch !== epoch.current || mutation.current)
           return;
+        stamp = snapshot.stamp;
         setRoomConnected(true);
         setRoomNotice((previous) =>
           previous ===

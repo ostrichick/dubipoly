@@ -49,7 +49,9 @@ export async function GET(request: Request) {
       fast &&
       room.game &&
       url.searchParams.get('match') === (room.matchId ?? 'legacy') &&
-      url.searchParams.get('revision') === String(room.game.revision)
+      url.searchParams.get('revision') === String(room.game.revision) &&
+      // Renames and reactions keep the revision but change the stamp.
+      url.searchParams.get('stamp') === String(room.storedAt ?? 0)
     ) {
       return new Response(null, {
         status: 204,

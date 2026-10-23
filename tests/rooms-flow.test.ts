@@ -510,8 +510,8 @@ test('two independent clients recover stale polls and actions, then reload after
   const { code, tokens, started } = await pair();
   const guestCached = await read(code, tokens[1]);
   // Returns a Request; `new Request(fastUrl(...))` below copies its token header.
-  const fastUrl = (token: string, match: string, revision: number) =>
-    tokenRequest(`http://test/api/rooms?room=${code}&sync=1&match=${match}&revision=${revision}`, token);
+  const fastUrl = (token: string, match: string, revision: number, stamp = guestCached.stamp) =>
+    tokenRequest(`http://test/api/rooms?room=${code}&sync=1&match=${match}&revision=${revision}&stamp=${stamp}`, token);
 
   const unchanged = await GET(new Request(fastUrl(tokens[1], started.matchId, 0)));
   assert.equal(unchanged.status, 204);
@@ -759,6 +759,27 @@ test('room creation is rate limited per client IP when the limiter binding exist
   } finally {
     delete env.ROOM_CREATE_LIMIT;
   }
+});
+
+test('fast polls deliver renames and reactions that keep the game revision', async () => {
+  const { code, tokens, started } = await pair();
+  const cached = await read(code, tokens[1]);
+  const fast = (stamp: number) =>
+    GET(tokenRequest(
+      `http://test/api/rooms?room=${code}&sync=1&match=${started.matchId}&revision=${cached.game!.revision}&stamp=${stamp}`,
+      tokens[1],
+    ));
+  assert.equal((await fast(cached.stamp)).status, 204);
+
+  await post({ action: 'rename', roomCode: code, token: tokens[0], name: 'Renamed host' });
+  const renamed = await result(await fast(cached.stamp));
+  assert.equal(renamed.game!.revision, cached.game!.revision);
+  assert.equal(renamed.names[0], 'Renamed host');
+  assert.equal((await fast(renamed.stamp)).status, 204);
+
+  await action(code, { type: 'reaction', token: tokens[0], emoji: '💪' });
+  const reacted = await result(await fast(renamed.stamp));
+  assert.equal(reacted.reaction?.emoji, '💪');
 });
 
 test('quick reactions only relay emoji from the picker allowlist', async () => {

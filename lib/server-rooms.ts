@@ -200,6 +200,9 @@ export function cleanupRooms() {
 export function roomSnapshot(roomCode: string, room: ServerRoom) {
   return {
     matchId: room.matchId ?? 'legacy',
+    // Storage version: changes on every persisted write, including renames and
+    // reactions that leave the game revision untouched.
+    stamp: room.storedAt ?? 0,
     roomCode,
     names: room.names,
     players: room.players.length,
