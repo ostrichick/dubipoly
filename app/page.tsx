@@ -280,13 +280,19 @@ export default function Home() {
         previous?.game.current !== myPlayerIndex &&
         next.game.phase !== 'finished'
       ) {
-        TurnNotifier.notify(names[myPlayerIndex]);
+        TurnNotifier.notify(
+          copy(
+            '🔔 Your turn! Roll the dice',
+            '🔔 내 차례! 주사위를 굴리세요',
+            '🔔 ¡Tu turno! Tira los dados',
+          ),
+        );
       }
       current.current = next;
       setSession(next);
       setSelected(next.game.players[next.game.current].position);
     },
-    [roomRole, names],
+    [roomRole, copy],
   );
   useEffect(() => {
     if (!roomCode || !roomToken) return;
@@ -300,9 +306,10 @@ export default function Home() {
         const reportPresence =
           Date.now() - presenceAt >= 5000 || !current.current?.matchId;
         const response = await fetch(
-          `/api/rooms?room=${encodeURIComponent(roomCode)}&token=${encodeURIComponent(roomToken)}${!reportPresence && current.current?.matchId ? `&sync=1&match=${current.current.matchId}&revision=${current.current.game.revision}` : ''}`,
+          `/api/rooms?room=${encodeURIComponent(roomCode)}${!reportPresence && current.current?.matchId ? `&sync=1&match=${current.current.matchId}&revision=${current.current.game.revision}` : ''}`,
           {
             cache: 'no-store',
+            headers: { 'X-Room-Token': roomToken },
           },
         );
         if (stopped || requestEpoch !== epoch.current || mutation.current)
@@ -609,7 +616,7 @@ export default function Home() {
   }
   async function joinRoom() {
     const code = roomInput.trim().toUpperCase();
-    if (!/^(?:[A-HJ-NP-Z2-9]{10}|\d{2})$/.test(code)) {
+    if (!/^[A-HJ-NP-Z2-9]{10}$/.test(code)) {
       setRoomNotice(
         copy(
           'Enter a valid room code.',

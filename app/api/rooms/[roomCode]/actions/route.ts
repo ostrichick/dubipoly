@@ -120,7 +120,9 @@ export async function POST(
             | 'skipFly'
             | 'skipSail'
             | 'payDebt'
-            | 'bankrupt',
+            | 'bankrupt'
+            | 'payRent'
+            | 'claimEvent',
         };
       }
       const next = transition(
@@ -140,7 +142,8 @@ export async function POST(
         return json(roomSnapshot(roomCode, room));
     }
     return json({ error: 'ROOM_CHANGED' }, 409);
-  } catch {
+  } catch (error) {
+    console.error('POST /api/rooms/:roomCode/actions failed', error);
     return json({ error: 'STORAGE_UNAVAILABLE' }, 503);
   }
 }

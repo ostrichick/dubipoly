@@ -17,7 +17,7 @@ function json(data: unknown, status = 200) {
 }
 
 const ROOM_CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-const ROOM_CODE_PATTERN = /^(?:[A-HJ-NP-Z2-9]{10}|\d{2})$/;
+const ROOM_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{10}$/;
 const JOIN_TOKEN_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function newRoomCode() {
@@ -34,7 +34,10 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const roomCode = url.searchParams.get('room')?.toUpperCase() ?? '';
-    const token = url.searchParams.get('token') ?? '';
+    // The token travels in a header so it stays out of request-URL logs. The
+    // query fallback only serves pages loaded before this change.
+    const token =
+      request.headers.get('x-room-token') ?? url.searchParams.get('token') ?? '';
     const room = await loadRoom(roomCode);
     if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
     const fast = url.searchParams.get('sync') === '1';
@@ -59,7 +62,8 @@ export async function GET(request: Request) {
       ...(fast ? { presence: undefined } : {}),
       playerIndex,
     });
-  } catch {
+  } catch (error) {
+    console.error('GET /api/rooms failed', error);
     return json({ error: 'STORAGE_UNAVAILABLE' }, 503);
   }
 }
@@ -167,7 +171,8 @@ export async function POST(request: Request) {
         });
     }
     return json({ error: 'ROOM_CHANGED' }, 409);
-  } catch {
+  } catch (error) {
+    console.error('POST /api/rooms failed', error);
     return json({ error: 'STORAGE_UNAVAILABLE' }, 503);
   }
 }

@@ -106,3 +106,31 @@ test('sailing from harbor applies 1-turn cooldown preventing consecutive harbor 
   assert.equal(canSail(g, 0), false);
   assert.equal(g.travelBlocked?.space, rules.harborSpace);
 });
+
+test('skipping a flight cannot be redeemed later from the roll phase', () => {
+  let g = createGame(['Player 1', 'Player 2'], 2);
+  g.players[0].position = 27;
+  g = transition(g, roll(1, 2));
+  assert.equal(g.phase, 'choice');
+  g = transition(g, { type: 'skipFly' });
+  g = transition(g, { type: 'end' });
+  g = resolve(transition(g, roll(1, 2))); // Player 1's turn
+  assert.equal(g.current, 0);
+  assert.equal(g.phase, 'roll');
+  assert.equal(g.players[0].position, rules.airportSpace);
+  assert.equal(canFly(g, 0), false);
+  assert.equal(transition(g, { type: 'fly', space: 5, event: 0 }), g);
+});
+
+test('skipping a flight after doubles keeps the extra roll but no flight', () => {
+  let g = createGame(['Player 1', 'Player 2'], 2);
+  g.players[0].position = 26;
+  g = transition(g, roll(2, 2));
+  assert.equal(g.players[0].position, rules.airportSpace);
+  assert.equal(canFly(g, 0), true);
+  g = transition(g, { type: 'skipFly' });
+  assert.equal(g.phase, 'roll');
+  assert.equal(g.current, 0);
+  assert.equal(canFly(g, 0), false);
+  assert.equal(transition(g, { type: 'fly', space: 5, event: 0 }), g);
+});

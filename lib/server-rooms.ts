@@ -13,6 +13,7 @@ export type ServerRoom = {
   reaction?: { player: number; emoji: string; at: number } | null;
 };
 
+/** Room store for local/test runs without a D1 binding. D1 mode never reads or fills it. */
 export const rooms = new Map<string, ServerRoom>();
 const ROOM_LIFETIME_MS = 6 * 60 * 60 * 1000;
 let nextReadSweepAt = 0;
@@ -80,14 +81,10 @@ export async function loadRoom(roomCode: string) {
       )
       .bind(roomCode)
       .first<{ payload: string; updated_at: number }>();
-    if (!row?.payload) {
-      rooms.delete(roomCode);
-      return undefined;
-    }
+    if (!row?.payload) return undefined;
     const room = deserialize(row.payload);
     room.storedAt = row.updated_at;
     if (!roomExpired(room)) {
-      rooms.set(roomCode, room);
       return room;
     }
     const seen = await db
@@ -95,7 +92,6 @@ export async function loadRoom(roomCode: string) {
       .bind(roomCode)
       .first<{ last_seen: number | null }>();
     if (!roomExpired(room, Date.now(), seen?.last_seen ?? 0)) {
-      rooms.set(roomCode, room);
       return room;
     }
     // Check row version and activity together: a concurrent heartbeat must
@@ -106,7 +102,6 @@ export async function loadRoom(roomCode: string) {
       .bind(roomCode, row.updated_at, cutoff)
       .run();
     if (removed.meta.changes === 1) {
-      rooms.delete(roomCode);
       await db
         .prepare('DELETE FROM dubipoly_presence WHERE room_code = ?1 AND NOT EXISTS (SELECT 1 FROM dubipoly_rooms WHERE room_code = ?1)')
         .bind(roomCode)
@@ -137,7 +132,6 @@ export async function sweepExpiredRooms() {
       .bind(code, version, cutoff)
       .run();
     if (removed.meta.changes === 1) {
-      rooms.delete(code);
       await db
         .prepare('DELETE FROM dubipoly_presence WHERE room_code = ?1 AND NOT EXISTS (SELECT 1 FROM dubipoly_rooms WHERE room_code = ?1)')
         .bind(code)
@@ -168,29 +162,26 @@ export async function persistRoom(roomCode: string, room: ServerRoom) {
     rooms.set(roomCode, structuredClone(room));
     return true;
   }
-  try {
-    const updatedAt = Math.max(Date.now(), (room.storedAt ?? 0) + 1);
-    const result =
-      room.storedAt === undefined
-        ? await db
-            .prepare(
-              'INSERT INTO dubipoly_rooms (room_code, payload, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(room_code) DO NOTHING',
-            )
-            .bind(roomCode, serialize(room), updatedAt)
-            .run()
-        : await db
-            .prepare(
-              'UPDATE dubipoly_rooms SET payload = ?1, updated_at = ?2 WHERE room_code = ?3 AND updated_at = ?4',
-            )
-            .bind(serialize(room), updatedAt, roomCode, room.storedAt)
-            .run();
-    if (result.meta.changes !== 1) return false;
-    room.storedAt = updatedAt;
-    rooms.set(roomCode, structuredClone(room));
-    return true;
-  } catch {
-    return false;
-  }
+  // `false` means a lost CAS race only. D1 errors propagate so routes answer
+  // 503 STORAGE_UNAVAILABLE instead of misreporting an outage as a conflict.
+  const updatedAt = Math.max(Date.now(), (room.storedAt ?? 0) + 1);
+  const result =
+    room.storedAt === undefined
+      ? await db
+          .prepare(
+            'INSERT INTO dubipoly_rooms (room_code, payload, updated_at) VALUES (?1, ?2, ?3) ON CONFLICT(room_code) DO NOTHING',
+          )
+          .bind(roomCode, serialize(room), updatedAt)
+          .run()
+      : await db
+          .prepare(
+            'UPDATE dubipoly_rooms SET payload = ?1, updated_at = ?2 WHERE room_code = ?3 AND updated_at = ?4',
+          )
+          .bind(serialize(room), updatedAt, roomCode, room.storedAt)
+          .run();
+  if (result.meta.changes !== 1) return false;
+  room.storedAt = updatedAt;
+  return true;
 }
 
 export function cleanupRooms() {

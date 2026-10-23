@@ -248,7 +248,9 @@ export function canSell(g: Game, index: number, actor: PlayerId = g.current) {
 export function canFly(g: Game, actor: PlayerId = g.current) {
   if (g.rulesVersion !== 2) return false;
   if (actor !== g.current) return false;
-  if (g.phase !== 'choice' && g.phase !== 'roll') return false;
+  // A flight is offered only on arrival. Skipping it must not allow a later
+  // roll-phase flight (next turn or a doubles extra roll) in place of rolling.
+  if (g.phase !== 'choice') return false;
   if ((g.travelCooldown?.[actor] ?? 0) > 0) return false;
   const p = g.players[actor];
   return p.position === rules.airportSpace && p.cash >= rules.flightFee;
@@ -346,7 +348,7 @@ function applyEventEffect(
     land(g, false, event);
   } else if (effect.kind === 'warpTourist') {
     const currentPos = g.players[actor].position;
-    const touristIndexes = [6, 16, 25, 36];
+    const touristIndexes = board.filter((s) => s.kind === 'tourist').map((s) => s.index);
     const nextTourist = touristIndexes.find((idx) => idx > currentPos) ?? touristIndexes[0];
     const stepsToTourist = (nextTourist - currentPos + 40) % 40;
     move(g, stepsToTourist);
@@ -531,6 +533,8 @@ export function transition(
   if (
     action.type === 'buy' &&
     (state.phase !== 'choice' ||
+      state.pendingPayment ||
+      state.pendingEvent ||
       city.type !== 'city' ||
       prop ||
       state.players[actor].cash < city.price!)
@@ -539,6 +543,8 @@ export function transition(
   if (
     action.type === 'upgrade' &&
     (state.phase !== 'choice' ||
+      state.pendingPayment ||
+      state.pendingEvent ||
       (state.rulesVersion === 2 && city.kind === 'tourist') ||
       city.type !== 'city' ||
       !prop ||

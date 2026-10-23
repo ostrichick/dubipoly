@@ -8,13 +8,18 @@ on:
 permissions:
   contents: read
 
+# Queue pushes so an older build can never deploy after a newer one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Test, Build & Deploy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -27,6 +32,9 @@ jobs:
 
       - name: Run lint
         run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
 
       - name: Run test suite
         run: npm test

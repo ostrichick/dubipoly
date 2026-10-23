@@ -1,9 +1,10 @@
 // Client-side Turn Notification helper (Browser title flash + vibration)
 export class TurnNotifier {
-  private static originalTitle = typeof document !== 'undefined' ? document.title : 'Dubipoly';
+  private static originalTitle: string | null = null;
   private static intervalId: ReturnType<typeof setInterval> | null = null;
 
-  public static notify(_playerName?: string) {
+  /** `flashText` is already localized by the caller. */
+  public static notify(flashText: string) {
     if (typeof window === 'undefined') return;
 
     // 1. Mobile Vibration if supported
@@ -17,11 +18,11 @@ export class TurnNotifier {
     if (document.hidden) {
       this.stop();
       let toggle = false;
-      const flashText = `🔔 [내 차례!] 주사위를 굴리세요`;
-      this.originalTitle = document.title.replace(/^🔔\s*\[.*?\]\s*/, '');
+      const originalTitle = document.title;
+      this.originalTitle = originalTitle;
 
       this.intervalId = setInterval(() => {
-        document.title = toggle ? flashText : this.originalTitle;
+        document.title = toggle ? flashText : originalTitle;
         toggle = !toggle;
       }, 1000);
 
@@ -38,8 +39,10 @@ export class TurnNotifier {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    if (typeof document !== 'undefined' && this.originalTitle) {
+    // Restore only a title this helper replaced; never clobber a newer one.
+    if (typeof document !== 'undefined' && this.originalTitle !== null) {
       document.title = this.originalTitle;
+      this.originalTitle = null;
     }
   }
 }

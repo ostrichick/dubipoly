@@ -108,7 +108,11 @@ async function post(body: unknown, status = 200) {
 async function read(code: string, token: string) {
   rooms.clear(); // Simulate a different/cold Worker; never rely on shared process memory.
   return result(
-    await GET(new Request(`http://test/api/rooms?room=${code}&token=${token}`)),
+    await GET(
+      new Request(`http://test/api/rooms?room=${code}`, {
+        headers: { 'X-Room-Token': token },
+      }),
+    ),
   );
 }
 async function pair() {
@@ -192,18 +196,11 @@ test('two independent identities: authorization, name changes, rejoin, heartbeat
   );
 });
 
-test('new room codes remain distinct and existing two-digit rooms can be joined', async () => {
+test('new room codes remain distinct and retired two-digit codes are rejected', async () => {
   const first = await post({ action: 'create' }, 201);
   const second = await post({ action: 'create' }, 201);
   assert.notEqual(first.roomCode, second.roomCode);
-  const room = (await loadRoom(first.roomCode))!;
-  room.storedAt = undefined;
-  assert.equal(await persistRoom('27', room), true);
-  rooms.clear();
-  const oldRoom = await read('27', first.token);
-  assert.equal(oldRoom.roomCode, '27');
-  const joined = await post({ action: 'join', roomCode: '27', name: 'Legacy guest' });
-  assert.equal(joined.names[1], 'Legacy guest');
+  await post({ action: 'join', roomCode: '27', name: 'Legacy guest' }, 400);
   await post({ action: 'join', roomCode: 'SHORT' }, 400);
 });
 
@@ -442,7 +439,8 @@ test('missing Worker D1 binding fails closed even with a cached room', async () 
 test('failed reaction persistence does not acknowledge delivery or leak into D1', async () => {
   const host = await post({ action: 'create' }, 201);
   failWrites = true;
-  await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '😍' }, 409);
+  const failed = await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '😍' }, 503);
+  assert.equal(failed.error, 'STORAGE_UNAVAILABLE');
   failWrites = false;
   rooms.clear();
   const snapshot = await read(host.roomCode, host.token);
@@ -701,7 +699,7 @@ test('storage outage never succeeds using a stale in-memory snapshot', async () 
   await post({ action: 'create' }, 503);
   await post(
     { action: 'rename', roomCode: code, token: tokens[0], name: 'Not saved' },
-    409,
+    503,
   );
   failWrites = false;
   const synced = await equalPlayers(code, tokens);
