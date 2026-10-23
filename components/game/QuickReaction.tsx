@@ -2,13 +2,7 @@
 
 import { useState } from 'react';
 import { sound, triggerHaptic } from '../../lib/audio';
-
-const REACTIONS = [
-  { emoji: '😍', label: 'Love' },
-  { emoji: '😭', label: 'Tears' },
-  { emoji: '😱', label: 'Shock' },
-  { emoji: '💪', label: 'Cheer' },
-];
+import { REACTIONS } from '../../lib/reactions';
 
 export type ReactionEvent = {
   player: number;

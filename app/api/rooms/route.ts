@@ -1,4 +1,5 @@
 import {
+  allowRoomCreation,
   heartbeat,
   loadRoom,
   persistRoom,
@@ -34,10 +35,8 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const roomCode = url.searchParams.get('room')?.toUpperCase() ?? '';
-    // The token travels in a header so it stays out of request-URL logs. The
-    // query fallback only serves pages loaded before this change.
-    const token =
-      request.headers.get('x-room-token') ?? url.searchParams.get('token') ?? '';
+    // The token travels only in a header so it stays out of request-URL logs.
+    const token = request.headers.get('x-room-token') ?? '';
     const room = await loadRoom(roomCode);
     if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
     const fast = url.searchParams.get('sync') === '1';
@@ -83,6 +82,8 @@ export async function POST(request: Request) {
     const name =
       typeof body.name === 'string' ? body.name.trim().slice(0, 24) : '';
     if (body.action === 'create') {
+      if (!(await allowRoomCreation(request)))
+        return json({ error: 'RATE_LIMITED' }, 429);
       await sweepExpiredRooms();
       for (let attempt = 0; attempt < 10; attempt++) {
         const roomCode = newRoomCode();

@@ -105,14 +105,13 @@ async function result(response: Response, status = 200) {
 async function post(body: unknown, status = 200) {
   return result(await POST(request(body)), status);
 }
+function tokenRequest(url: string, token: string) {
+  return new Request(url, { headers: { 'X-Room-Token': token } });
+}
 async function read(code: string, token: string) {
   rooms.clear(); // Simulate a different/cold Worker; never rely on shared process memory.
   return result(
-    await GET(
-      new Request(`http://test/api/rooms?room=${code}`, {
-        headers: { 'X-Room-Token': token },
-      }),
-    ),
+    await GET(tokenRequest(`http://test/api/rooms?room=${code}`, token)),
   );
 }
 async function pair() {
@@ -232,8 +231,12 @@ test('client-generated join token survives a lost response and cannot claim anot
   assert.equal((await post({
     action: 'rename', roomCode: host.roomCode, token: stranger, name: 'Impostor',
   }, 403)).error, 'INVALID_PLAYER');
+  assert.equal((await result(await GET(tokenRequest(
+    `http://test/api/rooms?room=${host.roomCode}`, stranger,
+  )), 403)).error, 'INVALID_PLAYER');
+  // A token in the URL is no longer accepted; it must arrive in the header.
   assert.equal((await result(await GET(new Request(
-    `http://test/api/rooms?room=${host.roomCode}&token=${stranger}`,
+    `http://test/api/rooms?room=${host.roomCode}&token=${host.token}`,
   )), 403)).error, 'INVALID_PLAYER');
   const saved = (await loadRoom(host.roomCode))!;
   assert.deepEqual(saved.players.map((player) => player.token), [host.token, proposedToken]);
@@ -303,7 +306,7 @@ test('expired D1 rooms cannot be read, joined, or acted upon', async () => {
   sqlite.prepare('UPDATE dubipoly_presence SET last_seen = ? WHERE room_code = ?')
     .run(oldTime, host.roomCode);
   rooms.clear();
-  await result(await GET(new Request(`http://test/api/rooms?room=${host.roomCode}&token=${host.token}`)), 404);
+  await result(await GET(tokenRequest(`http://test/api/rooms?room=${host.roomCode}`, host.token)), 404);
   await post({ action: 'join', roomCode: host.roomCode }, 404);
   await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '💪' }, 404);
   assert.equal(sqlite.prepare('SELECT COUNT(*) AS count FROM dubipoly_rooms WHERE room_code = ?').get(host.roomCode)?.count, 0);
@@ -415,8 +418,8 @@ test('authenticated heartbeat polls eventually sweep other idle rooms without ne
 
   const realNow = Date.now();
   mock.method(Date, 'now', () => realNow + 2 * 60_000);
-  const refreshed = await result(await GET(new Request(
-    `http://test/api/rooms?room=${active.roomCode}&token=${active.token}`,
+  const refreshed = await result(await GET(tokenRequest(
+    `http://test/api/rooms?room=${active.roomCode}`, active.token,
   )));
   assert.equal(refreshed.roomCode, active.roomCode);
   assert.equal(sqlite.prepare('SELECT 1 FROM dubipoly_rooms WHERE room_code = ?')
@@ -429,7 +432,7 @@ test('missing Worker D1 binding fails closed even with a cached room', async () 
   globalThis.__DUBIPOLY_ENV__ = {};
   try {
     await post({ action: 'create' }, 503);
-    await result(await GET(new Request(`http://test/api/rooms?room=${host.roomCode}&token=${host.token}`)), 503);
+    await result(await GET(tokenRequest(`http://test/api/rooms?room=${host.roomCode}`, host.token)), 503);
     await action(host.roomCode, { type: 'reaction', token: host.token }, 503);
   } finally {
     globalThis.__DUBIPOLY_ENV__ = actualEnv;
@@ -506,8 +509,9 @@ test('two clients disconnect and reconnect independently without changing seats 
 test('two independent clients recover stale polls and actions, then reload after rematch', async () => {
   const { code, tokens, started } = await pair();
   const guestCached = await read(code, tokens[1]);
+  // Returns a Request; `new Request(fastUrl(...))` below copies its token header.
   const fastUrl = (token: string, match: string, revision: number) =>
-    `http://test/api/rooms?room=${code}&token=${token}&sync=1&match=${match}&revision=${revision}`;
+    tokenRequest(`http://test/api/rooms?room=${code}&sync=1&match=${match}&revision=${revision}`, token);
 
   const unchanged = await GET(new Request(fastUrl(tokens[1], started.matchId, 0)));
   assert.equal(unchanged.status, 204);
@@ -690,7 +694,7 @@ test('storage outage never succeeds using a stale in-memory snapshot', async () 
   await post({ action: 'create' }, 503);
   await result(
     await GET(
-      new Request(`http://test/api/rooms?room=${code}&token=${tokens[0]}`),
+      tokenRequest(`http://test/api/rooms?room=${code}`, tokens[0]),
     ),
     503,
   );
@@ -728,4 +732,41 @@ test('bankruptcy result persists and both clients agree (explicit rule-edge fixt
   assert.equal(snapshot.game!.reason, 'bankruptcy');
   assert.equal(snapshot.game!.winner, 1);
   await equalPlayers(code, tokens);
+});
+
+test('room creation is rate limited per client IP when the limiter binding exists', async () => {
+  const env = globalThis.__DUBIPOLY_ENV__!;
+  const keys: string[] = [];
+  let allow = true;
+  env.ROOM_CREATE_LIMIT = {
+    async limit({ key }) {
+      keys.push(key);
+      return { success: allow };
+    },
+  };
+  try {
+    const createFrom = (ip: string) =>
+      new Request('http://test/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip },
+        body: JSON.stringify({ action: 'create' }),
+      });
+    await result(await POST(createFrom('203.0.113.7')), 201);
+    allow = false;
+    const limited = await result(await POST(createFrom('203.0.113.7')), 429);
+    assert.equal(limited.error, 'RATE_LIMITED');
+    assert.deepEqual(keys, ['203.0.113.7', '203.0.113.7']);
+  } finally {
+    delete env.ROOM_CREATE_LIMIT;
+  }
+});
+
+test('quick reactions only relay emoji from the picker allowlist', async () => {
+  const host = await post({ action: 'create' }, 201);
+  for (const emoji of [undefined, 'hello', '<b>x</b>', '😍😍', '🐾']) {
+    const rejected = await action(host.roomCode, { type: 'reaction', token: host.token, emoji }, 400);
+    assert.equal(rejected.error, 'INVALID_REACTION');
+  }
+  const sent = await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '😱' });
+  assert.equal(sent.reaction?.emoji, '😱');
 });

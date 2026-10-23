@@ -32,6 +32,15 @@ const localBindingConfig = {
         },
       ]
     : [],
+  // Workers Rate Limiting caps room creation per client IP (spam guard).
+  // `namespace_id` is any account-unique positive integer.
+  ratelimits: [
+    {
+      name: 'ROOM_CREATE_LIMIT',
+      namespace_id: '1001',
+      simple: { limit: 5, period: 60 as const },
+    },
+  ],
   r2_buckets: r2
     ? [
         {

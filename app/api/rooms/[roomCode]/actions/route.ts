@@ -1,5 +1,6 @@
 import { events } from '../../../../../lib/events.ts';
 import { randomInt } from '../../../../../lib/random.ts';
+import { isReactionEmoji } from '../../../../../lib/reactions.ts';
 import {
   loadRoom,
   persistRoom,
@@ -45,9 +46,12 @@ export async function POST(
           (player) => player.token === body.token,
         );
         if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
+        // Only the picker's emoji are relayed; arbitrary text never reaches the other player.
+        if (!isReactionEmoji(body.emoji))
+          return json({ error: 'INVALID_REACTION' }, 400);
         room.reaction = {
           player: playerIndex,
-          emoji: (typeof body.emoji === 'string' ? body.emoji : '🐾').slice(0, 10),
+          emoji: body.emoji,
           at: Date.now(),
         };
         if (await persistRoom(roomCode, room))

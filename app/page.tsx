@@ -585,11 +585,17 @@ export default function Home() {
     });
     if (!response.ok)
       return setRoomNotice(
-        copy(
-          'Unable to create the room.',
-          '방을 만들지 못했습니다.',
-          'No se pudo crear la sala.',
-        ),
+        response.status === 429
+          ? copy(
+              'Too many rooms created. Please wait a minute and try again.',
+              '방을 너무 많이 만들었습니다. 1분 뒤에 다시 시도하세요.',
+              'Demasiadas salas creadas. Espera un minuto e inténtalo de nuevo.',
+            )
+          : copy(
+              'Unable to create the room.',
+              '방을 만들지 못했습니다.',
+              'No se pudo crear la sala.',
+            ),
       );
     const result = (await response.json()) as RoomSnapshot & { token: string };
     current.current = null;

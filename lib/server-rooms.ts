@@ -30,7 +30,14 @@ export function roomExpired(room: ServerRoom, now = Date.now(), latestPresence =
 
 declare global {
   // The custom Worker wrapper exposes Cloudflare bindings to route handlers.
-  var __DUBIPOLY_ENV__: { DB?: D1Database } | undefined;
+  var __DUBIPOLY_ENV__:
+    | {
+        DB?: D1Database;
+        ROOM_CREATE_LIMIT?: {
+          limit(options: { key: string }): Promise<{ success: boolean }>;
+        };
+      }
+    | undefined;
 }
 
 function database() {
@@ -208,6 +215,17 @@ export function roomSnapshot(roomCode: string, room: ServerRoom) {
         ? room.reaction
         : null,
   };
+}
+
+/**
+ * Per-IP room creation limit. Without the binding (local dev, tests) creation
+ * is allowed so a missing limiter never blocks play.
+ */
+export async function allowRoomCreation(request: Request) {
+  const limiter = globalThis.__DUBIPOLY_ENV__?.ROOM_CREATE_LIMIT;
+  if (!limiter) return true;
+  const key = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  return (await limiter.limit({ key })).success;
 }
 
 /** Presence does not change the game row or compete with game-state writes. */
