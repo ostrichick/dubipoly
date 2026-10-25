@@ -317,6 +317,33 @@ export default function Home() {
         );
         if (stopped || requestEpoch !== epoch.current || mutation.current)
           return;
+        if (response.status === 403 || response.status === 404) {
+          try {
+            localStorage.removeItem(`dubipoly.room.${roomCode}`);
+            localStorage.removeItem(`dubipoly.room.pending.${roomCode}`);
+          } catch {
+            // The user can still leave an expired room if storage is blocked.
+          }
+          current.current = null;
+          setSession(null);
+          setReset(false);
+          setRoomToken('');
+          setRoomCode('');
+          setRoomInput('');
+          setRoomRole('');
+          setRoomReady(false);
+          setRoomPresence([]);
+          setRoomConnected(false);
+          window.history.replaceState({}, '', '/');
+          setRoomNotice(
+            copy(
+              'This room has expired or your access is no longer valid. Create or join another room.',
+              '방이 만료되었거나 참가 정보가 유효하지 않습니다. 새 방을 만들거나 다른 방에 참가하세요.',
+              'La sala ha caducado o tu acceso ya no es válido. Crea otra sala o únete a una.',
+            ),
+          );
+          return;
+        }
         if (!response.ok) throw new Error('Room unavailable');
         if (response.status === 204) {
           setRoomConnected(true);
@@ -604,6 +631,7 @@ export default function Home() {
     const result = (await response.json()) as RoomSnapshot & { token: string };
     current.current = null;
     setSession(null);
+    setReset(false);
     setRoomConnected(true);
     setRoomCode(result.roomCode);
     setRoomInput(result.roomCode);
@@ -673,6 +701,7 @@ export default function Home() {
     setRoomReady(result.ready);
     current.current = null;
     setSession(null);
+    setReset(false);
     setRoomConnected(true);
     setRoomRole(result.role ?? 'guest');
     setRoomPresence(result.presence ?? []);
@@ -778,8 +807,15 @@ export default function Home() {
       }),
     });
     if (!response.ok) {
+      const error = (await response.json().catch(() => null)) as { error?: string } | null;
       setRoomNotice(
-        response.status === 409
+        error?.error === 'GAME_NOT_FINISHED'
+          ? copy(
+              'Finish the current game before starting a rematch.',
+              '현재 게임을 마친 뒤 재대전을 시작할 수 있어요.',
+              'Termina la partida actual antes de iniciar una revancha.',
+            )
+          : response.status === 409
           ? copy(
               'Both players must join before starting.',
               '두 플레이어가 모두 들어와야 시작할 수 있어요.',
@@ -1140,7 +1176,7 @@ export default function Home() {
           {g && (
             <Button
               variant="outline"
-              disabled={roomBusy || Boolean(roomToken && roomRole !== 'host')}
+              disabled={roomBusy || Boolean(roomToken && (roomRole !== 'host' || g.phase !== 'finished'))}
               onClick={() => setReset(true)}
             >
               {t.new}

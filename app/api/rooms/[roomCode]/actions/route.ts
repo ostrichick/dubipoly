@@ -2,6 +2,7 @@ import { events } from '../../../../../lib/events.ts';
 import { randomInt } from '../../../../../lib/random.ts';
 import { isReactionEmoji } from '../../../../../lib/reactions.ts';
 import {
+  allowRoomReaction,
   loadRoom,
   persistRoom,
   roomSnapshot,
@@ -39,6 +40,10 @@ export async function POST(
       return json({ error: 'INVALID_ACTION' }, 400);
 
     if (body.type === 'reaction') {
+      if (!isReactionEmoji(body.emoji))
+        return json({ error: 'INVALID_REACTION' }, 400);
+      if (!(await allowRoomReaction(request)))
+        return json({ error: 'RATE_LIMITED' }, 429);
       for (let attempt = 0; attempt < 4; attempt++) {
         const room = await loadRoom(roomCode);
         if (!room) return json({ error: 'ROOM_NOT_FOUND' }, 404);
@@ -46,9 +51,6 @@ export async function POST(
           (player) => player.token === body.token,
         );
         if (playerIndex < 0) return json({ error: 'INVALID_PLAYER' }, 403);
-        // Only the picker's emoji are relayed; arbitrary text never reaches the other player.
-        if (!isReactionEmoji(body.emoji))
-          return json({ error: 'INVALID_REACTION' }, 400);
         room.reaction = {
           player: playerIndex,
           emoji: body.emoji,

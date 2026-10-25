@@ -40,6 +40,11 @@ const localBindingConfig = {
       namespace_id: '1001',
       simple: { limit: 5, period: 60 as const },
     },
+    {
+      name: 'ROOM_REACTION_LIMIT',
+      namespace_id: '1002',
+      simple: { limit: 12, period: 60 as const },
+    },
   ],
   r2_buckets: r2
     ? [

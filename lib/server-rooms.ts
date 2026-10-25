@@ -36,6 +36,9 @@ declare global {
         ROOM_CREATE_LIMIT?: {
           limit(options: { key: string }): Promise<{ success: boolean }>;
         };
+        ROOM_REACTION_LIMIT?: {
+          limit(options: { key: string }): Promise<{ success: boolean }>;
+        };
       }
     | undefined;
 }
@@ -221,12 +224,30 @@ export function roomSnapshot(roomCode: string, room: ServerRoom) {
 }
 
 /**
- * Per-IP room creation limit. Without the binding (local dev, tests) creation
- * is allowed so a missing limiter never blocks play.
+ * The rate limiter is mandatory wherever the Worker has a production-style DB.
+ * Direct local tests without Worker bindings may still create rooms.
  */
 export async function allowRoomCreation(request: Request) {
-  const limiter = globalThis.__DUBIPOLY_ENV__?.ROOM_CREATE_LIMIT;
-  if (!limiter) return true;
+  const env = globalThis.__DUBIPOLY_ENV__;
+  const limiter = env?.ROOM_CREATE_LIMIT;
+  if (!limiter) {
+    if (env?.DB) throw new Error('ROOM_CREATE_LIMIT binding is required');
+    return true;
+  }
+  const key = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  return (await limiter.limit({ key })).success;
+}
+
+/** Reject reaction floods at the Worker edge, before any D1 reads or writes. */
+export async function allowRoomReaction(request: Request) {
+  const env = globalThis.__DUBIPOLY_ENV__;
+  const limiter = env?.ROOM_REACTION_LIMIT;
+  if (!limiter) {
+    if (env?.DB) throw new Error('ROOM_REACTION_LIMIT binding is required');
+    return true;
+  }
+  // IP (rather than a client token/room code) prevents spoofed keys bypassing
+  // the limit through repeated unauthenticated requests.
   const key = request.headers.get('cf-connecting-ip') ?? 'unknown';
   return (await limiter.limit({ key })).success;
 }

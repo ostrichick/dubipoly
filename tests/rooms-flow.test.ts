@@ -54,6 +54,8 @@ beforeEach(() => {
   rooms.clear();
   // Actual SQLite SQL/constraints, with the small async D1 interface adapter.
   globalThis.__DUBIPOLY_ENV__ = {
+    ROOM_CREATE_LIMIT: { async limit() { return { success: true }; } },
+    ROOM_REACTION_LIMIT: { async limit() { return { success: true }; } },
     DB: {
       prepare(sql: string) {
         return {
@@ -433,7 +435,7 @@ test('missing Worker D1 binding fails closed even with a cached room', async () 
   try {
     await post({ action: 'create' }, 503);
     await result(await GET(tokenRequest(`http://test/api/rooms?room=${host.roomCode}`, host.token)), 503);
-    await action(host.roomCode, { type: 'reaction', token: host.token }, 503);
+    await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '💪' }, 503);
   } finally {
     globalThis.__DUBIPOLY_ENV__ = actualEnv;
   }
@@ -559,6 +561,22 @@ test('two independent clients recover stale polls and actions, then reload after
   }, 409);
   assert.equal(rejected.error, 'STALE_MATCH');
   assert.deepEqual((await equalPlayers(code, tokens)).game, reset.game);
+});
+
+test('rematch cannot reset an unfinished game', async () => {
+  const { code, tokens, started } = await pair();
+  const refused = await post({
+    action: 'rematch', roomCode: code, token: tokens[0], matchId: started.matchId,
+  }, 409);
+  assert.equal(refused.error, 'GAME_NOT_FINISHED');
+  const unchanged = await equalPlayers(code, tokens);
+  assert.equal(unchanged.matchId, started.matchId);
+  assert.deepEqual(unchanged.game, started.game);
+  const rolled = await action(code, {
+    token: tokens[0], matchId: started.matchId, revision: 0,
+    requestId: 'after-refused-rematch', type: 'roll',
+  });
+  assert.ok(rolled.game!.revision > 0);
 });
 
 test('complete online game and rematch: every action matches both players and replay', async () => {
@@ -757,8 +775,15 @@ test('room creation is rate limited per client IP when the limiter binding exist
     assert.equal(limited.error, 'RATE_LIMITED');
     assert.deepEqual(keys, ['203.0.113.7', '203.0.113.7']);
   } finally {
-    delete env.ROOM_CREATE_LIMIT;
+    env.ROOM_CREATE_LIMIT = { async limit() { return { success: true }; } };
   }
+});
+
+test('room creation fails closed when the production limiter binding is missing', async () => {
+  delete globalThis.__DUBIPOLY_ENV__!.ROOM_CREATE_LIMIT;
+  const unavailable = await post({ action: 'create' }, 503);
+  assert.equal(unavailable.error, 'STORAGE_UNAVAILABLE');
+  assert.equal((sqlite.prepare('SELECT COUNT(*) AS n FROM dubipoly_rooms').get() as { n: number }).n, 0);
 });
 
 test('fast polls deliver renames and reactions that keep the game revision', async () => {
@@ -790,4 +815,43 @@ test('quick reactions only relay emoji from the picker allowlist', async () => {
   }
   const sent = await action(host.roomCode, { type: 'reaction', token: host.token, emoji: '😱' });
   assert.equal(sent.reaction?.emoji, '😱');
+});
+
+test('reaction rate limiting blocks requests before D1 and ignores spoofed player tokens', async () => {
+  const { code, tokens } = await pair();
+  const env = globalThis.__DUBIPOLY_ENV__!;
+  const keys: string[] = [];
+  let allowed = true;
+  env.ROOM_REACTION_LIMIT = {
+    async limit({ key }) {
+      keys.push(key);
+      return { success: allowed };
+    },
+  };
+  const send = (token: string, roomCode = code) =>
+    actionPost(new Request('http://test/api/rooms/' + roomCode + '/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.7' },
+      body: JSON.stringify({ type: 'reaction', token, emoji: '💪' }),
+    }), { params: Promise.resolve({ roomCode }) });
+  await result(await send(tokens[0]));
+  allowed = false;
+  failReads = true; // A denied request must not reach D1, even for a new room/token.
+  for (const token of [tokens[0], tokens[1], crypto.randomUUID()]) {
+    const denied = await result(await send(token), 429);
+    assert.equal(denied.error, 'RATE_LIMITED');
+  }
+  assert.deepEqual(keys, Array(4).fill('203.0.113.7'));
+  failReads = false;
+  assert.equal((await read(code, tokens[1])).reaction?.emoji, '💪');
+});
+
+test('missing reaction limiter fails closed in D1 mode', async () => {
+  const host = await post({ action: 'create' }, 201);
+  delete globalThis.__DUBIPOLY_ENV__!.ROOM_REACTION_LIMIT;
+  const denied = await action(host.roomCode, {
+    type: 'reaction', token: host.token, emoji: '💪',
+  }, 503);
+  assert.equal(denied.error, 'STORAGE_UNAVAILABLE');
+  assert.equal((await read(host.roomCode, host.token)).reaction, null);
 });

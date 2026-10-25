@@ -3,7 +3,7 @@
 한국·페루 여행 테마의 2인용 모바일 웹 보드게임. 같은 기기에서 번갈아 플레이하거나, 서로 다른 기기에서 방을 만들어 함께 플레이할 수 있다. UI는 영어(최초 기본값)·한국어·스페인어를 지원한다.
 
 - **배포 대상:** https://dubipoly.ostrichick.workers.dev
-- **현재 검증 범위:** 로컬 자동 테스트 및 빌드 통과. 해당 URL에 최신 커밋이 정상 배포됐는지, 실제 운영 D1과 안드로이드 2대에서 정상 동작하는지는 별도로 확인해야 한다. 현황은 [`PROGRESS.md`](PROGRESS.md) 참고.
+- **현재 검증 범위:** 2026-10-25 운영 D1의 두 테이블 및 실제 2인 API 흐름을 확인했다. 최신 소스의 실제 배포 성공 여부는 [GitHub Actions](https://github.com/ostrichick/dubipoly/actions/workflows/deploy.yml)에서 해당 커밋으로 확인한다. 실제 안드로이드 2대 검증은 남아 있다. 현황은 [`PROGRESS.md`](PROGRESS.md) 참고.
 
 ## 로컬 실행
 
@@ -39,7 +39,7 @@ git diff --check
 
 1. GitHub Actions의 `CLOUDFLARE_D1_DATABASE_ID`가 **실제 운영 D1 UUID**인지 확인한다. `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`도 워크플로에 필요하다. 값·토큰을 문서나 로그에 기록하지 않는다.
 2. 운영 DB에 [`drizzle/0000_create_rooms.sql`](drizzle/0000_create_rooms.sql), [`drizzle/0001_room_presence.sql`](drizzle/0001_room_presence.sql)의 테이블이 적용됐는지 확인한다. **워크플로는 마이그레이션을 자동 실행하지 않는다.**
-3. 빌드 결과 `dist/server/wrangler.json`에 실제 D1의 `DB` 바인딩이 있는지 확인한다. 시험용 UUID 빌드를 재사용하지 않는다. 방 생성 제한용 `ROOM_CREATE_LIMIT`(Workers Rate Limiting) 바인딩은 `vite.config.ts`에 정의되어 있어 별도 비밀값이나 대시보드 설정이 필요 없다.
+3. 빌드 결과 `dist/server/wrangler.json`에 실제 D1의 `DB` 바인딩이 있는지 확인한다. 시험용 UUID 빌드를 재사용하지 않는다. 방 생성용 `ROOM_CREATE_LIMIT` 및 빠른 반응용 `ROOM_REACTION_LIMIT`(Workers Rate Limiting)은 `vite.config.ts`에 정의되어 있어 별도 비밀값이나 대시보드 설정이 필요 없다.
 4. 배포 완료 여부를 GitHub Actions에서 확인한 뒤, 운영 환경에서 방 생성·상태 복원과 안드로이드 기기 2대의 동시 플레이·재접속·재대전을 검증한다.
 
 ## 문서 안내 — 내용의 정본

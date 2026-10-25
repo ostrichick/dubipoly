@@ -159,6 +159,8 @@ export async function POST(request: Request) {
           if (body.action === 'rematch') {
             if (body.matchId !== (room.matchId ?? 'legacy'))
               return json({ error: 'STALE_MATCH' }, 409);
+            if (room.game?.phase !== 'finished')
+              return json({ error: 'GAME_NOT_FINISHED' }, 409);
             room.game = null;
             room.save = null;
             room.processed.clear();
